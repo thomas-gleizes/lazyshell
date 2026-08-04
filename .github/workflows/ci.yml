@@ -33,6 +33,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - uses: golangci/golangci-lint-action@v6
+      # v9 is the first major version defaulting to the golangci-lint v2 line,
+      # which our .golangci.yml targets. The version is pinned to the one used
+      # locally so CI and `make lint` cannot disagree.
+      - uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          version: v2.12.2
