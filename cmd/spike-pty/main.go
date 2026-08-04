@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	goerrors "github.com/go-errors/errors"
 	"github.com/jesseduffield/gocui"
 
+	"github.com/thomas-gleizes/lazyshell/pkg/ansi"
 	"github.com/thomas-gleizes/lazyshell/pkg/keys"
 )
 
@@ -35,6 +37,14 @@ const (
 	prefixKey = gocui.KeyCtrlB
 
 	reRenderInterval = 30 * time.Millisecond
+
+	// A gocui view keeps everything ever written to it, and the cost of a
+	// redraw grows linearly with that buffer: measured at 11ms for 12k lines
+	// and 49ms for 72k lines. Redrawing every 30ms, a chatty session (htop
+	// redrawing in place) saturates the main loop and the UI stops answering
+	// keypresses. Phase 2 replaces this with a proper ring buffer.
+	maxBufferLines  = 5000
+	keepBufferLines = 4000
 )
 
 type spike struct {
@@ -59,7 +69,10 @@ func main() {
 }
 
 func run() (err error) {
-	g, err := gocui.NewGui(gocui.NewGuiOpts{OutputMode: gocui.OutputNormal})
+	// OutputTrue is required, not cosmetic: in OutputNormal gocui only parses
+	// the 8-colour SGR forms and prints "[38;5;2m" as literal text, which is
+	// what any themed shell prompt emits.
+	g, err := gocui.NewGui(gocui.NewGuiOpts{OutputMode: gocui.OutputTrue})
 	if err != nil {
 		return fmt.Errorf("failed to initialise the terminal: %w", err)
 	}
@@ -123,7 +136,7 @@ func (s *spike) drain(cmd *exec.Cmd) {
 		return
 	}
 
-	_, _ = io.Copy(view, s.ptmx)
+	_, _ = io.Copy(ansi.NewWriter(view), s.ptmx)
 
 	// The pty reached EOF: the shell is gone (exit, Ctrl-D...).
 	_ = cmd.Wait()
@@ -246,10 +259,26 @@ func (s *spike) reRender() error {
 	}
 
 	if view.IsTainted() {
-		s.g.Update(func(*gocui.Gui) error { return nil })
+		// Trimming happens inside Update so it runs on the main loop, like
+		// every other mutation of gocui state.
+		s.g.Update(func(*gocui.Gui) error {
+			trim(view)
+
+			return nil
+		})
 	}
 
 	return nil
+}
+
+// trim caps the view buffer so the redraw cost stays bounded.
+func trim(view *gocui.View) {
+	if view.LinesHeight() <= maxBufferLines {
+		return
+	}
+
+	lines := view.BufferLines()
+	view.SetContent(strings.Join(lines[len(lines)-keepBufferLines:], "\n"))
 }
 
 func (s *spike) goEvery(interval time.Duration, fn func() error) {

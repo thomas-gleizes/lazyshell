@@ -11,20 +11,39 @@
 `lazyshell` doit au contraire faire cohabiter gocui et un pty interactif dans le même terminal, en
 permanence. Trois questions devaient être tranchées avant d'investir dans l'UI.
 
-## Décision 1 — Rendu ANSI : MVP « line-oriented » assumé
+## Décision 1 — Rendu ANSI : (a) + `OutputTrue` + filtrage (c)
 
-On retient l'option (a) de la roadmap : `io.Copy` du pty vers la `gocui.View`, sans émulateur de
-terminal.
+**Cette décision a été révisée après exécution du spike.** La version initiale retenait l'option (a)
+seule (`io.Copy` du pty vers la vue, sans filtrage). L'essai réel l'a invalidée : avec un prompt zsh
+thémé, l'écran est illisible **avant même** de lancer une application plein écran.
 
-Conséquence assumée et à documenter dans le README : les commandes qui écrivent en flux
-(`ls`, `git log`, un prompt coloré, la sortie d'un build) fonctionnent ; les applications plein
-écran (`vim`, `htop`, `less`) **ne sont pas supportées** avant la phase 6. gocui interprète un
-sous-ensemble de SGR (couleurs, gras) mais ignore le positionnement de curseur (`ESC[H`, `ESC[2J`)
-et l'alternate screen.
+Mesures faites sur gocui `v0.3.1-0.20260331125330`, en écrivant des séquences dans une vue headless
+et en relisant `View.Buffer()` :
 
-On n'ajoute **pas** de filtrage des séquences non supportées (option (c)) : cela masquerait le
-symptôme sans rapprocher de l'objectif, et le spike a justement besoin de montrer la corruption
-telle qu'elle est.
+| Séquence | `OutputNormal` | `Output256` | `OutputTrue` |
+|---|---|---|---|
+| `ESC[31m` (SGR 8 couleurs) | consommée | consommée | consommée |
+| `ESC[38;5;2m` (256 couleurs) | **affichée en clair** | consommée | consommée |
+| `ESC[38;2;r;g;bm` (truecolor) | **affichée en clair** | **affichée en clair** | consommée |
+| `ESC[K` (efface la ligne) | traitée | traitée | traitée |
+| `ESC]0;titre BEL` (OSC) | consommée | consommée | consommée |
+| `ESC[A`, `ESC[H`, `ESC[2J` | **affichées en clair** | idem | idem |
+| `ESC[?25l`, `ESC[?2004h`, `ESC[?1049h` | **affichées en clair** | idem | idem |
+| `ESC=` (keypad) | **affichée en clair** | idem | idem |
+
+Deux conséquences, toutes deux corrigées :
+
+1. **`OutputTrue` est obligatoire, pas cosmétique.** En `OutputNormal`, tout prompt thémé (p10k,
+   starship, oh-my-zsh) émet du SGR 256 couleurs et s'affiche en `[38;5;2;m` littéral. C'est la
+   majorité du bruit observé sur le spike.
+2. **Le filtrage (c) est nécessaire**, et non « du masquage de symptôme » comme écrit initialement :
+   gocui n'ignore pas les séquences qu'il ne comprend pas, il en **affiche le corps** (l'octet ESC
+   est mangé, le reste est imprimé). Sans filtre, un simple prompt produit `[?2004h`, `[?25l`, `[A`,
+   `[J` à l'écran. `pkg/ansi` ne laisse donc passer que SGR, `ESC[K` et OSC.
+
+Ce qui reste vrai : les applications plein écran (`vim`, `htop`, `less`) **ne sont pas supportées**
+avant la phase 6. Le filtrage les rend lisibles-mais-absurdes (les redessins en place deviennent des
+lignes empilées) au lieu d'illisibles. La dette reste entière, elle est seulement contenue.
 
 Contrainte de conception qui découle de ce choix et qui doit être respectée dès la phase 2 : une
 session expose **« l'état à afficher »**, pas « un flux d'octets ». Le jour où un émulateur
@@ -51,6 +70,29 @@ En pass-through, `Tab`, `Esc`, `q` et les flèches doivent partir au shell. Il f
 Convention : `Ctrl-B` deux fois envoie un `Ctrl-B` littéral au shell. Le préfixe sera remappable via
 la configuration en phase 5.
 
+## Décision 4 — Le tampon d'affichage doit être borné dès maintenant
+
+Découvert en lançant `htop` dans le spike : après en être sorti, l'application ne répondait plus au
+clavier. Ce n'était pas un problème de clavier mais de rendu.
+
+Une `gocui.View` conserve **tout** ce qui y a été écrit, et le coût d'un redraw croît linéairement
+avec ce tampon. Mesuré sur une vue 80×24 :
+
+| Lignes dans le tampon | Durée d'un redraw |
+|---|---|
+| 12 000 | 11 ms |
+| 36 000 | 25 ms |
+| 72 000 | 49 ms |
+
+Le tick de rendu est à 30 ms. Passé ~40 000 lignes, un redraw coûte plus cher que l'intervalle entre
+deux : la boucle principale sature et les touches ne sont plus traitées. Une application qui
+redessine en place en produit des dizaines de milliers en quelques minutes.
+
+Le spike plafonne donc le tampon (5 000 lignes, ramené à 4 000 à chaque dépassement). C'est une
+mesure provisoire : la phase 2 la remplace par le ring buffer prévu. Le point important est que
+**la borne du scrollback n'est pas une optimisation mémoire, c'est une condition de réactivité de
+l'UI** — la roadmap la présentait comme une simple protection contre la fuite mémoire.
+
 ## Traduction clavier
 
 gocui livre des événements **déjà décodés** (`Key` + rune), pas des octets bruts : il faut les
@@ -75,6 +117,10 @@ Deux pièges découverts pendant le spike, tous deux invisibles à la lecture de
 Automatisée, sans terminal — c'est ce qui rend la phase 1 rejouable en CI :
 
 - `pkg/keys` : table de traduction exhaustive, y compris les 23 `Ctrl-<lettre>`.
+- `pkg/ansi` : filtrage séquence par séquence, y compris un cas réel de prompt zsh, et un test qui
+  coupe le flux à **chaque** position possible (une séquence peut être scindée entre deux lectures
+  du pty).
+- `cmd/spike-pty` : plafonnement du tampon d'affichage.
 - `cmd/spike-pty/pty_test.go` : un vrai `/bin/sh` derrière un pty, piloté par les octets produits
   par `pkg/keys` — `echo` exécuté, `stty size` conforme à la taille du pty, redimensionnement
   propagé au shell en cours d'exécution, `Ctrl-C` qui interrompt le job au premier plan.
@@ -84,7 +130,11 @@ observer, à savoir le rendu.
 
 ## Conséquences
 
-- Le go/no-go technique est **go** : rien dans gocui n'empêche de piloter un pty interactif.
+- Le go/no-go technique est **go** : rien dans gocui n'empêche de piloter un pty interactif. Le
+  clavier, le resize et le cycle de vie fonctionnent ; c'est le rendu, et lui seul, qui est limité.
+- **La phase 6 est plus proche du chemin critique que ne le supposait la roadmap.** Le rendu
+  filtré est acceptable pour lire une sortie de commande, pas pour vivre dans un shell thémé.
+  L'arbitrage « MVP filtré vs. émulateur tout de suite » est à trancher avant la phase 3.
 - La phase 4 réutilise `pkg/keys` tel quel dans `pkg/gui/input.go`.
 - Le coût de la phase 6 est confirmé comme réel mais isolé : il porte sur le rendu, pas sur le
   clavier ni sur le cycle de vie des process.

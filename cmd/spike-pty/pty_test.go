@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/creack/pty"
+	goerrors "github.com/go-errors/errors"
 	"github.com/jesseduffield/gocui"
 
 	"github.com/thomas-gleizes/lazyshell/pkg/keys"
@@ -146,6 +148,44 @@ func TestPtyResizeReachesTheShell(t *testing.T) {
 	pressKey(t, ptmx, gocui.KeyEnter)
 
 	out.waitFor(t, "40 120")
+}
+
+// A gocui view grows forever and its redraw cost grows with it, so a chatty
+// session freezes the whole UI — that is how `htop` made the spike stop
+// answering keys. trim is what keeps the redraw bounded.
+func TestTrimCapsTheViewBuffer(t *testing.T) {
+	g, err := gocui.NewGui(gocui.NewGuiOpts{
+		OutputMode: gocui.OutputTrue,
+		Headless:   true,
+		Width:      80,
+		Height:     24,
+	})
+	if err != nil {
+		t.Fatalf("NewGui: %v", err)
+	}
+	t.Cleanup(g.Close)
+
+	view, err := g.SetView("v", 0, 0, 79, 23, 0)
+	if err != nil && !goerrors.Is(err, gocui.ErrUnknownView) {
+		t.Fatalf("SetView: %v", err)
+	}
+
+	for i := range maxBufferLines * 2 {
+		fmt.Fprintf(view, "ligne %d\n", i)
+	}
+
+	trim(view)
+
+	if got := view.LinesHeight(); got > maxBufferLines {
+		t.Errorf("LinesHeight after trim = %d, want <= %d", got, maxBufferLines)
+	}
+
+	// The tail is what matters: trimming must drop the oldest output, not the
+	// most recent.
+	lines := view.BufferLines()
+	if last := lines[len(lines)-1]; last != fmt.Sprintf("ligne %d", maxBufferLines*2-1) {
+		t.Errorf("last line = %q, want the most recent one", last)
+	}
 }
 
 // Ctrl-C must interrupt the foreground job rather than reach lazyshell.
