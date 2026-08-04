@@ -3,6 +3,7 @@ package keys
 import (
 	"testing"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/jesseduffield/gocui"
 )
 
@@ -104,5 +105,72 @@ func TestTranslateAllControlLetters(t *testing.T) {
 		if got[0] != want {
 			t.Errorf("Translate(%d) = %#x, want %#x", key, got[0], want)
 		}
+	}
+}
+
+// The same Ctrl-B keypress arrives in different shapes depending on the
+// terminal's keyboard protocol. All of them must fold onto KeyCtrlB, otherwise
+// the escape prefix is indistinguishable from typing a plain letter.
+func TestNormalizeCtrlShapes(t *testing.T) {
+	const modCtrl = gocui.Modifier(tcell.ModCtrl)
+
+	tests := []struct {
+		name string
+		key  gocui.Key
+		ch   rune
+		mod  gocui.Modifier
+	}{
+		{name: "forme gocui", key: gocui.KeyCtrlB},
+		{name: "rune minuscule + ModCtrl", ch: 'b', mod: modCtrl},
+		{name: "rune majuscule + ModCtrl", ch: 'B', mod: modCtrl},
+		{name: "ModCtrl combiné", ch: 'b', mod: modCtrl | gocui.ModAlt},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key, ch, mod := Normalize(tt.key, tt.ch, tt.mod)
+
+			if key != gocui.KeyCtrlB {
+				t.Errorf("key = %d, want %d", key, gocui.KeyCtrlB)
+			}
+
+			if ch != 0 {
+				t.Errorf("ch = %q, want 0", ch)
+			}
+
+			if mod&modCtrl != 0 {
+				t.Errorf("mod = %d, ModCtrl should have been consumed", mod)
+			}
+		})
+	}
+}
+
+// A plain letter must not be mistaken for a control combination.
+func TestNormalizeLeavesPlainRunesAlone(t *testing.T) {
+	key, ch, mod := Normalize(0, 'b', gocui.ModNone)
+
+	if key != 0 || ch != 'b' || mod != gocui.ModNone {
+		t.Errorf("Normalize(0, 'b', 0) = (%d, %q, %d), want (0, 'b', 0)", key, ch, mod)
+	}
+}
+
+// Ctrl-B in any shape must still encode to the same byte.
+func TestTranslateCtrlShapes(t *testing.T) {
+	const modCtrl = gocui.Modifier(tcell.ModCtrl)
+
+	for _, tt := range []struct {
+		name string
+		key  gocui.Key
+		ch   rune
+		mod  gocui.Modifier
+	}{
+		{name: "forme gocui", key: gocui.KeyCtrlB},
+		{name: "rune + ModCtrl", ch: 'b', mod: modCtrl},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Translate(tt.key, tt.ch, tt.mod); string(got) != "\x02" {
+				t.Errorf("Translate = %q, want %q", got, "\x02")
+			}
+		})
 	}
 }

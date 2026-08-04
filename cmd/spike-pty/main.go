@@ -226,7 +226,12 @@ func (s *spike) resize(view *gocui.View) error {
 // edit receives every keypress of the focused view and forwards it to the
 // shell, except the escape prefix and the key that follows it.
 func (s *spike) edit(_ *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) bool {
-	s.lastEvent = fmt.Sprintf("key=%d ch=%q mod=%d", key, ch, mod)
+	raw := fmt.Sprintf("key=%d ch=%q mod=%d", key, ch, mod)
+
+	// The same keypress reaches us in different shapes depending on the
+	// terminal; compare on the normalised form, never on the raw one.
+	key, ch, mod = keys.Normalize(key, ch, mod)
+	s.lastEvent = fmt.Sprintf("%s -> key=%d ch=%q mod=%d", raw, key, ch, mod)
 
 	if s.prefixPending {
 		s.prefixPending = false
@@ -242,7 +247,9 @@ func (s *spike) edit(_ *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) 
 		return true
 	}
 
-	if key == s.prefixKey && mod == gocui.ModNone {
+	// Deliberately not requiring mod == ModNone: a terminal that reports an
+	// extra modifier alongside Ctrl would otherwise leave no way out.
+	if key == s.prefixKey {
 		s.prefixPending = true
 
 		return true

@@ -9,10 +9,18 @@
 package keys
 
 import (
+	"unicode"
 	"unicode/utf8"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/jesseduffield/gocui"
 )
+
+// modCtrl is tcell's control modifier seen through gocui's alias. gocui
+// normally clears it before handing the event over, but only when it is the
+// *only* modifier set: a terminal reporting Ctrl together with anything else
+// leaves it in place.
+const modCtrl = gocui.Modifier(tcell.ModCtrl)
 
 const esc = 0x1b
 
@@ -56,12 +64,35 @@ var specialKeys = map[gocui.Key]string{
 	gocui.KeyF12: "\x1b[24~",
 }
 
+// Normalize folds the several shapes a Ctrl-<letter> event can take into the
+// single one the rest of the code expects: Key = gocui.KeyCtrl<X>, no rune, no
+// control modifier.
+//
+// This is not defensive programming, it is required: depending on the terminal
+// and on which keyboard protocol it uses, the same Ctrl-B keypress reaches us
+// either as KeyCtrlB with no modifier, or as the rune 'b' with ModCtrl set —
+// and in the second shape it is indistinguishable from typing a plain "b".
+func Normalize(key gocui.Key, ch rune, mod gocui.Modifier) (gocui.Key, rune, gocui.Modifier) {
+	if mod&modCtrl == 0 {
+		return key, ch, mod
+	}
+
+	lower := unicode.ToLower(ch)
+	if lower >= 'a' && lower <= 'z' {
+		return gocui.KeyCtrlA + gocui.Key(lower-'a'), 0, mod &^ modCtrl
+	}
+
+	return key, ch, mod &^ modCtrl
+}
+
 // Translate encodes a gocui key event as the bytes to write to a pty. It
 // returns nil when the event has no meaningful encoding (mouse events, unknown
 // keys), in which case the caller should drop it.
 //
 // ModAlt is encoded the way terminals do it: an ESC prefix before the sequence.
 func Translate(key gocui.Key, ch rune, mod gocui.Modifier) []byte {
+	key, ch, mod = Normalize(key, ch, mod)
+
 	out := encode(key, ch)
 	if out == nil {
 		return nil
