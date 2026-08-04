@@ -1,0 +1,13 @@
+# Binaries
+/lazyshell
+/bin/
+/dist/
+
+# Test artifacts
+*.test
+coverage.out
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
