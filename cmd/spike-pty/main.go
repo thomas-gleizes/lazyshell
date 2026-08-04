@@ -32,9 +32,11 @@ import (
 const (
 	viewName = "session"
 
-	// prefixKey is the tmux-style escape prefix. Every other key goes to the
-	// shell, so this is the only way back to lazyshell itself.
-	prefixKey = gocui.KeyCtrlB
+	// defaultPrefixKey is the tmux-style escape prefix. Every other key goes to
+	// the shell, so this is the only way back to lazyshell itself. It is
+	// overridable through LAZYSHELL_PREFIX, because a terminal multiplexer
+	// running above us may well eat Ctrl-B before we ever see it.
+	defaultPrefixKey = gocui.KeyCtrlB
 
 	reRenderInterval = 30 * time.Millisecond
 
@@ -51,8 +53,19 @@ type spike struct {
 	g    *gocui.Gui
 	ptmx *os.File
 
+	// prefixKey is the escape prefix in force, see defaultPrefixKey.
+	prefixKey gocui.Key
+
 	// prefixPending is true between the prefix key and the key it qualifies.
 	prefixPending bool
+
+	// quitRequested records that the escape sequence fired, so the behaviour
+	// is observable without running a main loop.
+	quitRequested bool
+
+	// lastEvent describes the last key event received, shown in the view
+	// subtitle: the spike exists to find out what the terminal actually sends.
+	lastEvent string
 
 	// lastRows/lastCols avoid sending a SIGWINCH to the shell on every single
 	// redraw: layout runs dozens of times per second.
@@ -90,7 +103,7 @@ func run() (err error) {
 	g.Mouse = false
 	g.InputEsc = true
 
-	s := &spike{g: g}
+	s := &spike{g: g, prefixKey: prefixFromEnv()}
 
 	cmd := exec.Command(shell())
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
@@ -169,7 +182,7 @@ func (s *spike) layout(g *gocui.Gui) error {
 			return err
 		}
 
-		view.Title = " spike-pty — Ctrl-B q pour quitter "
+		view.Title = fmt.Sprintf(" spike-pty — %s puis q pour quitter ", prefixName(s.prefixKey))
 		view.Wrap = true
 		view.Autoscroll = true
 		view.Editable = true
@@ -213,13 +226,15 @@ func (s *spike) resize(view *gocui.View) error {
 // edit receives every keypress of the focused view and forwards it to the
 // shell, except the escape prefix and the key that follows it.
 func (s *spike) edit(_ *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) bool {
+	s.lastEvent = fmt.Sprintf("key=%d ch=%q mod=%d", key, ch, mod)
+
 	if s.prefixPending {
 		s.prefixPending = false
 
 		switch {
 		case ch == 'q':
 			s.quit()
-		case key == prefixKey:
+		case key == s.prefixKey:
 			// Doubled prefix: send it literally.
 			s.write(keys.Translate(key, ch, mod))
 		}
@@ -227,7 +242,7 @@ func (s *spike) edit(_ *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) 
 		return true
 	}
 
-	if key == prefixKey && mod == gocui.ModNone {
+	if key == s.prefixKey && mod == gocui.ModNone {
 		s.prefixPending = true
 
 		return true
@@ -247,6 +262,8 @@ func (s *spike) write(b []byte) {
 }
 
 func (s *spike) quit() {
+	s.quitRequested = true
+
 	s.g.Update(func(*gocui.Gui) error { return gocui.ErrQuit })
 }
 
@@ -257,6 +274,12 @@ func (s *spike) reRender() error {
 	if err != nil {
 		return nil
 	}
+
+	s.g.Update(func(*gocui.Gui) error {
+		s.updateSubtitle(view)
+
+		return nil
+	})
 
 	if view.IsTainted() {
 		// Trimming happens inside Update so it runs on the main loop, like
@@ -269,6 +292,47 @@ func (s *spike) reRender() error {
 	}
 
 	return nil
+}
+
+// updateSubtitle shows the last key event and whether the prefix is armed.
+// Without it there is no way to tell "the key never arrived" from "the key
+// arrived and was mishandled".
+func (s *spike) updateSubtitle(view *gocui.View) {
+	state := ""
+	if s.prefixPending {
+		state = " [PREFIXE ARME]"
+	}
+
+	view.Subtitle = fmt.Sprintf(" %s%s ", s.lastEvent, state)
+}
+
+// prefixFromEnv reads LAZYSHELL_PREFIX, in gocui's keybinding syntax:
+// "Ctrl+A", "Ctrl+G", "Ctrl+Space"... An unparseable value falls back to the
+// default rather than leaving the user with no way out.
+func prefixFromEnv() gocui.Key {
+	name := os.Getenv("LAZYSHELL_PREFIX")
+	if name == "" {
+		return defaultPrefixKey
+	}
+
+	key, _, err := gocui.Parse(name)
+	if err != nil {
+		return defaultPrefixKey
+	}
+
+	if k, ok := key.(gocui.Key); ok {
+		return k
+	}
+
+	return defaultPrefixKey
+}
+
+func prefixName(key gocui.Key) string {
+	if key >= gocui.KeyCtrlA && key <= gocui.KeyCtrlZ {
+		return fmt.Sprintf("Ctrl-%c", 'A'+(key-gocui.KeyCtrlA))
+	}
+
+	return fmt.Sprintf("touche %d", key)
 }
 
 // trim caps the view buffer so the redraw cost stays bounded.
