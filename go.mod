@@ -3,6 +3,7 @@ module github.com/thomas-gleizes/lazyshell
 go 1.25
 
 require (
+	github.com/creack/pty v1.1.24
 	github.com/go-errors/errors v1.0.2
 	github.com/jesseduffield/gocui v0.3.1-0.20260331125330-c81715e95462
 )
