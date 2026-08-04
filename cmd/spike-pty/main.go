@@ -17,7 +17,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime/debug"
-	"strings"
 	"sync"
 	"time"
 
@@ -25,8 +24,8 @@ import (
 	goerrors "github.com/go-errors/errors"
 	"github.com/jesseduffield/gocui"
 
-	"github.com/thomas-gleizes/lazyshell/pkg/ansi"
 	"github.com/thomas-gleizes/lazyshell/pkg/keys"
+	"github.com/thomas-gleizes/lazyshell/pkg/screen"
 )
 
 const (
@@ -39,19 +38,16 @@ const (
 	defaultPrefixKey = gocui.KeyCtrlB
 
 	reRenderInterval = 30 * time.Millisecond
-
-	// A gocui view keeps everything ever written to it, and the cost of a
-	// redraw grows linearly with that buffer: measured at 11ms for 12k lines
-	// and 49ms for 72k lines. Redrawing every 30ms, a chatty session (htop
-	// redrawing in place) saturates the main loop and the UI stops answering
-	// keypresses. Phase 2 replaces this with a proper ring buffer.
-	maxBufferLines  = 5000
-	keepBufferLines = 4000
 )
 
 type spike struct {
 	g    *gocui.Gui
 	ptmx *os.File
+
+	// term emulates the terminal: the pty writes into it, the render loop
+	// displays the screen it computes. Its size bounds the redraw cost, which
+	// used to grow with the amount of output until the UI froze.
+	term *screen.Screen
 
 	// prefixKey is the escape prefix in force, see defaultPrefixKey.
 	prefixKey gocui.Key
@@ -103,7 +99,9 @@ func run() (err error) {
 	g.Mouse = false
 	g.InputEsc = true
 
-	s := &spike{g: g, prefixKey: prefixFromEnv()}
+	// The emulator is resized on the first layout pass; start at the usual
+	// default so it is never zero-sized.
+	s := &spike{g: g, prefixKey: prefixFromEnv(), term: screen.New(80, 24)}
 
 	cmd := exec.Command(shell())
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
@@ -141,33 +139,20 @@ func shell() string {
 	return "/bin/bash"
 }
 
-// drain copies the pty output into the view. gocui.View.Write is thread-safe,
-// so no g.Update is needed here; the redraw is triggered by the ticker.
+// drain feeds the pty output into the emulator, and the emulator's answers
+// back into the pty. The view is never written to directly any more: it is
+// redrawn from the emulated screen.
 func (s *spike) drain(cmd *exec.Cmd) {
-	view, err := s.waitForView()
-	if err != nil {
-		return
-	}
+	// Terminal capability queries are answered by the emulator. Without this,
+	// a shell that asks a question waits for a reply that never comes, and the
+	// stray bytes end up on screen instead.
+	go func() { _, _ = io.Copy(s.ptmx, s.term) }()
 
-	_, _ = io.Copy(ansi.NewWriter(view), s.ptmx)
+	_, _ = io.Copy(s.term, s.ptmx)
 
 	// The pty reached EOF: the shell is gone (exit, Ctrl-D...).
 	_ = cmd.Wait()
 	s.quit()
-}
-
-// waitForView polls until the layout has created the view, which happens on the
-// first redraw — the drain goroutine starts before that.
-func (s *spike) waitForView() (*gocui.View, error) {
-	for range 100 {
-		if view, err := s.g.View(viewName); err == nil {
-			return view, nil
-		}
-
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	return nil, fmt.Errorf("view %q never appeared", viewName)
 }
 
 func (s *spike) layout(g *gocui.Gui) error {
@@ -183,8 +168,10 @@ func (s *spike) layout(g *gocui.Gui) error {
 		}
 
 		view.Title = fmt.Sprintf(" spike-pty — %s puis q pour quitter ", prefixName(s.prefixKey))
-		view.Wrap = true
-		view.Autoscroll = true
+		// The view mirrors a fixed-size emulated screen: no wrapping, no
+		// autoscroll — the emulator already decided what is on screen.
+		view.Wrap = false
+		view.Autoscroll = false
 		view.Editable = true
 		view.Editor = gocui.EditorFunc(s.edit)
 
@@ -218,6 +205,7 @@ func (s *spike) resize(view *gocui.View) error {
 		return fmt.Errorf("pty.Setsize: %w", err)
 	}
 
+	s.term.Resize(cols, rows)
 	s.lastCols, s.lastRows = cols, rows
 
 	return nil
@@ -274,29 +262,23 @@ func (s *spike) quit() {
 	s.g.Update(func(*gocui.Gui) error { return gocui.ErrQuit })
 }
 
-// reRender pushes the view to the screen when the drain goroutine has written
-// to it. Writing to a view only marks it tainted; the redraw is on us.
+// reRender copies the emulated screen into the view. Unlike the previous
+// append-only approach, it replaces the content wholesale, so whatever the
+// shell redraws in place lands where it belongs.
 func (s *spike) reRender() error {
 	view, err := s.g.View(viewName)
 	if err != nil {
 		return nil
 	}
 
+	content := s.term.Render()
+
 	s.g.Update(func(*gocui.Gui) error {
+		view.SetContent(content)
 		s.updateSubtitle(view)
 
 		return nil
 	})
-
-	if view.IsTainted() {
-		// Trimming happens inside Update so it runs on the main loop, like
-		// every other mutation of gocui state.
-		s.g.Update(func(*gocui.Gui) error {
-			trim(view)
-
-			return nil
-		})
-	}
 
 	return nil
 }
@@ -308,6 +290,10 @@ func (s *spike) updateSubtitle(view *gocui.View) {
 	state := ""
 	if s.prefixPending {
 		state = " [PREFIXE ARME]"
+	}
+
+	if s.term.IsAltScreen() {
+		state += " [ALT-SCREEN]"
 	}
 
 	view.Subtitle = fmt.Sprintf(" %s%s ", s.lastEvent, state)
@@ -340,16 +326,6 @@ func prefixName(key gocui.Key) string {
 	}
 
 	return fmt.Sprintf("touche %d", key)
-}
-
-// trim caps the view buffer so the redraw cost stays bounded.
-func trim(view *gocui.View) {
-	if view.LinesHeight() <= maxBufferLines {
-		return
-	}
-
-	lines := view.BufferLines()
-	view.SetContent(strings.Join(lines[len(lines)-keepBufferLines:], "\n"))
 }
 
 func (s *spike) goEvery(interval time.Duration, fn func() error) {

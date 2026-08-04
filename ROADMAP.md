@@ -16,6 +16,9 @@ disputent le terminal) est attaqué en phase 1, pas en phase 4.
 - `go mod init github.com/<user>/lazyshell` (Go 1.22+).
 - Dépendances initiales : `github.com/jesseduffield/gocui`,
   `github.com/jesseduffield/lazycore/pkg/boxlayout`, `github.com/creack/pty`, `gopkg.in/yaml.v3`.
+  (Réalisé : gocui n'est disponible qu'en pseudo-version `master`, qui **exige Go 1.25** — le
+  plancher « Go 1.22+ » ci-dessus est inatteignable. Les autres dépendances sont ajoutées à la
+  phase qui les utilise, `go mod tidy` supprimant toute dépendance non importée.)
 - Arborescence minimale : `cmd/lazyshell/main.go`, `pkg/app`, `pkg/gui`, `pkg/session`, `pkg/tasks`.
 - `pkg/app` : bootstrap (construit le `SessionManager`, construit le `Gui`, appelle `gui.Run()`).
 - `pkg/gui/gui.go` : `gocui.NewGui`, `SetManager`, `MainLoop`, binding `q` / `Ctrl-C` → `ErrQuit`,
@@ -75,6 +78,11 @@ ailleurs.
 
 ---
 
+> **Mise à jour après la phase 1** : l'émulateur de terminal (ex-phase 6) a été avancé ici, avant
+> la phase 3 — voir `docs/adr/0001-rendu-ansi-et-clavier.md`. Conséquences sur ce qui suit : le
+> scrollback est fourni par `pkg/screen` (émulateur) et non par un ring buffer maison ; `pkg/ansi`
+> n'existe plus ; la phase 6 se réduit à l'intégration multi-panneaux et aux cas limites.
+
 ## Phase 2 — Modèle de session
 
 **But** : `pkg/session` autonome, testable sans TUI.
@@ -105,8 +113,9 @@ Points clés :
 - **Une goroutine de drain par session**, lancée à la création, vivante tant que le process tourne,
   **indépendante du `TaskManager`** : elle lit le pty en continu vers le scrollback. C'est ce qui
   garantit qu'aucune sortie n'est perdue pendant qu'une session n'est pas affichée.
-- **Scrollback borné** (ring buffer, ex. 10 000 lignes ou 1 Mo par session) — un `bytes.Buffer` non
-  borné est une fuite mémoire garantie sur une session bavarde.
+- **Scrollback borné** — fourni par `pkg/screen` (l'émulateur en tient 10 000 lignes par défaut),
+  plus de ring buffer à écrire. Ce n'est pas qu'une protection mémoire : le coût d'un redraw croît
+  avec le tampon affiché, au point de figer l'UI (mesures dans l'ADR 0001).
 - **Reaping** : `cmd.Wait()` dans la goroutine de drain → passage en `Exited` + code de sortie, sans
   laisser de zombie.
 - **Kill propre** : `SIGHUP`/`SIGTERM` au *process group* (`syscall.Kill(-pgid, …)`, shell lancé avec

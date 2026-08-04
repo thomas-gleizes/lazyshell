@@ -1,6 +1,6 @@
 # ADR 0001 — Stratégie de rendu ANSI et traduction clavier
 
-- **Statut** : accepté pour les phases 1 à 5, à revisiter en phase 6.
+- **Statut** : accepté. Décision 1 révisée deux fois après essais réels (voir son historique).
 - **Date** : 2026-08-04
 - **Contexte** : phase 1 de `ROADMAP.md` (spike pty), point go/no-go du projet.
 
@@ -11,44 +11,70 @@
 `lazyshell` doit au contraire faire cohabiter gocui et un pty interactif dans le même terminal, en
 permanence. Trois questions devaient être tranchées avant d'investir dans l'UI.
 
-## Décision 1 — Rendu ANSI : (a) + `OutputTrue` + filtrage (c)
+## Décision 1 — Émulateur de terminal, dès maintenant
 
-**Cette décision a été révisée après exécution du spike.** La version initiale retenait l'option (a)
-seule (`io.Copy` du pty vers la vue, sans filtrage). L'essai réel l'a invalidée : avec un prompt zsh
-thémé, l'écran est illisible **avant même** de lancer une application plein écran.
+**Révisée deux fois, à chaque fois par l'essai réel.** La version initiale retenait l'option (a) de
+la roadmap (`io.Copy` du pty vers la vue). La deuxième ajoutait `OutputTrue` et un filtrage des
+séquences non rendues (option (c)). Les deux sont abandonnées : on adopte l'option (b), un
+véritable émulateur de terminal (`github.com/charmbracelet/x/vt`), **avant** la phase 3 et non en
+phase 6.
 
-Mesures faites sur gocui `v0.3.1-0.20260331125330`, en écrivant des séquences dans une vue headless
-et en relisant `View.Buffer()` :
+### Ce que les mesures ont établi
+
+D'abord, le mode de sortie de gocui n'est pas cosmétique. Séquences écrites dans une vue headless,
+relues via `View.Buffer()` :
 
 | Séquence | `OutputNormal` | `Output256` | `OutputTrue` |
 |---|---|---|---|
 | `ESC[31m` (SGR 8 couleurs) | consommée | consommée | consommée |
 | `ESC[38;5;2m` (256 couleurs) | **affichée en clair** | consommée | consommée |
 | `ESC[38;2;r;g;bm` (truecolor) | **affichée en clair** | **affichée en clair** | consommée |
-| `ESC[K` (efface la ligne) | traitée | traitée | traitée |
+| `ESC[K` | traitée | traitée | traitée |
 | `ESC]0;titre BEL` (OSC) | consommée | consommée | consommée |
 | `ESC[A`, `ESC[H`, `ESC[2J` | **affichées en clair** | idem | idem |
 | `ESC[?25l`, `ESC[?2004h`, `ESC[?1049h` | **affichées en clair** | idem | idem |
-| `ESC=` (keypad) | **affichée en clair** | idem | idem |
 
-Deux conséquences, toutes deux corrigées :
+Point clé : gocui n'ignore pas les séquences qu'il ne comprend pas, **il en affiche le corps**
+(l'octet ESC est mangé, le reste est imprimé). D'où `[?2004h` et `[A` visibles à l'écran.
 
-1. **`OutputTrue` est obligatoire, pas cosmétique.** En `OutputNormal`, tout prompt thémé (p10k,
-   starship, oh-my-zsh) émet du SGR 256 couleurs et s'affiche en `[38;5;2;m` littéral. C'est la
-   majorité du bruit observé sur le spike.
-2. **Le filtrage (c) est nécessaire**, et non « du masquage de symptôme » comme écrit initialement :
-   gocui n'ignore pas les séquences qu'il ne comprend pas, il en **affiche le corps** (l'octet ESC
-   est mangé, le reste est imprimé). Sans filtre, un simple prompt produit `[?2004h`, `[?25l`, `[A`,
-   `[J` à l'écran. `pkg/ansi` ne laisse donc passer que SGR, `ESC[K` et OSC.
+`OutputTrue` + filtrage supprimait ce bruit, mais laissait un défaut rédhibitoire : **le contenu
+lui-même était faux**. Un prompt thémé se redessine sur place. Mesuré au seul démarrage d'un zsh
+avec thème : **5 `ESC[A`, 4 `ESC[J`, 5 `ESC[K`, 16 `CR`** avant que l'utilisateur ne tape quoi que
+ce soit. Le prompt est dessiné quatre fois, chaque version devant écraser la précédente. Un modèle
+qui ne sait qu'*ajouter* du texte empile les quatre. « Remonter d'une ligne et réécrire » est
+intraduisible sans grille de cellules.
 
-Ce qui reste vrai : les applications plein écran (`vim`, `htop`, `less`) **ne sont pas supportées**
-avant la phase 6. Le filtrage les rend lisibles-mais-absurdes (les redessins en place deviennent des
-lignes empilées) au lieu d'illisibles. La dette reste entière, elle est seulement contenue.
+### La décision
 
-Contrainte de conception qui découle de ce choix et qui doit être respectée dès la phase 2 : une
-session expose **« l'état à afficher »**, pas « un flux d'octets ». Le jour où un émulateur
-(`vt10x`, `charmbracelet/x/vt`) alimentera une grille de cellules, seul l'intérieur de la session
-change, pas le code d'affichage.
+Le pty alimente un émulateur (`pkg/screen`), et la vue affiche l'écran que celui-ci calcule
+(`Render()` produit l'écran complet avec les SGR, que gocui sait rendre en `OutputTrue`).
+
+Conséquences, toutes vérifiées par des tests :
+
+- Les redessins en place écrasent correctement : un prompt, pas quatre.
+- **Le coût d'un redraw devient borné par la géométrie** (lignes × colonnes) au lieu de croître avec
+  le volume de sortie. Cela règle du même coup le gel de l'UI décrit en décision 4.
+- Le scrollback est fourni par l'émulateur (10 000 lignes par défaut), ce qui recouvre le ring
+  buffer prévu en phase 2.
+- L'émulateur **répond aux requêtes de capacités** du terminal (`Read()` renvoie ces réponses, à
+  réinjecter dans le pty). Sans cela, le shell attend une réponse qui ne vient pas et les octets
+  parasites finissent affichés.
+- `IsAltScreen()` distingue « sortie de shell » de « vim a la main », information dont l'UI aura
+  besoin en phase 4.
+- `vim`, `htop` et `less` deviennent possibles — ce qui était l'objet de la phase 6.
+
+`pkg/ansi` (le filtre) est supprimé : l'émulateur le remplace intégralement.
+
+### Ce que ça coûte
+
+`charmbracelet/x/vt` est un module **non versionné** (pseudo-version, API non stabilisée). C'est le
+risque assumé du choix ; l'alternative `hinshun/vt10x` est plus simple mais non maintenue depuis
+2022 et sans scrollback ni gestion des réponses. `pkg/screen` existe précisément pour que ce choix
+reste remplaçable derrière une interface réduite (Write, Read, Render, Resize).
+
+Reste ouvert pour la phase 3 : `gocui.View` reçoit une chaîne rendue à chaque frame, ce qui
+fonctionne mais n'est pas un rendu cellule par cellule. Si le coût s'avère trop élevé avec plusieurs
+panneaux, la question « descendre vers tcell pour le panneau output » se reposera.
 
 ## Décision 2 — gocui garde le terminal en permanence
 
@@ -88,10 +114,11 @@ Le tick de rendu est à 30 ms. Passé ~40 000 lignes, un redraw coûte plus cher
 deux : la boucle principale sature et les touches ne sont plus traitées. Une application qui
 redessine en place en produit des dizaines de milliers en quelques minutes.
 
-Le spike plafonne donc le tampon (5 000 lignes, ramené à 4 000 à chaque dépassement). C'est une
-mesure provisoire : la phase 2 la remplace par le ring buffer prévu. Le point important est que
-**la borne du scrollback n'est pas une optimisation mémoire, c'est une condition de réactivité de
-l'UI** — la roadmap la présentait comme une simple protection contre la fuite mémoire.
+Le plafonnement du tampon a d'abord été fait à la main (5 000 lignes). Il est devenu inutile avec
+l'émulateur : la vue affiche un écran de taille fixe, donc le coût d'un redraw ne dépend plus du
+volume de sortie. Le point important reste : **la borne du scrollback n'est pas une optimisation
+mémoire, c'est une condition de réactivité de l'UI** — la roadmap la présentait comme une simple
+protection contre la fuite mémoire.
 
 ## Traduction clavier
 
@@ -111,16 +138,21 @@ Deux pièges découverts pendant le spike, tous deux invisibles à la lecture de
    acceptable tant que `g.Mouse = false` ; **activer la souris (point ouvert n°3 de la roadmap)
    impose de renoncer aux Shift-flèches**, ou de descendre sous gocui pour lire l'événement tcell.
    Un test (`TestShiftArrowsCollideWithMouseButtons`) échouera si un bump de gocui change cela.
+3. **Le même `Ctrl-<lettre>` arrive sous plusieurs formes.** Selon le terminal et le protocole
+   clavier qu'il utilise, `Ctrl-B` parvient soit comme `KeyCtrlB` sans modificateur, soit comme la
+   rune `'b'` avec `ModCtrl` — et sous cette seconde forme il est **indistinguable d'un `b` tapé
+   normalement**, ce qui a rendu le préfixe d'échappement inopérant. `keys.Normalize` replie toutes
+   ces formes sur `KeyCtrlX` ; toute comparaison de touche doit se faire sur la forme normalisée.
+   Corollaire : ne jamais exiger `mod == ModNone` pour la touche qui est la seule sortie de
+   l'application.
 
 ## Vérification
 
 Automatisée, sans terminal — c'est ce qui rend la phase 1 rejouable en CI :
 
 - `pkg/keys` : table de traduction exhaustive, y compris les 23 `Ctrl-<lettre>`.
-- `pkg/ansi` : filtrage séquence par séquence, y compris un cas réel de prompt zsh, et un test qui
-  coupe le flux à **chaque** position possible (une séquence peut être scindée entre deux lectures
-  du pty).
-- `cmd/spike-pty` : plafonnement du tampon d'affichage.
+- `pkg/screen` : redessin en place qui écrase, effacement d'écran, couleurs préservées, taille du
+  rendu bornée quel que soit le volume écrit, détection de l'alternate screen.
 - `cmd/spike-pty/pty_test.go` : un vrai `/bin/sh` derrière un pty, piloté par les octets produits
   par `pkg/keys` — `echo` exécuté, `stty size` conforme à la taille du pty, redimensionnement
   propagé au shell en cours d'exécution, `Ctrl-C` qui interrompt le job au premier plan.
@@ -132,9 +164,10 @@ observer, à savoir le rendu.
 
 - Le go/no-go technique est **go** : rien dans gocui n'empêche de piloter un pty interactif. Le
   clavier, le resize et le cycle de vie fonctionnent ; c'est le rendu, et lui seul, qui est limité.
-- **La phase 6 est plus proche du chemin critique que ne le supposait la roadmap.** Le rendu
-  filtré est acceptable pour lire une sortie de commande, pas pour vivre dans un shell thémé.
-  L'arbitrage « MVP filtré vs. émulateur tout de suite » est à trancher avant la phase 3.
+- **La phase 6 a été avancée avant la phase 3** : le rendu filtré était acceptable pour lire une
+  sortie de commande, pas pour vivre dans un shell thémé. Construire l'UI sur un modèle
+  d'affichage voué à être remplacé revenait à la construire deux fois.
+- La phase 2 est allégée : le scrollback vient de l'émulateur.
 - La phase 4 réutilise `pkg/keys` tel quel dans `pkg/gui/input.go`.
 - Le coût de la phase 6 est confirmé comme réel mais isolé : il porte sur le rendu, pas sur le
   clavier ni sur le cycle de vie des process.
