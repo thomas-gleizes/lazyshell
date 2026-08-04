@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
 	"github.com/jesseduffield/gocui"
 )
 
@@ -66,7 +67,7 @@ func (gui *Gui) Run() (err error) {
 
 	gui.goEvery(reRenderInterval, gui.reRenderMain)
 
-	if err := g.MainLoop(); err != nil && err != gocui.ErrQuit {
+	if err := g.MainLoop(); err != nil && !goerrors.Is(err, gocui.ErrQuit) {
 		return err
 	}
 
@@ -84,7 +85,10 @@ func (gui *Gui) layout(g *gocui.Gui) error {
 
 	view, err := g.SetView(mainViewName, 0, 0, maxX-1, maxY-1, 0)
 	if err != nil {
-		if err != gocui.ErrUnknownView {
+		// gocui wraps its sentinel errors with go-errors, whose Error type has
+		// no Unwrap method: neither == nor the standard errors.Is can see
+		// through the wrapper, hence go-errors' own Is (what lazygit does).
+		if !goerrors.Is(err, gocui.ErrUnknownView) {
 			return err
 		}
 
