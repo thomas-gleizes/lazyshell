@@ -9,29 +9,49 @@ import (
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/jesseduffield/gocui"
+
+	"github.com/thomas-gleizes/lazyshell/pkg/session"
+	"github.com/thomas-gleizes/lazyshell/pkg/tasks"
 )
 
-// mainViewName is the single view of phase 0. It is replaced by the
-// sessions/output split in phase 3.
-const mainViewName = "main"
-
-// reRenderInterval is the rate at which we check whether a view has been
-// written to and needs to be pushed to the screen. Same value as lazydocker.
+// reRenderInterval is the rate at which the sessions panel is refreshed
+// (session statuses change asynchronously in the background) and at which a
+// selected session's output is re-rendered. Same value as lazydocker.
 const reRenderInterval = 30 * time.Millisecond
+
+// statusHint is shown in the status bar as long as there is no error to
+// report.
+const statusHint = " n: nouvelle session   x/d: tuer   j/k: naviguer   Tab: changer de focus   q: quitter "
 
 // Gui holds the gocui instance and the state of the interface.
 type Gui struct {
 	g *gocui.Gui
+
+	sessions    *session.Manager
+	outputTasks *tasks.Manager
+	focus       *focusManager
+
+	// selectedIndex is the currently highlighted line in the sessions panel.
+	selectedIndex int
+	// sessionCounter feeds the default name of sessions created with "n".
+	sessionCounter int
+	// lastError, if non-empty, is shown in the status bar instead of the
+	// keybinding hint until the next successful action.
+	lastError string
 
 	// PauseBackgroundThreads stops the periodic tasks started by goEvery, for
 	// when the terminal is handed over to another process.
 	PauseBackgroundThreads bool
 }
 
-// New allocates the Gui. It does not touch the terminal: that only happens in
-// Run.
-func New() *Gui {
-	return &Gui{}
+// New allocates the Gui around an already-running session Manager. It does
+// not touch the terminal: that only happens in Run.
+func New(sessions *session.Manager) *Gui {
+	return &Gui{
+		sessions:    sessions,
+		outputTasks: tasks.NewManager(),
+		focus:       newFocusManager(),
+	}
 }
 
 // Run initialises gocui and blocks in the main loop until the user quits. The
@@ -59,70 +79,45 @@ func (gui *Gui) Run() (err error) {
 	g.Cursor = false
 	g.Mouse = false
 
-	g.SetManagerFunc(gui.layout)
+	// Highlight draws the current view's frame in SelFrameColor — the only
+	// code needed for an "active panel" border, gocui does the rest on every
+	// SetCurrentView.
+	g.Highlight = true
+	g.SelFrameColor = gocui.ColorGreen
+
+	// SetManager purges existing keybindings, so it must run before
+	// setKeybindings. The second manager (focus) touches no view; it only
+	// detects focus changes gocui itself has no event for.
+	g.SetManager(gocui.ManagerFunc(gui.layout), gui.focus)
 
 	if err := gui.setKeybindings(g); err != nil {
 		return err
 	}
 
-	gui.goEvery(reRenderInterval, gui.reRenderMain)
+	gui.goEvery(reRenderInterval, gui.renderSessionsPanel)
 
 	if err := g.MainLoop(); err != nil && !goerrors.Is(err, gocui.ErrQuit) {
 		return err
 	}
 
-	return nil
-}
-
-// layout is called by gocui on every redraw and every resize. In phase 0 it
-// only maintains a single full-screen view; the boxlayout tree arrives in
-// phase 3.
-func (gui *Gui) layout(g *gocui.Gui) error {
-	maxX, maxY := g.Size()
-	if maxX < 2 || maxY < 2 {
-		return nil
-	}
-
-	view, err := g.SetView(mainViewName, 0, 0, maxX-1, maxY-1, 0)
-	if err != nil {
-		// gocui wraps its sentinel errors with go-errors, whose Error type has
-		// no Unwrap method: neither == nor the standard errors.Is can see
-		// through the wrapper, hence go-errors' own Is (what lazygit does).
-		if !goerrors.Is(err, gocui.ErrUnknownView) {
-			return err
-		}
-
-		// First creation only.
-		view.Title = " lazyshell "
-		view.Wrap = true
-		view.Autoscroll = true
-		fmt.Fprintln(view, "lazyshell — phase 0")
-		fmt.Fprintln(view, "")
-		fmt.Fprintln(view, "q / Ctrl-C : quitter")
-
-		if _, err := g.SetCurrentView(mainViewName); err != nil {
-			return err
-		}
-	}
+	gui.outputTasks.Stop()
 
 	return nil
 }
 
-// reRenderMain asks gocui for a redraw when the main view has been written to
-// since the last frame. Writes to a gocui.View are thread-safe but do not
-// trigger a redraw by themselves, hence this tick.
-func (gui *Gui) reRenderMain() error {
-	view, err := gui.g.View(mainViewName)
-	if err != nil {
-		// The view does not exist yet; nothing to render.
-		return nil
+// renderStatus writes the status bar's content: the last error if there is
+// one, otherwise the keybinding hint. Safe to call directly (no g.Update)
+// whenever the caller is already running on gocui's main goroutine — a
+// keybinding handler, or initView during layout.
+func (gui *Gui) renderStatus(view *gocui.View) {
+	view.Clear()
+
+	text := statusHint
+	if gui.lastError != "" {
+		text = " " + gui.lastError + " "
 	}
 
-	if view.IsTainted() {
-		gui.g.Update(func(*gocui.Gui) error { return nil })
-	}
-
-	return nil
+	fmt.Fprint(view, text)
 }
 
 // goEvery runs fn once, then on every tick of interval until the process

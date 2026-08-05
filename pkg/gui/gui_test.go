@@ -1,79 +1,52 @@
 package gui
 
 import (
-	"strings"
 	"testing"
+	"time"
 
 	"github.com/jesseduffield/gocui"
+
+	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
-// newHeadlessGui builds a gocui instance that renders to an in-memory screen,
-// so the layout can be exercised without a real terminal.
+// newHeadlessGui builds a Gui wired to a throwaway session Manager and an
+// 80x24 gocui instance that renders to an in-memory screen, so the app can be
+// exercised without a real terminal or real shells (unless a test explicitly
+// creates sessions on the manager).
 func newHeadlessGui(t *testing.T) (*Gui, *gocui.Gui) {
+	t.Helper()
+
+	return newHeadlessGuiSized(t, 80, 24)
+}
+
+// newHeadlessGuiSized is newHeadlessGui with an explicit terminal size, for
+// tests exercising layout behaviour at specific dimensions (tiny terminal,
+// portrait vs. landscape).
+func newHeadlessGuiSized(t *testing.T, width, height int) (*Gui, *gocui.Gui) {
 	t.Helper()
 
 	g, err := gocui.NewGui(gocui.NewGuiOpts{
 		OutputMode: gocui.OutputNormal,
 		Headless:   true,
-		Width:      80,
-		Height:     24,
+		Width:      width,
+		Height:     height,
 	})
 	if err != nil {
 		t.Fatalf("NewGui: %v", err)
 	}
 	t.Cleanup(g.Close)
 
-	gui := New()
+	sessions := session.NewManager()
+	// Shortens the SIGTERM-then-SIGKILL fallback so tests that kill a session
+	// (directly or via Shutdown) do not wait on the full production timeout —
+	// same reasoning as pkg/session's own tests.
+	sessions.KillTimeout = 300 * time.Millisecond
+	t.Cleanup(sessions.Shutdown)
+
+	gui := New(sessions)
 	gui.g = g
 
 	return gui, g
-}
-
-func TestLayoutCreatesMainView(t *testing.T) {
-	gui, g := newHeadlessGui(t)
-
-	// Called twice: the first call creates the view, the second one only
-	// resizes it. Both must succeed — gocui reports the creation through a
-	// wrapped ErrUnknownView, which is easy to mishandle.
-	for i := range 2 {
-		if err := gui.layout(g); err != nil {
-			t.Fatalf("layout call %d: %v", i+1, err)
-		}
-	}
-
-	view, err := g.View(mainViewName)
-	if err != nil {
-		t.Fatalf("view %q not found: %v", mainViewName, err)
-	}
-
-	if !strings.Contains(view.Buffer(), "lazyshell") {
-		t.Errorf("main view buffer does not contain the welcome text: %q", view.Buffer())
-	}
-
-	if current := g.CurrentView(); current == nil || current.Name() != mainViewName {
-		t.Errorf("current view = %v, want %q", current, mainViewName)
-	}
-}
-
-// A terminal too small to hold a bordered view must not make the layout fail.
-func TestLayoutTinyTerminal(t *testing.T) {
-	g, err := gocui.NewGui(gocui.NewGuiOpts{
-		OutputMode: gocui.OutputNormal,
-		Headless:   true,
-		Width:      1,
-		Height:     1,
-	})
-	if err != nil {
-		t.Fatalf("NewGui: %v", err)
-	}
-	t.Cleanup(g.Close)
-
-	gui := New()
-	gui.g = g
-
-	if err := gui.layout(g); err != nil {
-		t.Fatalf("layout: %v", err)
-	}
 }
 
 func TestSetKeybindings(t *testing.T) {
@@ -93,18 +66,8 @@ func TestSetKeybindings(t *testing.T) {
 	}
 }
 
-// reRenderMain runs on a ticker that starts before the first layout pass, so
-// it must tolerate a missing view.
-func TestReRenderMainWithoutView(t *testing.T) {
-	gui, _ := newHeadlessGui(t)
-
-	if err := gui.reRenderMain(); err != nil {
-		t.Fatalf("reRenderMain: %v", err)
-	}
-}
-
 func TestQuitReturnsErrQuit(t *testing.T) {
-	gui := New()
+	gui := New(session.NewManager())
 
 	if err := gui.quit(nil, nil); err != gocui.ErrQuit {
 		t.Errorf("quit() = %v, want gocui.ErrQuit", err)
