@@ -3,6 +3,7 @@ package screen
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func render(t *testing.T, cols, rows int, input string) string {
@@ -109,5 +110,52 @@ func TestResizeChangesGeometry(t *testing.T) {
 
 	if got := strings.Count(s.Render(), "\n"); got > 10 {
 		t.Errorf("screen still has %d lines after resizing to 10", got+1)
+	}
+}
+
+// Read must never hold the lock: a session's drain goroutine calls it in a
+// loop (nothing ever writes an answer in this test, since none was queried),
+// and a Write happening concurrently must not be blocked by it.
+func TestReadDoesNotBlockWrite(t *testing.T) {
+	s := New(40, 10)
+
+	go func() {
+		buf := make([]byte, 16)
+		_, _ = s.Read(buf) //nolint:errcheck // blocks until Close, error is expected then
+	}()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = s.Write([]byte("hi"))
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Write blocked behind a pending Read")
+	}
+}
+
+// Closing the screen must release a goroutine parked in Read — the only way
+// to do so, since Read blocks on an in-memory pipe unrelated to the pty fd.
+func TestCloseUnblocksRead(t *testing.T) {
+	s := New(40, 10)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		buf := make([]byte, 16)
+		_, _ = s.Read(buf)
+	}()
+
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Close did not unblock the pending Read")
 	}
 }

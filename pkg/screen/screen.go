@@ -39,11 +39,27 @@ func (s *Screen) Write(p []byte) (int, error) {
 // capability queries, cursor position reports... These must be written to the
 // pty, otherwise a shell that asks a question waits for an answer that never
 // comes — and the stray bytes end up displayed instead.
+//
+// Deliberately not guarded by mu: the underlying read blocks on an internal
+// pipe until there is something to answer, which is most of the time (replies
+// only happen for DA/CPR/OSC-colour/focus/mouse queries). Holding the lock for
+// that unbounded wait would block every Write and Render call for as long as
+// the session runs, and Write itself sometimes writes a reply synchronously
+// into the same pipe — a caller looping on Read while holding the lock would
+// deadlock its own Write. This mirrors vt.SafeEmulator.Read, the only method
+// its own concurrency wrapper also leaves unlocked, for the same reason.
 func (s *Screen) Read(p []byte) (int, error) {
+	return s.term.Read(p)
+}
+
+// Close shuts the emulator down, which unblocks any pending Read with io.EOF.
+// It is the only way to release a goroutine parked in Read once the session is
+// done: closing the pty's file descriptor does not affect this in-memory pipe.
+func (s *Screen) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.term.Read(p)
+	return s.term.Close()
 }
 
 // Render returns the visible screen, with SGR sequences for colours and
