@@ -31,24 +31,27 @@ func sessionsPanelContent(sessions []*session.Session) string {
 	return b.String()
 }
 
-// selectedSession returns the session at selectedIndex, clamped to the
-// current list bounds (the list can shrink under us — a session can exit or
-// be killed while it is selected), or nil if there is none.
+// selectedSession returns the session at the current selection, clamped to
+// the current list bounds (the list can shrink under us — a session can exit
+// or be killed while it is selected), or nil if there is none.
 func (gui *Gui) selectedSession() *session.Session {
 	sessions := gui.sessions.List()
 	if len(sessions) == 0 {
 		return nil
 	}
 
-	if gui.selectedIndex >= len(sessions) {
-		gui.selectedIndex = len(sessions) - 1
+	index := gui.getSelectedIndex()
+	if index >= len(sessions) {
+		index = len(sessions) - 1
 	}
 
-	if gui.selectedIndex < 0 {
-		gui.selectedIndex = 0
+	if index < 0 {
+		index = 0
 	}
 
-	return sessions[gui.selectedIndex]
+	gui.setSelectedIndex(index)
+
+	return sessions[index]
 }
 
 // renderSessionsPanel redraws the session list and keeps the cursor on the
@@ -66,7 +69,7 @@ func (gui *Gui) renderSessionsPanel() error {
 	}
 
 	content := sessionsPanelContent(gui.sessions.List())
-	selected := gui.selectedIndex
+	selected := gui.getSelectedIndex()
 
 	gui.g.Update(func(g *gocui.Gui) error {
 		view, err := g.View(sessionsViewName)
@@ -94,13 +97,14 @@ func (gui *Gui) selectionMoved(delta int) func(*gocui.Gui, *gocui.View) error {
 			return nil
 		}
 
-		gui.selectedIndex += delta
-		if gui.selectedIndex < 0 {
-			gui.selectedIndex = 0
+		index := gui.getSelectedIndex() + delta
+		if index < 0 {
+			index = 0
 		}
-		if gui.selectedIndex >= len(sessions) {
-			gui.selectedIndex = len(sessions) - 1
+		if index >= len(sessions) {
+			index = len(sessions) - 1
 		}
+		gui.setSelectedIndex(index)
 
 		gui.onSelectionChanged()
 
@@ -109,8 +113,12 @@ func (gui *Gui) selectionMoved(delta int) func(*gocui.Gui, *gocui.View) error {
 }
 
 // onSelectionChanged starts rendering the newly selected session's output,
-// replacing whichever session was being rendered before.
+// replacing whichever session was being rendered before. Scroll always
+// resets to live: an old scroll position from a different session would be
+// meaningless here.
 func (gui *Gui) onSelectionChanged() {
+	gui.setScrollOffset(0)
+
 	if sess := gui.selectedSession(); sess != nil {
 		gui.showOutput(sess)
 	}
@@ -134,7 +142,7 @@ func (gui *Gui) newSession(*gocui.Gui, *gocui.View) error {
 	}
 
 	gui.lastError = ""
-	gui.selectedIndex = len(gui.sessions.List()) - 1
+	gui.setSelectedIndex(len(gui.sessions.List()) - 1)
 	gui.onSelectionChanged()
 
 	return gui.renderSessionsPanel()

@@ -1,6 +1,7 @@
 package screen
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -157,5 +158,68 @@ func TestCloseUnblocksRead(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("Close did not unblock the pending Read")
+	}
+}
+
+func TestRenderAtZeroMatchesRender(t *testing.T) {
+	s := New(40, 5)
+
+	for i := range 20 {
+		if _, err := s.Write([]byte(fmt.Sprintf("line-%d\r\n", i))); err != nil {
+			t.Fatalf("Write: %v", err)
+		}
+	}
+
+	if got, want := s.RenderAt(0), s.Render(); got != want {
+		t.Errorf("RenderAt(0) = %q, want %q", got, want)
+	}
+
+	if got := s.RenderAt(-1); got != s.Render() {
+		t.Errorf("RenderAt(-1) = %q, want the live view", got)
+	}
+}
+
+// Scrolling back must actually show older content that has already left the
+// live screen — the whole point of a scrollback viewport.
+func TestRenderAtShowsEarlierContent(t *testing.T) {
+	s := New(40, 5)
+
+	for i := range 20 {
+		if _, err := s.Write([]byte(fmt.Sprintf("line-%d\r\n", i))); err != nil {
+			t.Fatalf("Write: %v", err)
+		}
+	}
+
+	live := s.Render()
+	if strings.Contains(live, "line-0") {
+		t.Fatal("line-0 should already have scrolled off the live screen")
+	}
+
+	scrolled := s.RenderAt(s.ScrollbackLen())
+	if scrolled == live {
+		t.Fatal("RenderAt with a non-zero offset returned the same content as the live view")
+	}
+
+	if !strings.Contains(scrolled, "line-0") {
+		t.Errorf("scrolled to the top but line-0 is missing:\n%s", scrolled)
+	}
+}
+
+// An offset beyond the available history must not panic; it just stops at
+// the oldest line kept.
+func TestRenderAtClampsToScrollbackLen(t *testing.T) {
+	s := New(40, 5)
+
+	for i := range 20 {
+		if _, err := s.Write([]byte(fmt.Sprintf("line-%d\r\n", i))); err != nil {
+			t.Fatalf("Write: %v", err)
+		}
+	}
+
+	atMax := s.RenderAt(s.ScrollbackLen())
+	beyond := s.RenderAt(s.ScrollbackLen() * 100)
+
+	if atMax != beyond {
+		t.Errorf("RenderAt beyond ScrollbackLen() = %q, want the same as at the max offset %q", beyond, atMax)
 	}
 }

@@ -1,0 +1,221 @@
+package gui
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/jesseduffield/gocui"
+
+	"github.com/thomas-gleizes/lazyshell/pkg/keys"
+)
+
+// defaultPrefixKey is the tmux-style escape prefix that leaves pass-through
+// mode. Every other key reaches the shell while pass-through is active, so
+// this is the only way back — overridable through LAZYSHELL_PREFIX, because a
+// terminal multiplexer running above lazyshell may well eat Ctrl-B before
+// lazyshell ever sees it. Ported from cmd/spike-pty/main.go, which validated
+// this mechanism in phase 1; duplicated rather than imported since that
+// command is package main.
+const defaultPrefixKey = gocui.KeyCtrlB
+
+// prefixFromEnv reads LAZYSHELL_PREFIX, in gocui's keybinding syntax:
+// "Ctrl+A", "Ctrl+G", "Ctrl+Space"... An unparseable value falls back to the
+// default rather than leaving the user with no way out.
+func prefixFromEnv() gocui.Key {
+	name := os.Getenv("LAZYSHELL_PREFIX")
+	if name == "" {
+		return defaultPrefixKey
+	}
+
+	key, _, err := gocui.Parse(name)
+	if err != nil {
+		return defaultPrefixKey
+	}
+
+	if k, ok := key.(gocui.Key); ok {
+		return k
+	}
+
+	return defaultPrefixKey
+}
+
+// prefixName renders a prefix key for the status bar hint.
+func prefixName(key gocui.Key) string {
+	if key >= gocui.KeyCtrlA && key <= gocui.KeyCtrlZ {
+		return fmt.Sprintf("Ctrl-%c", 'A'+(key-gocui.KeyCtrlA))
+	}
+
+	return fmt.Sprintf("touche %d", key)
+}
+
+// scrollPage/scrollHalfPage name the two step sizes PgUp/PgDn and
+// Ctrl-U/Ctrl-D scroll by, in terms of the output view's own row count.
+const (
+	scrollPage     = 1
+	scrollHalfPage = 2
+)
+
+// editOutput is the sole keystroke handler for the output view (wired in
+// initView as its permanent Editor). It cannot be split into ordinary
+// SetKeybinding entries: gocui always lets a view-scoped keybinding win
+// before ever consulting the Editor, so any keybinding registered on this
+// view — even just for "i" — would fire during pass-through too and block
+// that key from ever reaching the shell. Everything modal therefore lives
+// here, mirroring cmd/spike-pty's edit() but against a real session.Manager
+// selection instead of a single hardcoded pty.
+func (gui *Gui) editOutput(view *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) bool {
+	key, ch, mod = keys.Normalize(key, ch, mod)
+
+	if gui.passThroughActive {
+		return gui.editDuringPassThrough(key, ch, mod)
+	}
+
+	return gui.editDuringScroll(view, key, ch)
+}
+
+// editDuringPassThrough forwards everything to the selected session except
+// the escape prefix: alone, it leaves pass-through; doubled, it sends one
+// literal prefix byte (the same two-step automaton cmd/spike-pty validated).
+func (gui *Gui) editDuringPassThrough(key gocui.Key, ch rune, mod gocui.Modifier) bool {
+	if gui.prefixPending {
+		gui.prefixPending = false
+
+		if key == gui.prefixKey {
+			gui.writeToSelected(keys.Translate(key, ch, mod))
+		} else {
+			gui.exitPassThrough()
+		}
+
+		return true
+	}
+
+	if key == gui.prefixKey {
+		gui.prefixPending = true
+
+		return true
+	}
+
+	gui.writeToSelected(keys.Translate(key, ch, mod))
+
+	return true
+}
+
+// editDuringScroll handles the output view outside pass-through: only a few
+// keys are meaningful here, everything else falls through to gocui's normal
+// keybinding dispatch (global Tab, global Ctrl-C...).
+func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool {
+	_, rows := view.Size()
+
+	switch {
+	case ch == 'i' || key == gocui.KeyEnter:
+		gui.enterPassThrough()
+
+		return true
+
+	case key == gocui.KeyPgup:
+		gui.scrollBy(rows * scrollPage)
+
+		return true
+	case key == gocui.KeyCtrlU:
+		gui.scrollBy(rows / scrollHalfPage)
+
+		return true
+
+	case key == gocui.KeyPgdn:
+		gui.scrollBy(-rows * scrollPage)
+
+		return true
+	case key == gocui.KeyCtrlD:
+		gui.scrollBy(-rows / scrollHalfPage)
+
+		return true
+
+	case ch == 'q':
+		// A plain 'q' global keybinding can never fire as a fallback while
+		// the current view is Editable — gocui excludes printable-character
+		// global bindings from that path unconditionally. So quitting from
+		// here has to be triggered by hand, the same way cmd/spike-pty's own
+		// quit() does it.
+		gui.g.Update(func(*gocui.Gui) error { return gocui.ErrQuit })
+
+		return true
+	}
+
+	return false
+}
+
+// writeToSelected sends translated bytes to whichever session is currently
+// selected. No-op if the list is empty (nothing to type into).
+func (gui *Gui) writeToSelected(b []byte) {
+	if len(b) == 0 {
+		return
+	}
+
+	sess := gui.selectedSession()
+	if sess == nil {
+		return
+	}
+
+	_, _ = sess.Write(b)
+}
+
+// enterPassThrough arms pass-through mode: every subsequent key (bar the
+// escape prefix) goes to the shell. Scroll always resets to live on entry —
+// typing a command is pointless if you can't see its output.
+func (gui *Gui) enterPassThrough() {
+	if gui.selectedSession() == nil {
+		return
+	}
+
+	gui.passThroughActive = true
+	gui.onSelectionChanged() // resets scroll to live and restarts the render task
+	gui.refreshChrome()
+}
+
+// exitPassThrough disarms pass-through mode, back to scroll/navigation.
+func (gui *Gui) exitPassThrough() {
+	gui.passThroughActive = false
+	gui.refreshChrome()
+}
+
+// scrollBy adjusts the output scroll offset, clamped to the selected
+// session's available scrollback, and restarts the render task so the new
+// offset is picked up immediately rather than waiting for the next tick.
+func (gui *Gui) scrollBy(delta int) {
+	sess := gui.selectedSession()
+	if sess == nil {
+		return
+	}
+
+	offset := gui.getScrollOffset() + delta
+	if offset < 0 {
+		offset = 0
+	}
+
+	if max := sess.Screen().ScrollbackLen(); offset > max {
+		offset = max
+	}
+
+	gui.setScrollOffset(offset)
+	gui.showOutput(sess)
+}
+
+// refreshChrome updates the status bar text and the active border colour to
+// reflect the current pass-through state — the two indicators the roadmap
+// asks for, so the user always knows whether q quits the app or goes to the
+// shell.
+func (gui *Gui) refreshChrome() {
+	if gui.g == nil {
+		return
+	}
+
+	if gui.passThroughActive {
+		gui.g.SelFrameColor = passThroughFrameColor
+	} else {
+		gui.g.SelFrameColor = activeFrameColor
+	}
+
+	if view, err := gui.g.View(statusViewName); err == nil {
+		gui.renderStatus(view)
+	}
+}

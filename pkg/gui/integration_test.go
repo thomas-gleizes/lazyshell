@@ -83,7 +83,7 @@ func TestSelectingSessionsShowsEachOnesOutputWithoutLoss(t *testing.T) {
 	// Select each session in turn and confirm its own marker shows up.
 	for i, marker := range markers {
 		g.Update(func(*gocui.Gui) error {
-			gui.selectedIndex = i
+			gui.setSelectedIndex(i)
 			gui.onSelectionChanged()
 
 			return nil
@@ -97,11 +97,147 @@ func TestSelectingSessionsShowsEachOnesOutputWithoutLoss(t *testing.T) {
 	// its marker right away — proof that nothing was lost while it was
 	// hidden, not that it gets re-executed.
 	g.Update(func(*gocui.Gui) error {
-		gui.selectedIndex = 0
+		gui.setSelectedIndex(0)
 		gui.onSelectionChanged()
 
 		return nil
 	})
 
 	waitForOutput(t, g, markers[0])
+}
+
+// waitForCondition polls cond until it is true or the deadline passes —
+// g.Update only enqueues work, it does not wait for MainLoop to process it,
+// so state it mutates must be observed by polling, not by checking right
+// after the call.
+func waitForCondition(t *testing.T, cond func() bool, msg string) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatal(msg)
+}
+
+// waitForView polls until a view exists — the first layout pass runs
+// asynchronously once MainLoop starts.
+func waitForView(t *testing.T, g *gocui.Gui, name string) *gocui.View {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if view, err := g.View(name); err == nil {
+			return view
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatalf("view %q never appeared", name)
+
+	return nil
+}
+
+// This is the roadmap's phase 4 exit criterion, end to end: focus the output
+// panel, enter pass-through, drive a real shell, leave pass-through, confirm
+// navigation (Tab) works again, and confirm the pty was actually resized to
+// the panel's real geometry — the mechanics behind "dogfood 2-3 shells
+// without having to kill the app". editOutput itself (key translation,
+// prefix automaton, scroll clamping) is already covered directly in
+// input_test.go; this test is about the wiring around it running through a
+// real MainLoop.
+func TestPassThroughDogfoodingFlow(t *testing.T) {
+	gui, g := newHeadlessGui(t)
+
+	g.SetManager(gocui.ManagerFunc(gui.layout), gui.focus)
+
+	if err := gui.setKeybindings(g); err != nil {
+		t.Fatalf("setKeybindings: %v", err)
+	}
+
+	loopDone := make(chan error, 1)
+	go func() { loopDone <- g.MainLoop() }()
+	t.Cleanup(func() {
+		g.Update(func(*gocui.Gui) error { return gocui.ErrQuit })
+
+		select {
+		case <-loopDone:
+		case <-time.After(2 * time.Second):
+			t.Error("MainLoop did not stop")
+		}
+	})
+
+	if _, err := gui.sessions.New("s0", "/bin/sh"); err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	outputView := waitForView(t, g, outputViewName)
+
+	// Focus output and enter pass-through with "i".
+	g.Update(func(*gocui.Gui) error {
+		if _, err := g.SetCurrentView(outputViewName); err != nil {
+			return err
+		}
+
+		gui.editOutput(outputView, 0, 'i', gocui.ModNone)
+
+		return nil
+	})
+
+	waitForCondition(t, func() bool { return gui.passThroughActive }, "did not enter pass-through")
+
+	// Type a command and see its result — the actual dogfooding gesture.
+	g.Update(func(*gocui.Gui) error {
+		for _, ch := range "echo dogfooding-ok" {
+			gui.editOutput(outputView, 0, ch, gocui.ModNone)
+		}
+
+		gui.editOutput(outputView, gocui.KeyEnter, 0, gocui.ModNone)
+
+		return nil
+	})
+
+	waitForOutput(t, g, "dogfooding-ok")
+
+	// Leave pass-through: the prefix arms, any other key confirms the exit —
+	// the same two-step automaton input_test.go exercises directly.
+	g.Update(func(*gocui.Gui) error {
+		gui.editOutput(outputView, gui.prefixKey, 0, gocui.ModNone)
+		gui.editOutput(outputView, gocui.KeyEsc, 0, gocui.ModNone)
+
+		return nil
+	})
+
+	waitForCondition(t, func() bool { return !gui.passThroughActive }, "the prefix did not leave pass-through")
+
+	// Tab must work again now that we are not in pass-through — Tab itself
+	// is swallowed by editOutput while pass-through is armed.
+	g.Update(func(*gocui.Gui) error { return gui.cycleFocus(g, nil) })
+
+	waitForCondition(t, func() bool {
+		current := g.CurrentView()
+
+		return current != nil && current.Name() == sessionsViewName
+	}, "Tab after leaving pass-through did not return focus to sessions")
+
+	// Resize propagation: stty size in the shell must reflect the output
+	// panel's actual geometry, not the 80x24 pty default.
+	cols, rows := outputView.Size()
+
+	sess := gui.selectedSession()
+	if sess == nil {
+		t.Fatal("no session selected")
+	}
+
+	if _, err := sess.Write([]byte("stty size\n")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	waitForOutput(t, g, fmt.Sprintf("%d %d", rows, cols))
 }

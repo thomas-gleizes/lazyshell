@@ -12,6 +12,7 @@ package screen
 import (
 	"sync"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/vt"
 )
 
@@ -71,6 +72,64 @@ func (s *Screen) Render() string {
 	defer s.mu.Unlock()
 
 	return s.term.Render()
+}
+
+// RenderAt returns the screen as it looked offset lines back from the live
+// bottom, in the same SGR-encoded shape as Render. offset <= 0 is the live
+// view (identical to Render); offset is clamped to ScrollbackLen(), so
+// scrolling past the oldest history just stops there instead of erroring.
+//
+// The emulator has no built-in scroll viewport — Render always shows the
+// live screen — so this rebuilds the requested window itself: scrolled-off
+// rows come from Scrollback().Line, still-live rows are reconstructed cell
+// by cell via CellAt (bounded by the panel's height, so this stays cheap),
+// and the combined slice is rendered with uv.Lines.Render, the same styling
+// path vt.Emulator.Render uses internally.
+func (s *Screen) RenderAt(offset int) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if offset <= 0 {
+		return s.term.Render()
+	}
+
+	scrollback := s.term.Scrollback()
+	scrollbackLen := scrollback.Len()
+	if offset > scrollbackLen {
+		offset = scrollbackLen
+	}
+
+	rows := s.term.Height()
+	cols := s.term.Width()
+	start := scrollbackLen - offset
+
+	lines := make(uv.Lines, 0, rows)
+	for i := range rows {
+		idx := start + i
+		if idx < scrollbackLen {
+			lines = append(lines, scrollback.Line(idx))
+
+			continue
+		}
+
+		lines = append(lines, s.liveLine(idx-scrollbackLen, cols))
+	}
+
+	return lines.Render()
+}
+
+// liveLine reconstructs row y of the still-live screen as a uv.Line, cell by
+// cell: the emulator exposes CellAt but not a way to fetch a whole live row
+// at once. Callers must hold s.mu.
+func (s *Screen) liveLine(y, cols int) uv.Line {
+	line := make(uv.Line, cols)
+	for x := range cols {
+		if c := s.term.CellAt(x, y); c != nil {
+			line[x] = *c
+		}
+	}
+
+	return line
 }
 
 // Resize changes the emulated geometry. The caller is responsible for calling

@@ -5,6 +5,7 @@ package gui
 import (
 	"fmt"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	goerrors "github.com/go-errors/errors"
@@ -20,8 +21,17 @@ import (
 const reRenderInterval = 30 * time.Millisecond
 
 // statusHint is shown in the status bar as long as there is no error to
-// report.
+// report and the output panel is not in pass-through mode.
 const statusHint = " n: nouvelle session   x/d: tuer   j/k: naviguer   Tab: changer de focus   q: quitter "
+
+// activeFrameColor/passThroughFrameColor are the current view's border
+// colour: green normally, red while the output panel is in pass-through —
+// the roadmap's second suggested mode indicator, alongside the status bar
+// text, cheap enough to do both.
+const (
+	activeFrameColor      = gocui.ColorGreen
+	passThroughFrameColor = gocui.ColorRed
+)
 
 // Gui holds the gocui instance and the state of the interface.
 type Gui struct {
@@ -31,8 +41,28 @@ type Gui struct {
 	outputTasks *tasks.Manager
 	focus       *focusManager
 
+	// prefixKey is the pass-through escape prefix, see prefixFromEnv.
+	prefixKey gocui.Key
+	// prefixPending and passThroughActive are only ever touched from
+	// editOutput, called synchronously from gocui's own event dispatch —
+	// always the same goroutine, no mutex needed.
+	prefixPending     bool
+	passThroughActive bool
+
+	// mu guards selectedIndex and scrollOffset: both are written from
+	// gocui's main goroutine (keybinding handlers, the output Editor) but
+	// also read from background goroutines — goEvery's ticker for
+	// selectedIndex, nothing currently for scrollOffset but it is captured
+	// by output.go at task-start time from the same call sites, so the same
+	// guard is reused for both rather than reasoning about two policies.
+	mu sync.Mutex
 	// selectedIndex is the currently highlighted line in the sessions panel.
 	selectedIndex int
+	// scrollOffset is how many lines the output panel is scrolled back from
+	// the live bottom; 0 means "live". Reset to 0 whenever the selection
+	// changes or pass-through is (re-)armed.
+	scrollOffset int
+
 	// sessionCounter feeds the default name of sessions created with "n".
 	sessionCounter int
 	// lastError, if non-empty, is shown in the status bar instead of the
@@ -51,7 +81,37 @@ func New(sessions *session.Manager) *Gui {
 		sessions:    sessions,
 		outputTasks: tasks.NewManager(),
 		focus:       newFocusManager(),
+		prefixKey:   prefixFromEnv(),
 	}
+}
+
+// getSelectedIndex/setSelectedIndex, getScrollOffset/setScrollOffset are the
+// only safe way to touch these two fields from a goroutine other than
+// gocui's own — see the mu field comment.
+func (gui *Gui) getSelectedIndex() int {
+	gui.mu.Lock()
+	defer gui.mu.Unlock()
+
+	return gui.selectedIndex
+}
+
+func (gui *Gui) setSelectedIndex(i int) {
+	gui.mu.Lock()
+	gui.selectedIndex = i
+	gui.mu.Unlock()
+}
+
+func (gui *Gui) getScrollOffset() int {
+	gui.mu.Lock()
+	defer gui.mu.Unlock()
+
+	return gui.scrollOffset
+}
+
+func (gui *Gui) setScrollOffset(offset int) {
+	gui.mu.Lock()
+	gui.scrollOffset = offset
+	gui.mu.Unlock()
 }
 
 // Run initialises gocui and blocks in the main loop until the user quits. The
@@ -83,7 +143,7 @@ func (gui *Gui) Run() (err error) {
 	// code needed for an "active panel" border, gocui does the rest on every
 	// SetCurrentView.
 	g.Highlight = true
-	g.SelFrameColor = gocui.ColorGreen
+	g.SelFrameColor = activeFrameColor
 
 	// SetManager purges existing keybindings, so it must run before
 	// setKeybindings. The second manager (focus) touches no view; it only
@@ -105,16 +165,22 @@ func (gui *Gui) Run() (err error) {
 	return nil
 }
 
-// renderStatus writes the status bar's content: the last error if there is
-// one, otherwise the keybinding hint. Safe to call directly (no g.Update)
-// whenever the caller is already running on gocui's main goroutine — a
-// keybinding handler, or initView during layout.
+// renderStatus writes the status bar's content: the last error takes
+// priority, then the pass-through indicator, then the keybinding hint.
+// Without a clear indicator the user cannot tell whether q quits the app or
+// goes to the shell. Safe to call directly (no g.Update) whenever the caller
+// is already running on gocui's main goroutine — a keybinding handler, the
+// output Editor, or initView during layout.
 func (gui *Gui) renderStatus(view *gocui.View) {
 	view.Clear()
 
 	text := statusHint
-	if gui.lastError != "" {
+
+	switch {
+	case gui.lastError != "":
 		text = " " + gui.lastError + " "
+	case gui.passThroughActive:
+		text = fmt.Sprintf(" -- INSERT --  (%s pour sortir) ", prefixName(gui.prefixKey))
 	}
 
 	fmt.Fprint(view, text)

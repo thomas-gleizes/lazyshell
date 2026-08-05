@@ -98,7 +98,30 @@ func (gui *Gui) layout(g *gocui.Gui) error {
 		}
 	}
 
+	gui.propagateResize(g)
+
 	return nil
+}
+
+// propagateResize keeps every session's pty and emulator aligned with the
+// output panel's current size — not just the selected one, so whichever
+// session gets selected next is already correctly sized instead of jumping
+// at the moment of the switch. Session.Resize no-ops when the size has not
+// changed, so calling this on every layout pass stays cheap.
+func (gui *Gui) propagateResize(g *gocui.Gui) {
+	view, err := g.View(outputViewName)
+	if err != nil {
+		return
+	}
+
+	cols, rows := view.Size()
+	if cols <= 0 || rows <= 0 {
+		return
+	}
+
+	for _, sess := range gui.sessions.List() {
+		_ = sess.Resize(cols, rows)
+	}
 }
 
 // initView configures a view the first time it is created. Called once per
@@ -119,6 +142,13 @@ func (gui *Gui) initView(name string, view *gocui.View) {
 		// render rather than appended to.
 		view.Wrap = false
 		view.Autoscroll = false
+		// Editable is set once, permanently: gocui always lets a view-scoped
+		// SetKeybinding win before consulting the Editor, so toggling this on
+		// entry to pass-through would not help — editOutput must own every
+		// keystroke on this view from the start and decide for itself what to
+		// swallow, forward to the shell, or let fall through.
+		view.Editable = true
+		view.Editor = gocui.EditorFunc(gui.editOutput)
 	case statusViewName:
 		view.Frame = false
 		gui.renderStatus(view)
