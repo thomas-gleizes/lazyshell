@@ -10,6 +10,7 @@ require (
 	github.com/go-errors/errors v1.0.2
 	github.com/jesseduffield/gocui v0.3.1-0.20260331125330-c81715e95462
 	github.com/jesseduffield/lazycore v0.0.0-20221023210126-718a4caea996
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
