@@ -45,7 +45,21 @@ to open an in-app help popup listing every binding below.
 | `r` | Renommer la session sélectionnée |
 | `c` | Dupliquer la session sélectionnée |
 | `N` | Nouvelle session dans un dossier choisi |
-| `Ctrl+B` (configurable) | Prefix used to escape pass-through mode back to the sessions panel |
+
+While the **output panel** is focused, these apply instead:
+
+| Key | Action |
+| --- | --- |
+| `i` / `Enter` | Donner le clavier au shell (mode pass-through) |
+| `Ctrl+B` (configurable) | Reprendre le clavier, depuis le mode pass-through |
+| `PgUp` / `PgDn` | Défiler d'un écran dans l'historique |
+| `Ctrl+U` / `Ctrl+D` | Défiler d'un demi-écran |
+
+Each panel also carries its own most-used keys on the bottom line of its
+frame, so the common ones are readable without opening `?`. The list shortens
+to whatever fits the panel's width, and the output panel's adapts to what it
+is doing: only the way out of pass-through while pass-through is on, no
+scrolling hint while a full-screen application has the session.
 
 ### Reading the sessions list
 

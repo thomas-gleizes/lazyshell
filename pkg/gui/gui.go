@@ -206,6 +206,11 @@ func (gui *Gui) Run() (err error) {
 	g.SelFrameColor = gui.theme.ActiveBorderColor
 	g.FrameColor = gui.theme.InactiveBorderColor
 
+	// Required for View.Footer to be drawn at all: gocui gates the bottom-frame
+	// text on this flag (its own use for it is a "1 of 20" list counter, but the
+	// mechanism is just "draw this string on the frame's bottom line").
+	g.ShowListFooter = true
+
 	// SetManager purges existing keybindings, so it must run before
 	// setKeybindings. The second manager (focus) touches no view; it only
 	// detects focus changes gocui itself has no event for.

@@ -95,6 +95,16 @@ func (gui *Gui) layout(g *gocui.Gui) error {
 
 			gui.initView(name, view)
 		}
+
+		// Refreshed on every layout pass, not just at creation: the footer
+		// depends on the panel's current width (it truncates to fit) and, for
+		// the output panel, on whether pass-through or a full-screen
+		// application is active.
+		// InnerWidth, not Size: Size counts the frame columns, and gocui's
+		// drawListFooter starts at x1-1-len(footer) and gives up silently when
+		// that lands left of x0 — a footer one column too wide vanishes
+		// entirely instead of being clipped.
+		view.Footer = gui.panelFooter(name, view.InnerWidth())
 	}
 
 	if g.CurrentView() == nil {
