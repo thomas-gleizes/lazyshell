@@ -64,6 +64,25 @@ var specialKeys = map[gocui.Key]string{
 	gocui.KeyF12: "\x1b[24~",
 }
 
+// applicationCursorKeys overrides specialKeys while DECCKM (ESC[?1h) is set:
+// the cursor and Home/End keys switch from the CSI form to the SS3 one. vim,
+// less and a good part of the readline/ncurses world set this mode on entry,
+// and some of them only accept the SS3 encoding — sending ESC[A there types a
+// literal "A" instead of moving.
+//
+// Only the unmodified keys move: a modified arrow (Shift-Up) stays CSI even
+// under DECCKM, the way xterm itself encodes it, which is why the
+// KeyShiftArrow entries of specialKeys have no counterpart here.
+var applicationCursorKeys = map[gocui.Key]string{
+	gocui.KeyArrowUp:    "\x1bOA",
+	gocui.KeyArrowDown:  "\x1bOB",
+	gocui.KeyArrowRight: "\x1bOC",
+	gocui.KeyArrowLeft:  "\x1bOD",
+
+	gocui.KeyHome: "\x1bOH",
+	gocui.KeyEnd:  "\x1bOF",
+}
+
 // Normalize folds the several shapes a Ctrl-<letter> event can take into the
 // single one the rest of the code expects: Key = gocui.KeyCtrl<X>, no rune, no
 // control modifier.
@@ -90,10 +109,21 @@ func Normalize(key gocui.Key, ch rune, mod gocui.Modifier) (gocui.Key, rune, goc
 // keys), in which case the caller should drop it.
 //
 // ModAlt is encoded the way terminals do it: an ESC prefix before the sequence.
+//
+// It encodes in normal cursor mode; a caller that knows the target
+// application's DECCKM state should use TranslateWithMode instead.
 func Translate(key gocui.Key, ch rune, mod gocui.Modifier) []byte {
+	return TranslateWithMode(key, ch, mod, false)
+}
+
+// TranslateWithMode is Translate with the target application's cursor key mode
+// taken into account: when appCursorKeys is set (the application sent
+// ESC[?1h, which pkg/screen tracks as ApplicationCursorKeys), the arrows and
+// Home/End are encoded as SS3 rather than CSI sequences.
+func TranslateWithMode(key gocui.Key, ch rune, mod gocui.Modifier, appCursorKeys bool) []byte {
 	key, ch, mod = Normalize(key, ch, mod)
 
-	out := encode(key, ch)
+	out := encode(key, ch, appCursorKeys)
 	if out == nil {
 		return nil
 	}
@@ -105,13 +135,19 @@ func Translate(key gocui.Key, ch rune, mod gocui.Modifier) []byte {
 	return out
 }
 
-func encode(key gocui.Key, ch rune) []byte {
+func encode(key gocui.Key, ch rune, appCursorKeys bool) []byte {
 	// A printable character: gocui clears Key and reports the rune.
 	if ch != 0 {
 		buf := make([]byte, utf8.RuneLen(ch))
 		utf8.EncodeRune(buf, ch)
 
 		return buf
+	}
+
+	if appCursorKeys {
+		if seq, ok := applicationCursorKeys[key]; ok {
+			return []byte(seq)
+		}
 	}
 
 	if seq, ok := specialKeys[key]; ok {

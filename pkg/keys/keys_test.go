@@ -174,3 +174,57 @@ func TestTranslateCtrlShapes(t *testing.T) {
 		})
 	}
 }
+
+// DECCKM switches the arrows and Home/End to their SS3 form. less and a good
+// part of the ncurses world only accept that one; sending the CSI form there
+// types a literal letter instead of moving.
+func TestTranslateWithApplicationCursorKeys(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		key     gocui.Key
+		normal  string
+		applied string
+	}{
+		{name: "haut", key: gocui.KeyArrowUp, normal: "\x1b[A", applied: "\x1bOA"},
+		{name: "bas", key: gocui.KeyArrowDown, normal: "\x1b[B", applied: "\x1bOB"},
+		{name: "droite", key: gocui.KeyArrowRight, normal: "\x1b[C", applied: "\x1bOC"},
+		{name: "gauche", key: gocui.KeyArrowLeft, normal: "\x1b[D", applied: "\x1bOD"},
+		{name: "home", key: gocui.KeyHome, normal: "\x1b[H", applied: "\x1bOH"},
+		{name: "end", key: gocui.KeyEnd, normal: "\x1b[F", applied: "\x1bOF"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := TranslateWithMode(tt.key, 0, gocui.ModNone, true); string(got) != tt.applied {
+				t.Errorf("TranslateWithMode(appCursorKeys=true) = %q, want %q", got, tt.applied)
+			}
+
+			if got := TranslateWithMode(tt.key, 0, gocui.ModNone, false); string(got) != tt.normal {
+				t.Errorf("TranslateWithMode(appCursorKeys=false) = %q, want %q", got, tt.normal)
+			}
+
+			// Translate is the normal-mode call, unchanged.
+			if got := Translate(tt.key, 0, gocui.ModNone); string(got) != tt.normal {
+				t.Errorf("Translate = %q, want %q", got, tt.normal)
+			}
+		})
+	}
+}
+
+// A modified arrow keeps its CSI encoding even under DECCKM — that is how
+// xterm itself does it, and there is no SS3 form carrying a modifier.
+func TestApplicationCursorKeysLeavesModifiedArrowsAlone(t *testing.T) {
+	if got := TranslateWithMode(gocui.KeyShiftArrowUp, 0, gocui.ModNone, true); string(got) != "\x1b[1;2A" {
+		t.Errorf("TranslateWithMode(Shift-Up, appCursorKeys=true) = %q, want %q", got, "\x1b[1;2A")
+	}
+}
+
+// Everything that is not a cursor key is untouched by the mode.
+func TestApplicationCursorKeysDoesNotAffectOtherKeys(t *testing.T) {
+	for _, key := range []gocui.Key{gocui.KeyPgup, gocui.KeyPgdn, gocui.KeyF1, gocui.KeyDelete, gocui.KeyEnter} {
+		normal := Translate(key, 0, gocui.ModNone)
+		applied := TranslateWithMode(key, 0, gocui.ModNone, true)
+
+		if string(normal) != string(applied) {
+			t.Errorf("key %d: appCursorKeys changed the encoding from %q to %q", key, normal, applied)
+		}
+	}
+}

@@ -7,23 +7,40 @@ Principe directeur : **chaque phase produit un binaire lançable et testable à 
 construit jamais deux couches spéculatives d'affilée. Le risque technique majeur (pty + gocui qui se
 disputent le terminal) est attaqué en phase 1, pas en phase 4.
 
+**Légende d'avancement** — `[x]` fait · `[~]` en cours / partiel · `[ ]` à faire.
+L'état est celui du code présent dans le dépôt, pas d'une intention.
+
+| Phase | État |
+|---|---|
+| 0 · Socle du dépôt | **fait** |
+| 1 · Spike pty | **fait** |
+| 2 · Modèle de session | **fait** |
+| 3 · Layout, panels, navigation | **fait** |
+| 4 · Pass-through (MVP) | **fait** |
+| 5 · Config, thème, ergonomie | **en cours** — tout est fait sauf le GIF de démo |
+| 6 · Config de projet | **à faire** |
+| 7 · Ergonomie multi-sessions | **à faire** |
+| 8 · Distribution et budget de perf | **en cours** — les benchs existent, rien d'autre |
+| 9 · Recherche, copie, broadcast | **à faire** |
+| 10 · Émulation de terminal complète | **fait** (faite en avance, voir la phase) |
+
 ---
 
-## Phase 0 — Socle du dépôt
+## Phase 0 — Socle du dépôt — **fait**
 
 **But** : `go run ./cmd/lazyshell` affiche une fenêtre gocui vide qu'on peut quitter proprement.
 
-- `go mod init github.com/<user>/lazyshell` (Go 1.22+).
-- Dépendances initiales : `github.com/jesseduffield/gocui`,
+- [x] `go mod init github.com/<user>/lazyshell` (Go 1.22+).
+- [x] Dépendances initiales : `github.com/jesseduffield/gocui`,
   `github.com/jesseduffield/lazycore/pkg/boxlayout`, `github.com/creack/pty`, `gopkg.in/yaml.v3`.
   (Réalisé : gocui n'est disponible qu'en pseudo-version `master`, qui **exige Go 1.25** — le
   plancher « Go 1.22+ » ci-dessus est inatteignable. Les autres dépendances sont ajoutées à la
   phase qui les utilise, `go mod tidy` supprimant toute dépendance non importée.)
-- Arborescence minimale : `cmd/lazyshell/main.go`, `pkg/app`, `pkg/gui`, `pkg/session`, `pkg/tasks`.
-- `pkg/app` : bootstrap (construit le `SessionManager`, construit le `Gui`, appelle `gui.Run()`).
-- `pkg/gui/gui.go` : `gocui.NewGui`, `SetManager`, `MainLoop`, binding `q` / `Ctrl-C` → `ErrQuit`,
+- [x] Arborescence minimale : `cmd/lazyshell/main.go`, `pkg/app`, `pkg/gui`, `pkg/session`, `pkg/tasks`.
+- [x] `pkg/app` : bootstrap (construit le `SessionManager`, construit le `Gui`, appelle `gui.Run()`).
+- [x] `pkg/gui/gui.go` : `gocui.NewGui`, `SetManager`, `MainLoop`, binding `q` / `Ctrl-C` → `ErrQuit`,
   restauration du terminal via `defer g.Close()`.
-- Outillage : `Makefile` (`build`, `run`, `test`, `lint`), `.gitignore`, `golangci-lint`, CI GitHub
+- [x] Outillage : `Makefile` (`build`, `run`, `test`, `lint`), `.gitignore`, `golangci-lint`, CI GitHub
   Actions (build + vet + test sur linux/macos).
 
 **Critère de sortie** : ouverture/fermeture sans laisser le terminal dans un état cassé (pas
@@ -33,24 +50,26 @@ d'écho perdu, pas de curseur invisible).
 
 ---
 
-## Phase 1 — Spike pty (la phase qui décide de tout)
+## Phase 1 — Spike pty (la phase qui décide de tout) — **fait**
 
 **But** : valider *avant* d'investir dans l'UI que gocui et un pty interactif cohabitent. C'est le
 seul point sans précédent dans lazygit/lazydocker.
 
 Un binaire jetable `cmd/spike-pty` : une seule vue plein écran, un seul `bash` derrière un pty.
 
-- `pty.Start(exec.Command(shell))` → `ptmx *os.File`.
-- Goroutine de lecture : `io.Copy(view, ptmx)` (la `gocui.View` est un `io.Writer` thread-safe).
-- `goEvery(30ms, reRender)` : si `view.IsTainted()`, `g.Update(noop)` pour déclencher le redraw.
-- Clavier → `ptmx.Write()` : c'est **le** point dur. gocui livre des `gocui.Key`/rune, pas des
+- [x] `pty.Start(exec.Command(shell))` → `ptmx *os.File`.
+- [x] Goroutine de lecture : `io.Copy(view, ptmx)` (la `gocui.View` est un `io.Writer` thread-safe).
+  (Réalisé autrement : remplacé par l'alimentation de l'émulateur, voir la décision 1 ci-dessous.)
+- [x] `goEvery(30ms, reRender)` : si `view.IsTainted()`, `g.Update(noop)` pour déclencher le redraw.
+- [x] Clavier → `ptmx.Write()` : c'est **le** point dur. gocui livre des `gocui.Key`/rune, pas des
   octets bruts. Il faut une table de traduction (touches fléchées → séquences CSI `ESC[A`…,
-  `Ctrl-<x>` → octet de contrôle, `Backspace` → `0x7f`, `Enter` → `\r`).
-- `pty.Setsize` avec les dimensions réelles de la vue, recalculées dans `layout()`.
+  `Ctrl-<x>` → octet de contrôle, `Backspace` → `0x7f`, `Enter` → `\r`). → `pkg/keys`.
+- [x] `pty.Setsize` avec les dimensions réelles de la vue, recalculées dans `layout()`.
 
-**Questions à trancher ici, à documenter dans un ADR :**
+**Questions à trancher ici, à documenter dans un ADR :** toutes tranchées dans
+`docs/adr/0001-rendu-ansi-et-clavier.md`.
 
-1. **Rendu des séquences ANSI.** gocui interprète un sous-ensemble de SGR (couleurs, gras), mais pas
+1. [x] **Rendu des séquences ANSI.** gocui interprète un sous-ensemble de SGR (couleurs, gras), mais pas
    les séquences de positionnement de curseur (`ESC[H`, `ESC[2J`, mode alternate screen). Conséquence
    directe : `ls`, `git log`, un prompt coloré passent ; `vim`, `htop`, `less` **ne passeront pas**
    tels quels. Trois options, à décider maintenant :
@@ -60,13 +79,14 @@ Un binaire jetable `cmd/spike-pty` : une seule vue plein écran, un seul `bash` 
      maintient une grille de cellules, et on rend cette grille dans la vue à chaque frame au lieu
      d'`io.Copy` — coût réel, mais c'est la seule voie vers un vrai tmux ;
    - (c) filtrage/strip des séquences non supportées pour éviter l'affichage corrompu.
-   **Recommandation : (a) pour les phases 1-4, avec l'interface de rendu conçue pour permettre (b)
-   en phase 10** (c'est-à-dire : la session expose « donne-moi l'état à afficher », pas « voici un
-   flux d'octets »).
-2. **Qui possède le terminal** quand une session est en pass-through : gocui garde toujours le
+   **Recommandation initiale : (a) pour les phases 1-4, avec l'interface de rendu conçue pour
+   permettre (b) en phase 10.** *Tranché autrement après essais réels : (b) tout de suite — (a) et
+   (c) ont été essayées et abandonnées, un prompt thémé se redessine en place et est intraduisible
+   sans grille de cellules.*
+2. [x] **Qui possède le terminal** quand une session est en pass-through : gocui garde toujours le
    contrôle (on ne fait *pas* de `Suspend`/`Resume`, sinon on perd le multiplexage).
-3. **Sortie du mode pass-through** : un préfixe d'échappement à la tmux (`Ctrl-A`, `Ctrl-B` ou
-   `Ctrl-Space`) car `Tab` et `Esc` doivent partir au shell.
+3. [x] **Sortie du mode pass-through** : un préfixe d'échappement à la tmux (`Ctrl-A`, `Ctrl-B` ou
+   `Ctrl-Space`) car `Tab` et `Esc` doivent partir au shell. → `Ctrl-B`, remappable.
 
 **Critère de sortie** : dans le spike, taper `ls -la`, `cd /tmp`, `echo $$`, `Ctrl-C` sur un `sleep`
 fonctionne ; le redimensionnement du terminal propage la bonne taille (`stty size` dans la session
@@ -84,7 +104,7 @@ ailleurs.
 > n'existe plus ; la phase 10 (ex-phase 6) se réduit à l'intégration multi-panneaux et aux
 > cas limites.
 
-## Phase 2 — Modèle de session
+## Phase 2 — Modèle de session — **fait**
 
 **But** : `pkg/session` autonome, testable sans TUI.
 
@@ -111,17 +131,17 @@ type Manager struct {
 
 Points clés :
 
-- **Une goroutine de drain par session**, lancée à la création, vivante tant que le process tourne,
+- [x] **Une goroutine de drain par session**, lancée à la création, vivante tant que le process tourne,
   **indépendante du `TaskManager`** : elle lit le pty en continu vers le scrollback. C'est ce qui
   garantit qu'aucune sortie n'est perdue pendant qu'une session n'est pas affichée.
-- **Scrollback borné** — fourni par `pkg/screen` (l'émulateur en tient 10 000 lignes par défaut),
+- [x] **Scrollback borné** — fourni par `pkg/screen` (l'émulateur en tient 10 000 lignes par défaut),
   plus de ring buffer à écrire. Ce n'est pas qu'une protection mémoire : le coût d'un redraw croît
   avec le tampon affiché, au point de figer l'UI (mesures dans l'ADR 0001).
-- **Reaping** : `cmd.Wait()` dans la goroutine de drain → passage en `Exited` + code de sortie, sans
+- [x] **Reaping** : `cmd.Wait()` dans la goroutine de drain → passage en `Exited` + code de sortie, sans
   laisser de zombie.
-- **Kill propre** : `SIGHUP`/`SIGTERM` au *process group* (`syscall.Kill(-pgid, …)`, shell lancé avec
+- [x] **Kill propre** : `SIGHUP`/`SIGTERM` au *process group* (`syscall.Kill(-pgid, …)`, shell lancé avec
   `Setsid`), puis `SIGKILL` après timeout — sinon les enfants du shell survivent.
-- **Arrêt global** : à la sortie de lazyshell, tuer toutes les sessions — le détach (daemon
+- [x] **Arrêt global** : à la sortie de lazyshell, tuer toutes les sessions — le détach (daemon
   détenant les pty) est hors périmètre de la roadmap, c'est un autre projet.
 
 **Critère de sortie** : tests unitaires `pkg/session` — création, écriture/lecture, kill, code de
@@ -131,22 +151,22 @@ sortie, borne du scrollback, absence de goroutine leak (`go test -race`).
 
 ---
 
-## Phase 3 — Layout, panels et navigation
+## Phase 3 — Layout, panels et navigation — **fait**
 
 **But** : l'UI à deux panneaux, avec des sessions réelles mais encore en lecture seule.
 
-- `pkg/tasks` : port quasi verbatim du `TaskManager` de lazydocker (`NewTask` stoppe la tâche
+- [x] `pkg/tasks` : port quasi verbatim du `TaskManager` de lazydocker (`NewTask` stoppe la tâche
   précédente, `NewTickerTask`).
-- `pkg/gui/layout.go` : arbre `boxlayout` — `sessions` (gauche, largeur fixe ~30) + `output`
+- [x] `pkg/gui/layout.go` : arbre `boxlayout` — `sessions` (gauche, largeur fixe ~30) + `output`
   (droite, poids restant) + barre de statut ; bascule `COLUMN`→`ROW` en mode portrait
   (`width <= 84 && height > 45`).
-- `pkg/gui/sessions_panel.go` : liste (nom, statut, PID, cwd), navigation `j`/`k` + flèches,
+- [x] `pkg/gui/sessions_panel.go` : liste (nom, statut, PID, cwd), navigation `j`/`k` + flèches,
   `OnSelect` → `QueueTask(render de la session)`.
-- `pkg/gui/output.go` : la tâche de rendu vide le scrollback dans la vue puis suit le flux. Le
+- [x] `pkg/gui/output.go` : la tâche de rendu vide le scrollback dans la vue puis suit le flux. Le
   `TaskManager` tue la tâche de *lecture* précédente — **jamais le process**.
-- `pkg/gui/focus.go` : second manager gocui + hooks `onFocus`/`onFocusLost`, `view.Highlight` sur la
+- [x] `pkg/gui/focus.go` : second manager gocui + hooks `onFocus`/`onFocusLost`, `view.Highlight` sur la
   vue courante (modèle lazydocker, pas de pile de contexts).
-- `pkg/gui/keybindings.go` : liste plate de `Binding{ViewName, Key, Modifier, Handler, Description}`.
+- [x] `pkg/gui/keybindings.go` : liste plate de `Binding{ViewName, Key, Modifier, Handler, Description}`.
   Bindings : `n` nouvelle session, `x`/`d` kill (avec confirmation), `Tab` cycle focus, `q` quitter.
 
 **Critère de sortie** : créer 3 sessions, alterner la sélection, voir la sortie de chacune ; une
@@ -156,18 +176,18 @@ session qui produit de la sortie pendant qu'elle est masquée n'a rien perdu au 
 
 ---
 
-## Phase 4 — Interactivité (mode pass-through) → **MVP**
+## Phase 4 — Interactivité (mode pass-through) → **MVP** — **fait**
 
 **But** : lazyshell devient utilisable au quotidien pour des shells non-plein-écran.
 
-- Intégration du travail de la phase 1 dans `pkg/gui/input.go` : quand `output` a le focus et que le
+- [x] Intégration du travail de la phase 1 dans `pkg/gui/input.go` : quand `output` a le focus et que le
   mode pass-through est actif, chaque touche est traduite en octets et écrite dans `session.ptmx`.
-- Indicateur de mode visible dans la barre de statut (`-- INSERT --` / bordure de couleur), sinon
+- [x] Indicateur de mode visible dans la barre de statut (`-- INSERT --` / bordure de couleur), sinon
   l'utilisateur ne sait plus si `q` quitte l'app ou part au shell.
-- Préfixe d'échappement (décidé en phase 1) pour revenir à la navigation.
-- Scroll dans le scrollback quand le pass-through est inactif (`PgUp`/`PgDn`, `Ctrl-U`/`Ctrl-D`),
-  avec autoscroll réactivé au retour en bas.
-- Propagation du resize : `layout()` → `pty.Setsize` de la session affichée (+ des autres, avec leur
+- [x] Préfixe d'échappement (décidé en phase 1) pour revenir à la navigation.
+- [x] Scroll dans le scrollback quand le pass-through est inactif (`PgUp`/`PgDn`, `Ctrl-U`/`Ctrl-D`),
+  avec autoscroll réactivé au retour en bas (décalage ramené à 0 = vue vivante).
+- [x] Propagation du resize : `layout()` → `pty.Setsize` de la session affichée (+ des autres, avec leur
   dernière taille connue).
 
 **Critère de sortie** : dogfooding — utiliser lazyshell pour piloter 2-3 shells pendant une vraie
@@ -177,25 +197,27 @@ session de travail sans avoir à le tuer.
 
 ---
 
-## Phase 5 — Configuration, thème, ergonomie
+## Phase 5 — Configuration, thème, ergonomie — **en cours**
 
 **But** : la finition qui rend le MVP présentable.
 
-- `pkg/config` : YAML utilisateur (`~/.config/lazyshell/config.yml`) fusionné avec des defaults en
+- [x] `pkg/config` : YAML utilisateur (`~/.config/lazyshell/config.yml`) fusionné avec des defaults en
   dur — shell par défaut, taille de scrollback, largeur du panel, préfixe d'échappement, keybindings
   remappables.
-- `pkg/gui/theme.go` : `activeBorderColor`, `inactiveBorderColor`, `selectedLineBgColor` → mappés en
+- [x] `pkg/gui/theme.go` : `activeBorderColor`, `inactiveBorderColor`, `selectedLineBgColor` → mappés en
   `gocui.Attribute` au démarrage (modèle lazydocker).
-- Panneau d'aide `?` généré depuis les `Description` des bindings.
-- Renommage de session (`r`), duplication, session dans un cwd choisi.
-- Popup de confirmation pour le kill ; gestion d'erreur visible (pas de `panic` en plein écran).
-- README avec un GIF de démo, instructions d'install (`go install`, Homebrew tap éventuel).
+- [x] Panneau d'aide `?` généré depuis les `Description` des bindings.
+- [x] Renommage de session (`r`), duplication, session dans un cwd choisi.
+- [x] Popup de confirmation pour le kill ; gestion d'erreur visible (pas de `panic` en plein écran).
+- [~] README avec instructions d'install (`go install`) : **fait**. Le **GIF de démo** est toujours
+  un `<!-- TODO -->` dans le README, et le tap Homebrew est repoussé en phase 8.
 
 **Critère de sortie** : quelqu'un d'autre installe et utilise lazyshell depuis le README seul.
+*Atteint sur le texte, pas sur la démo visuelle.*
 
 ---
 
-## Phase 6 — Config de projet : sessions déclaratives
+## Phase 6 — Config de projet : sessions déclaratives — **à faire**
 
 **But** : `lazyshell` lancé dans un dossier qui contient un `lazyshell.yml` démarre tout seul les
 sessions décrites dans ce fichier, chacune dans son cwd et avec sa commande. C'est ce qui fait
@@ -203,16 +225,16 @@ passer l'outil de « multiplexeur générique » à « lanceur d'environnement d
 
 **Découverte du fichier** (par ordre de priorité) :
 
-1. `--config <fichier>` / `-f` en ligne de commande ;
-2. `$LAZYSHELL_PROJECT_CONFIG` ;
-3. `./lazyshell.yml` puis `./.lazyshell.yml` dans le répertoire courant.
+1. [ ] `--config <fichier>` / `-f` en ligne de commande ;
+2. [ ] `$LAZYSHELL_PROJECT_CONFIG` ;
+3. [ ] `./lazyshell.yml` puis `./.lazyshell.yml` dans le répertoire courant.
 
 Pas de remontée d'arborescence en première itération (voir « Ce qui reste ouvert »).
 
-**Précédence de la configuration** : defaults en dur < `~/.config/lazyshell/config.yml` <
-config de projet < variables d'environnement (`$LAZYSHELL_PREFIX`) < flags. Le mécanisme de merge
-existe déjà (`config.Load` déserialise par-dessus `Default()`) : il suffit d'enchaîner deux
-`yaml.Unmarshal` sur la même struct, dans cet ordre.
+- [ ] **Précédence de la configuration** : defaults en dur < `~/.config/lazyshell/config.yml` <
+  config de projet < variables d'environnement (`$LAZYSHELL_PREFIX`) < flags. Le mécanisme de merge
+  existe déjà (`config.Load` déserialise par-dessus `Default()`) : il suffit d'enchaîner deux
+  `yaml.Unmarshal` sur la même struct, dans cet ordre.
 
 **Schéma du fichier** — le bloc `sessions` est le seul ajout au schéma existant ; les autres clés
 sont celles de `pkg/config.Config`, surchargeables par projet :
@@ -233,25 +255,25 @@ sessions:
 
 **Points à trancher / implémenter :**
 
-- **Sémantique de `command`** : l'injecter dans le pty du shell interactif (façon `tmux send-keys`,
+- [ ] **Sémantique de `command`** : l'injecter dans le pty du shell interactif (façon `tmux send-keys`,
   le shell reste utilisable quand la commande se termine) plutôt que de l'`exec` à la place du
   shell (la session passerait `Exited` dès la fin de la commande). **Recommandation : injection**,
   à documenter — c'est le comportement attendu pour un `npm run dev` qu'on relance à la main.
-- **Confiance** : un `lazyshell.yml` versionné dans un dépôt cloné exécute des commandes
+- [ ] **Confiance** : un `lazyshell.yml` versionné dans un dépôt cloné exécute des commandes
   arbitraires au démarrage. Prévoir un garde-fou avant toute exécution automatique — prompt
   d'approbation par chemin, mémorisé (modèle `direnv allow`), plus un `--no-autostart` pour ouvrir
   l'UI sans rien lancer. **À ne pas repousser : c'est le seul point de cette phase qui est un vrai
   risque.**
-- **Validation** : `name` unique et non vide, `cwd` existant, `shell` exécutable. Une entrée
+- [ ] **Validation** : `name` unique et non vide, `cwd` existant, `shell` exécutable. Une entrée
   invalide n'empêche pas le démarrage des autres : la session concernée apparaît en erreur dans la
   liste, l'erreur est affichée dans la barre de statut (jamais de `panic`, jamais de sortie muette).
-- **Support côté `pkg/session`** : `Manager.NewInDir(name, shell, cwd)` couvre déjà le cwd ; reste
+- [ ] **Support côté `pkg/session`** : `Manager.NewInDir(name, shell, cwd)` couvre déjà le cwd ; reste
   à ajouter l'environnement supplémentaire (`env`) et l'injection de la commande initiale.
-- **Ordre et sélection** : sessions créées dans l'ordre du fichier, la première sélectionnée au
+- [ ] **Ordre et sélection** : sessions créées dans l'ordre du fichier, la première sélectionnée au
   démarrage.
-- **`lazyshell init`** : génère un `lazyshell.yml` commenté dans le dossier courant, pour ne pas
+- [ ] **`lazyshell init`** : génère un `lazyshell.yml` commenté dans le dossier courant, pour ne pas
   avoir à lire le README pour connaître le schéma.
-- Documenter le format dans le README, à côté de la config utilisateur.
+- [ ] Documenter le format dans le README, à côté de la config utilisateur.
 
 **Critère de sortie** : dans un dossier contenant un `lazyshell.yml` de 3 sessions, `lazyshell`
 démarre les 3, chacune avec le bon cwd (`pwd` dans la session le confirme) et sa commande lancée ;
@@ -263,26 +285,29 @@ concentré sur le modèle de confiance.
 
 ---
 
-## Phase 7 — Ergonomie multi-sessions
+## Phase 7 — Ergonomie multi-sessions — **à faire**
 
 **But** : rendre supportable le régime que la phase 6 installe — 4 à 8 sessions ouvertes en
 permanence, dont on n'en regarde qu'une. Quatre manques, tous petits, qui ne prennent leur sens
 qu'ensemble.
 
-- **Indicateur d'activité et de résultat dans la liste** : marqueur `●` sur une session masquée qui
+- [ ] **Indicateur d'activité et de résultat dans la liste** : marqueur `●` sur une session masquée qui
   a produit de la sortie depuis la dernière fois qu'on l'a regardée (remis à zéro à la sélection),
   bell (`\a`) signalé distinctement, et `✓` / `✗ <code>` sur une session `Exited`. Le signal
   d'activité se prend dans la goroutine de drain de `pkg/session` (elle voit déjà passer chaque
   octet), pas dans la boucle de rendu.
-- **Relance d'une session terminée** (`R`) : même nom, même cwd, même shell, même commande
+  (*La cloche et la gouttière de marqueurs existent déjà depuis la phase 10 — `bellMarker` /
+  `altScreenMarker` dans `pkg/gui/sessions_panel.go` ; il reste le marqueur d'activité et le
+  résultat de sortie, à y ajouter plutôt qu'à côté.*)
+- [ ] **Relance d'une session terminée** (`R`) : même nom, même cwd, même shell, même commande
   initiale. Suppose que la session conserve sa *spec* de création — c'est exactement la struct
   introduite par la phase 6 pour les sessions déclaratives, à extraire donc à ce moment-là et non
   à réinventer. Décider si la relance réutilise l'ID ou en crée un nouveau (recommandation : même
   ID, la session est « la même » du point de vue de l'utilisateur).
-- **Saut direct par index** (`1`–`9` sélectionnent la n-ième session) et **zoom** (`z` : le
+- [ ] **Saut direct par index** (`1`–`9` sélectionnent la n-ième session) et **zoom** (`z` : le
   panneau output prend tout l'écran, la liste disparaît ; même touche pour revenir). Le zoom est
   un cas particulier de `boxlayout` — un flag dans `layout()`, pas un second arbre.
-- **Aides contextuelles permanentes, en anglais** : une ligne de rappel des raccourcis *pertinents
+- [ ] **Aides contextuelles permanentes, en anglais** : une ligne de rappel des raccourcis *pertinents
   ici et maintenant*, toujours visible, au lieu du seul popup `?` qui liste tout
   (`pkg/gui/help.go`). Le contexte, c'est le couple (vue ayant le focus, mode) :
   - `sessions` : `n new  x kill  r rename  R restart  z zoom  Tab output  ? help` ;
@@ -312,22 +337,25 @@ permanent : il change d'état, il ne « clignote » pas.
 
 ---
 
-## Phase 8 — Distribution et budget de performance
+## Phase 8 — Distribution et budget de performance — **en cours**
 
 **But** : ce qui manque pour que le critère de sortie de la phase 5 (« quelqu'un d'autre installe
 et utilise lazyshell depuis le README seul ») soit vraiment atteint.
 
-- **Release automatisée** : `goreleaser`, binaires linux/macOS (amd64 + arm64), archives attachées
+- [ ] **Release automatisée** : `goreleaser`, binaires linux/macOS (amd64 + arm64), archives attachées
   au tag GitHub, checksums. `go install` documenté et vérifié sur une machine vierge, tap Homebrew
   si le besoin se confirme.
-- **Version dans le binaire** : `--version` alimenté par `-ldflags`, affiché aussi dans le panneau
+- [ ] **Version dans le binaire** : `--version` alimenté par `-ldflags`, affiché aussi dans le panneau
   d'aide — indispensable pour trier les rapports de bug.
-- **Budget de redraw mesuré, pas commenté** : bench Go sur le rendu d'un écran avec 10 000 lignes
+- [~] **Budget de redraw mesuré, pas commenté** : bench Go sur le rendu d'un écran avec 10 000 lignes
   de scrollback et N sessions actives, exécuté en CI avec un seuil qui casse le build en cas de
   régression. L'ADR 0001 documente déjà que ce coût peut figer l'UI ; le verrouiller par un test
   est le seul moyen que ça reste vrai après la phase 10.
-- **GIF de démo** régénéré sur les fonctions des phases 6-7 (c'est là que l'outil devient
-  démontrable en 15 secondes).
+  **Les benchs existent** depuis la phase 10 (`pkg/screen/bench_test.go`, `pkg/gui/bench_test.go`,
+  plus `TestIdleSessionDoesNotRepaint` qui compte les repeints au repos) ; **ce qui manque, c'est
+  de les brancher en CI avec un seuil.**
+- [ ] **GIF de démo** régénéré sur les fonctions des phases 6-7 (c'est là que l'outil devient
+  démontrable en 15 secondes) — recouvre le point resté ouvert de la phase 5.
 
 **Critère de sortie** : `brew install` ou `go install` sur une machine sans Go dev setup, puis
 `lazyshell --version`, sans lire autre chose que le README.
@@ -337,20 +365,20 @@ datée.
 
 ---
 
-## Phase 9 — Recherche, copie, broadcast
+## Phase 9 — Recherche, copie, broadcast — **à faire**
 
 **But** : les opérations qu'on quitte encore lazyshell pour faire dans un vrai terminal.
 
-- **Recherche dans le scrollback** : `/` pour saisir un motif, `n`/`N` pour circuler, surlignage
+- [ ] **Recherche dans le scrollback** : `/` pour saisir un motif, `n`/`N` pour circuler, surlignage
   des occurrences, `Esc` pour sortir. Se fait sur le modèle de `pkg/screen` (les lignes, pas le
   flux d'octets).
-- **Filtre de la liste de sessions** quand elle dépasse la hauteur du panneau — même champ de
+- [ ] **Filtre de la liste de sessions** quand elle dépasse la hauteur du panneau — même champ de
   saisie, filtrage sur le nom et le cwd.
-- **Copy-mode** : sélection de lignes au clavier, copie vers le presse-papier via OSC 52 (marche à
+- [ ] **Copy-mode** : sélection de lignes au clavier, copie vers le presse-papier via OSC 52 (marche à
   travers SSH, contrairement à un appel à `xclip`/`pbcopy`), avec repli sur une commande externe
   configurable si le terminal ne supporte pas OSC 52.
-- **Export** (`w`) : vider le scrollback d'une session dans un fichier, chemin proposé par défaut.
-- **Broadcast** : marquer plusieurs sessions et leur envoyer la même saisie en pass-through.
+- [ ] **Export** (`w`) : vider le scrollback d'une session dans un fichier, chemin proposé par défaut.
+- [ ] **Broadcast** : marquer plusieurs sessions et leur envoyer la même saisie en pass-through.
   Fonction de niche, mais quasi gratuite une fois le routage clavier de la phase 4 en place — la
   garder derrière un indicateur très visible dans la barre de statut, une saisie envoyée à 6
   shells sans le savoir est un accident.
@@ -363,37 +391,61 @@ l'émulateur de la phase 10.
 
 ---
 
-## Phase 10 — Émulation de terminal complète (le vrai saut fonctionnel)
+## Phase 10 — Émulation de terminal complète (le vrai saut fonctionnel) — **fait**
 
 **But** : supporter `vim`, `htop`, `less` — ce qui sépare « joli visualiseur de sortie » de
 « multiplexeur ».
 
-- Intégrer un émulateur (`vt10x` / `charmbracelet/x/vt`) : le pty alimente une grille de cellules,
-  la vue rend la grille à chaque frame.
-- Gérer l'alternate screen, le positionnement du curseur, l'effacement, les attributs par cellule.
-- Décision à prendre alors : rester sur `gocui.View` (qui n'est pas conçu pour un rendu cellule par
-  cellule) ou descendre d'un niveau vers `tcell` pour le panel output uniquement.
+Faite en avance sur le séquencement, pour une raison qui n'était pas visible en la planifiant :
+son premier point corrige un défaut de la **v0.2 déjà publiée**, pas une fonctionnalité future.
+L'émulateur ayant été avancé en phase 1 (ADR 0001), il ne restait ici que l'intégration dans l'UI
+à deux panneaux et les cas limites. Détail et mesures dans `docs/adr/0002-rendu-multi-panneaux.md`.
 
-**Risque** : élevé, périmètre large. À ne lancer qu'après un MVP utilisé et validé — c'est
-exactement le genre de phase qui, faite trop tôt, enterre le projet.
+- [x] **Rendu** — le défaut : `pkg/gui` initialisait gocui en `OutputNormal`, alors que le spike de la
+  phase 1 avait établi qu'`OutputTrue` est indispensable. En dessous, gocui rejette les formes SGR
+  256 couleurs et truecolor et en **imprime le corps** : tout prompt thémé, tout colorscheme `vim`,
+  toute barre `htop` s'affichait avec des `[38;5;2m` en clair. Corrigé, avec `InputEsc` (sans lui,
+  `Esc` — la touche centrale de `vim` — n'arrive pas de façon fiable).
+- [x] **Curseur** : `pkg/screen` expose position et visibilité (cette dernière via les callbacks de
+  `vt`, qui n'en donne pas de getter) ; le panneau output le dessine quand il a le focus, en
+  pass-through, sur l'écran vivant, et si l'application ne l'a pas caché.
+- [x] **Alternate screen** : signalé (`[ALT]` dans la barre de statut, `#` dans la gouttière de la
+  liste) et défilement neutralisé — mais **pas** de bascule de mode automatique : un changement de
+  mode non demandé rendrait ambigu ce que fait `q`.
+- [x] **Clavier** : mode curseur applicatif (DECCKM) suivi par l'émulateur et honoré par
+  `keys.TranslateWithMode` (formes SS3), sans quoi les flèches tapent une lettre dans `less`.
+- [x] **`gocui.View` ou `tcell` ?** Tranché par la mesure, pas par le raisonnement : le rendu d'une
+  frame coûte 0,2 % à 1,7 % du tick de 30 ms selon la géométrie, et un seul panneau est rendu à la
+  fois. On reste sur `gocui.View`. Le vrai coût était ailleurs : les deux panneaux appelaient
+  `g.Update` à chaque tick même sans rien à afficher, soit **60 repeints plein écran par seconde
+  au repos**, ramenés à **0**.
+- [x] **Cas limites** : titre OSC affiché dans la liste (souvent la commande en cours), cloche à
+  verrou pour une session qui a sonné pendant qu'elle était masquée, et erreur visible quand on
+  tape dans une session dont le shell est mort.
+
+**Reste ouvert, hors périmètre assumé** (voir ADR 0002) : la souris (gocui confond ses boutons avec
+les Shift-flèches), les protocoles clavier étendus (Kitty, CSI u), le collage entre crochets.
+
+**Risque** : il était annoncé élevé et à large périmètre ; l'avoir amputé de l'émulateur dès la
+phase 1 l'a ramené à une phase d'intégration.
 
 ---
 
 ## Séquencement et jalons
 
-| Phase | Livrable | Jalon |
-|---|---|---|
-| 0 | squelette + CI | — |
-| 1 | spike pty + ADR rendu/clavier | **go / no-go technique** |
-| 2 | `pkg/session` testé | — |
-| 3 | UI 2 panneaux, lecture seule | démo interne |
-| 4 | pass-through interactif | **v0.1 — MVP dogfoodable** |
-| 5 | config, thème, aide, README | **v0.2 — publiable** |
-| 6 | `lazyshell.yml` de projet, sessions déclaratives | **v0.3** |
-| 7 | activité, relance, saut par index, zoom, aides contextuelles | **v0.4** |
-| 8 | goreleaser, `--version`, bench de redraw en CI | **v0.5 — installable par un tiers** |
-| 9 | recherche, copy-mode, export, broadcast | v0.6 |
-| 10 | émulation terminal complète | **v1.0** |
+| Phase | Livrable | Jalon | État |
+|---|---|---|---|
+| 0 | squelette + CI | — | fait |
+| 1 | spike pty + ADR rendu/clavier | **go / no-go technique** | fait |
+| 2 | `pkg/session` testé | — | fait |
+| 3 | UI 2 panneaux, lecture seule | démo interne | fait |
+| 4 | pass-through interactif | **v0.1 — MVP dogfoodable** | fait |
+| 5 | config, thème, aide, README | **v0.2 — publiable** | en cours (GIF) |
+| 6 | `lazyshell.yml` de projet, sessions déclaratives | **v0.3** | à faire |
+| 7 | activité, relance, saut par index, zoom, aides contextuelles | **v0.4** | à faire |
+| 8 | goreleaser, `--version`, bench de redraw en CI | **v0.5 — installable par un tiers** | en cours (benchs) |
+| 9 | recherche, copy-mode, export, broadcast | v0.6 | à faire |
+| 10 | émulation terminal complète | **v1.0** | fait (en avance) |
 
 ## Décisions déjà actées (ne pas re-débattre)
 
@@ -405,12 +457,13 @@ exactement le genre de phase qui, faite trop tôt, enterre le projet.
 
 ## Ce qui reste ouvert
 
-1. Stratégie de rendu ANSI (tranchée en phase 1, revisitée en phase 10).
-2. Préfixe d'échappement du mode pass-through.
-3. Souris (sélection dans la liste, clic pour focus) : après le MVP.
-4. Portée du support Windows : hors périmètre (pas de pty Unix) — à assumer explicitement.
-5. Config de projet (phase 6) : remontée d'arborescence jusqu'à la racine du dépôt pour trouver
+1. [x] Stratégie de rendu ANSI (tranchée en phase 1, revisitée et close en phase 10 — ADR 0002).
+2. [x] Préfixe d'échappement du mode pass-through (`Ctrl-B`, remappable — ADR 0001).
+3. [ ] Souris (sélection dans la liste, clic pour focus) : hors périmètre tant que gocui confond les
+   boutons de souris avec les Shift-flèches (ADR 0001, décision reconduite en phase 10).
+4. [ ] Portée du support Windows : hors périmètre (pas de pty Unix) — à assumer explicitement.
+5. [ ] Config de projet (phase 6) : remontée d'arborescence jusqu'à la racine du dépôt pour trouver
    `lazyshell.yml`, ou strictement le cwd ? Et un fichier de projet peut-il surcharger les
    keybindings et le thème, ou seulement `shell` / `sessions` ?
-6. Modèle de confiance de l'auto-démarrage (phase 6) : approbation par chemin mémorisée, ou
+6. [ ] Modèle de confiance de l'auto-démarrage (phase 6) : approbation par chemin mémorisée, ou
    simple confirmation à chaque lancement ?

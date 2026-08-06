@@ -14,7 +14,7 @@ func newHeadlessGocui(t *testing.T) *gocui.Gui {
 	t.Helper()
 
 	g, err := gocui.NewGui(gocui.NewGuiOpts{
-		OutputMode: gocui.OutputNormal,
+		OutputMode: gocui.OutputTrue,
 		Headless:   true,
 		Width:      80,
 		Height:     24,

@@ -14,7 +14,7 @@ import (
 // 80x24 gocui instance that renders to an in-memory screen, so the app can be
 // exercised without a real terminal or real shells (unless a test explicitly
 // creates sessions on the manager).
-func newHeadlessGui(t *testing.T) (*Gui, *gocui.Gui) {
+func newHeadlessGui(t testing.TB) (*Gui, *gocui.Gui) {
 	t.Helper()
 
 	return newHeadlessGuiSized(t, 80, 24)
@@ -23,7 +23,7 @@ func newHeadlessGui(t *testing.T) (*Gui, *gocui.Gui) {
 // newHeadlessGuiSized is newHeadlessGui with an explicit terminal size, for
 // tests exercising layout behaviour at specific dimensions (tiny terminal,
 // portrait vs. landscape).
-func newHeadlessGuiSized(t *testing.T, width, height int) (*Gui, *gocui.Gui) {
+func newHeadlessGuiSized(t testing.TB, width, height int) (*Gui, *gocui.Gui) {
 	t.Helper()
 
 	return newHeadlessGuiSizedWithConfig(t, width, height, config.Default())
@@ -32,11 +32,11 @@ func newHeadlessGuiSized(t *testing.T, width, height int) (*Gui, *gocui.Gui) {
 // newHeadlessGuiSizedWithConfig is newHeadlessGuiSized with an explicit
 // config, for tests exercising config-driven behaviour (keybinding remap,
 // theme, panel width...).
-func newHeadlessGuiSizedWithConfig(t *testing.T, width, height int, cfg config.Config) (*Gui, *gocui.Gui) {
+func newHeadlessGuiSizedWithConfig(t testing.TB, width, height int, cfg config.Config) (*Gui, *gocui.Gui) {
 	t.Helper()
 
 	g, err := gocui.NewGui(gocui.NewGuiOpts{
-		OutputMode: gocui.OutputNormal,
+		OutputMode: gocui.OutputTrue,
 		Headless:   true,
 		Width:      width,
 		Height:     height,

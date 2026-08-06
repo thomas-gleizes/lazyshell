@@ -10,7 +10,27 @@ import (
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
-// sessionsPanelContent renders one line per session (name, status, PID, cwd).
+// Gutter markers, in the two columns every session line starts with. They are
+// the only way to learn something about a session that is not the one on
+// screen: what it is running, and whether it asked for attention while hidden.
+const (
+	// bellMarker flags a session that emitted a BEL since it was last looked
+	// at — a finished build, a shell asking a question.
+	bellMarker = "!"
+	// altScreenMarker flags a session with a full-screen application in
+	// control (vim, htop, less).
+	altScreenMarker = "#"
+)
+
+// sessionsPanelContent renders one line per session: a two-column gutter of
+// markers, then name, status, PID, and either the terminal title the shell set
+// (usually the running command, which is what you actually want to read in a
+// session list) or the working directory when it set none.
+//
+// Exactly one line per session is a hard constraint, not a style choice:
+// renderSessionsPanel's view.SetCursor(0, selected) and the view's Highlight
+// both address sessions by line number.
+//
 // A pure function, kept separate from the gocui-writing side so it can be
 // tested directly, the same way keys.Translate and spike.edit are.
 func sessionsPanelContent(sessions []*session.Session) string {
@@ -25,10 +45,30 @@ func sessionsPanelContent(sessions []*session.Session) string {
 			pid = sess.Cmd.Process.Pid
 		}
 
-		fmt.Fprintf(&b, "%-12s %-8s %6d  %s\n", sess.Name(), sess.Status(), pid, sess.Cwd)
+		detail := sess.Screen().Title()
+		if detail == "" {
+			detail = sess.Cwd
+		}
+
+		fmt.Fprintf(&b, "%-2s%-12s %-8s %6d  %s\n", sessionMarkers(sess), sess.Name(), sess.Status(), pid, detail)
 	}
 
 	return b.String()
+}
+
+// sessionMarkers builds a session's gutter, at most two characters wide.
+func sessionMarkers(sess *session.Session) string {
+	markers := ""
+
+	if sess.Screen().BellPending() {
+		markers += bellMarker
+	}
+
+	if sess.Screen().IsAltScreen() {
+		markers += altScreenMarker
+	}
+
+	return markers
 }
 
 // selectedSession returns the session at the current selection, clamped to
@@ -63,6 +103,10 @@ func (gui *Gui) selectedSession() *session.Session {
 // is a plain field write with no such protection, and goEvery drives this
 // from its own background goroutine — mutating it outside g.Update would
 // race against gocui's own render pass reading it during MainLoop.
+//
+// An unchanged panel is not pushed at all: a g.Update redraws the whole
+// screen, and this runs on a 30 ms ticker whether or not any session status,
+// title or marker has moved.
 func (gui *Gui) renderSessionsPanel() error {
 	if gui.g == nil {
 		return nil
@@ -71,10 +115,18 @@ func (gui *Gui) renderSessionsPanel() error {
 	content := sessionsPanelContent(gui.sessions.List())
 	selected := gui.getSelectedIndex()
 
+	if !gui.sessionsPanelChanged(content, selected) {
+		return nil
+	}
+
 	gui.g.Update(func(g *gocui.Gui) error {
 		view, err := g.View(sessionsViewName)
 		if err != nil {
-			// Not created yet — the first layout pass has not run.
+			// Not created yet — the first layout pass has not run. Forget what
+			// we just recorded, so the next tick draws instead of comparing
+			// against something that was never displayed.
+			gui.invalidateSessionsPanel()
+
 			return nil
 		}
 
@@ -86,6 +138,31 @@ func (gui *Gui) renderSessionsPanel() error {
 	})
 
 	return nil
+}
+
+// sessionsPanelChanged reports whether the panel differs from what was last
+// pushed, and records the new state as pushed. Guarded by gui.mu because
+// renderSessionsPanel is called both from goEvery's background goroutine and
+// from keybinding handlers on gocui's.
+func (gui *Gui) sessionsPanelChanged(content string, selected int) bool {
+	gui.mu.Lock()
+	defer gui.mu.Unlock()
+
+	if gui.sessionsDrawn && content == gui.lastSessionsContent && selected == gui.lastSessionsSelected {
+		return false
+	}
+
+	gui.lastSessionsContent, gui.lastSessionsSelected, gui.sessionsDrawn = content, selected, true
+
+	return true
+}
+
+// invalidateSessionsPanel forgets what was last pushed, so the next render
+// draws unconditionally.
+func (gui *Gui) invalidateSessionsPanel() {
+	gui.mu.Lock()
+	gui.sessionsDrawn = false
+	gui.mu.Unlock()
 }
 
 // selectionMoved moves the selection by delta (j/k, arrows), clamped to the
@@ -120,6 +197,9 @@ func (gui *Gui) onSelectionChanged() {
 	gui.setScrollOffset(0)
 
 	if sess := gui.selectedSession(); sess != nil {
+		// Looking at a session is what acknowledges its bell: the marker is
+		// there to say "this one rang while you were elsewhere".
+		sess.Screen().ClearBell()
 		gui.showOutput(sess)
 	}
 }

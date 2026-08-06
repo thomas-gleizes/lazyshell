@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/vt"
 )
 
@@ -21,6 +22,20 @@ import (
 type Screen struct {
 	mu   sync.Mutex
 	term *vt.Emulator
+
+	// The four fields below mirror emulator state that vt keeps but does not
+	// expose a getter for; they are maintained by the callbacks installed in
+	// NewWithScrollback.
+	//
+	// Those callbacks fire from inside term.Write — that is, with s.mu already
+	// held by Write — so they may write these fields directly, and the
+	// accessors below read them under the same mu. The rule that comes with
+	// it: a callback handler must never call back into a Screen method, or it
+	// would deadlock on a mutex it is already holding.
+	cursorVisible bool
+	appCursorKeys bool
+	title         string
+	bellPending   bool
 }
 
 // New returns a Screen of the given size, in cells, with the emulator's
@@ -35,7 +50,29 @@ func NewWithScrollback(cols, rows, scrollback int) *Screen {
 	term := vt.NewEmulator(cols, rows)
 	term.SetScrollbackSize(scrollback)
 
-	return &Screen{term: term}
+	// The cursor starts visible (vt.Cursor's zero value is Hidden: false) and
+	// CursorVisibility only fires on a change, so the initial value has to be
+	// seeded here rather than inferred from the first callback.
+	s := &Screen{term: term, cursorVisible: true}
+
+	term.SetCallbacks(vt.Callbacks{
+		CursorVisibility: func(visible bool) { s.cursorVisible = visible },
+		Title:            func(title string) { s.title = title },
+		Bell:             func() { s.bellPending = true },
+		EnableMode:       func(mode ansi.Mode) { s.setMode(mode, true) },
+		DisableMode:      func(mode ansi.Mode) { s.setMode(mode, false) },
+	})
+
+	return s
+}
+
+// setMode records the emulator modes lazyshell cares about. Called from vt's
+// EnableMode/DisableMode callbacks, so s.mu is already held — see the field
+// comments on Screen.
+func (s *Screen) setMode(mode ansi.Mode, set bool) {
+	if mode == ansi.ModeCursorKeys {
+		s.appCursorKeys = set
+	}
 }
 
 // Write feeds pty output into the emulator.
@@ -166,4 +203,66 @@ func (s *Screen) ScrollbackLen() int {
 	defer s.mu.Unlock()
 
 	return s.term.ScrollbackLen()
+}
+
+// CursorPosition is where the emulated cursor sits, in cells, relative to the
+// top-left of the visible screen. Meaningful for display only while the live
+// screen is shown: RenderAt with a non-zero offset shows history the cursor is
+// not in.
+func (s *Screen) CursorPosition() (x, y int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	pos := s.term.CursorPosition()
+
+	return pos.X, pos.Y
+}
+
+// CursorVisible reports whether the application wants the cursor drawn — full
+// screen applications hide it while they redraw (DECTCEM, ESC[?25l). vt tracks
+// this internally but exposes no getter, hence the callback in
+// NewWithScrollback.
+func (s *Screen) CursorVisible() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.cursorVisible
+}
+
+// ApplicationCursorKeys reports whether DECCKM is set. When it is, the arrow
+// and Home/End keys must be sent as SS3 sequences (ESC O A) rather than CSI
+// ones (ESC [ A) — less and several full-screen applications only accept the
+// former. Consumed by pkg/keys.TranslateWithMode.
+func (s *Screen) ApplicationCursorKeys() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.appCursorKeys
+}
+
+// Title is the terminal title the application last set through OSC 0/2 —
+// typically the running command, which is exactly what a session manager wants
+// to list. Empty when nothing has set one.
+func (s *Screen) Title() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.title
+}
+
+// BellPending reports whether a BEL has been received since the last
+// ClearBell. It is a latch, not an event: a session that rang while it was not
+// on screen must still be able to say so when the user comes back to it.
+func (s *Screen) BellPending() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.bellPending
+}
+
+// ClearBell acknowledges a pending bell.
+func (s *Screen) ClearBell() {
+	s.mu.Lock()
+	s.bellPending = false
+	s.mu.Unlock()
 }

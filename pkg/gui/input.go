@@ -7,6 +7,7 @@ import (
 	"github.com/jesseduffield/gocui"
 
 	"github.com/thomas-gleizes/lazyshell/pkg/keys"
+	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
 // defaultPrefixKey is the tmux-style escape prefix that leaves pass-through
@@ -94,7 +95,7 @@ func (gui *Gui) editDuringPassThrough(key gocui.Key, ch rune, mod gocui.Modifier
 		gui.prefixPending = false
 
 		if key == gui.prefixKey {
-			gui.writeToSelected(keys.Translate(key, ch, mod))
+			gui.writeToSelected(gui.translate(key, ch, mod))
 		} else {
 			gui.exitPassThrough()
 		}
@@ -108,9 +109,22 @@ func (gui *Gui) editDuringPassThrough(key gocui.Key, ch rune, mod gocui.Modifier
 		return true
 	}
 
-	gui.writeToSelected(keys.Translate(key, ch, mod))
+	gui.writeToSelected(gui.translate(key, ch, mod))
 
 	return true
+}
+
+// translate encodes a key event for the selected session, honouring the
+// application cursor key mode (DECCKM) that session's emulator is currently
+// in: vim and less arm it on entry, and some applications only accept the SS3
+// arrow encoding it calls for.
+func (gui *Gui) translate(key gocui.Key, ch rune, mod gocui.Modifier) []byte {
+	appCursorKeys := false
+	if sess := gui.selectedSession(); sess != nil {
+		appCursorKeys = sess.Screen().ApplicationCursorKeys()
+	}
+
+	return keys.TranslateWithMode(key, ch, mod, appCursorKeys)
 }
 
 // editDuringScroll handles the output view outside pass-through: only a few
@@ -167,6 +181,15 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 
 // writeToSelected sends translated bytes to whichever session is currently
 // selected. No-op if the list is empty (nothing to type into).
+//
+// Typing into a session whose shell has exited does nothing at all, which from
+// the user's side is indistinguishable from a frozen application — so it is
+// reported in the status bar instead.
+//
+// The status is what decides, not the error from Write: Session.Kill only
+// closes the pty on its SIGKILL escalation path, and writing to a pty master
+// whose slave has no process left still succeeds. Relying on the error would
+// therefore only report the case where the shell had to be killed the hard way.
 func (gui *Gui) writeToSelected(b []byte) {
 	if len(b) == 0 {
 		return
@@ -177,7 +200,15 @@ func (gui *Gui) writeToSelected(b []byte) {
 		return
 	}
 
-	_, _ = sess.Write(b)
+	if sess.Status() == session.StatusExited {
+		_ = gui.reportSessionError(fmt.Errorf("session %s terminée (code %d)", sess.Name(), sess.ExitCode()))
+
+		return
+	}
+
+	if _, err := sess.Write(b); err != nil {
+		_ = gui.reportSessionError(fmt.Errorf("session %s : %w", sess.Name(), err))
+	}
 }
 
 // enterPassThrough arms pass-through mode: every subsequent key (bar the
@@ -193,18 +224,25 @@ func (gui *Gui) enterPassThrough() {
 	gui.refreshChrome()
 }
 
-// exitPassThrough disarms pass-through mode, back to scroll/navigation.
+// exitPassThrough disarms pass-through mode, back to scroll/navigation. The
+// render task is restarted so it picks up the new mode — that is what takes
+// the terminal cursor back off the panel.
 func (gui *Gui) exitPassThrough() {
 	gui.passThroughActive = false
+	gui.restartOutput()
 	gui.refreshChrome()
 }
 
 // scrollBy adjusts the output scroll offset, clamped to the selected
 // session's available scrollback, and restarts the render task so the new
 // offset is picked up immediately rather than waiting for the next tick.
+//
+// It does nothing while the alternate screen is active: a full-screen
+// application does not feed the scrollback, so there is no history to scroll
+// back into, and the keys that would do it belong to that application anyway.
 func (gui *Gui) scrollBy(delta int) {
 	sess := gui.selectedSession()
-	if sess == nil {
+	if sess == nil || sess.Screen().IsAltScreen() {
 		return
 	}
 

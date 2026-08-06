@@ -6,6 +6,10 @@ the left, the live output of whichever one is selected on the right. Sessions
 keep running in the background — with their scrollback preserved — even while
 you're looking at a different one.
 
+The output panel is a real terminal emulator, so full-screen applications
+work: `vim`, `htop` and `less` run inside a session, cursor and colours
+included.
+
 <!-- TODO: demo gif -->
 
 ## Install
@@ -42,6 +46,23 @@ to open an in-app help popup listing every binding below.
 | `c` | Dupliquer la session sélectionnée |
 | `N` | Nouvelle session dans un dossier choisi |
 | `Ctrl+B` (configurable) | Prefix used to escape pass-through mode back to the sessions panel |
+
+### Reading the sessions list
+
+Each session is one line: a two-column gutter, then its name, status, PID, and
+either the terminal title the shell set (usually the running command) or its
+working directory.
+
+| Marker | Meaning |
+| --- | --- |
+| `!` | The session rang the bell while you were looking elsewhere. Cleared when you select it. |
+| `#` | A full-screen application (`vim`, `htop`, `less`) has the session. Shown as `[ALT]` in the status bar for the selected one. |
+
+While a full-screen application is in control, scrolling back through history
+is disabled — the alternate screen does not feed the scrollback, and those keys
+belong to the application. `lazyshell` never switches mode on its own: use `i`
+or `Enter` to give the keyboard to the shell, and the prefix key to take it
+back.
 
 ## Configuration
 

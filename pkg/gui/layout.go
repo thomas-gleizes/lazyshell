@@ -154,6 +154,13 @@ func (gui *Gui) initView(name string, view *gocui.View) {
 		// swallow, forward to the shell, or let fall through.
 		view.Editable = true
 		view.Editor = gocui.EditorFunc(gui.editOutput)
+		// The terminal cursor is drawn on this panel only, and only while it
+		// has focus. Losing focus must take it away immediately rather than at
+		// the next frame the session happens to change, and regaining focus
+		// must restart the render task so the very next tick redraws it — see
+		// showOutput's skip-if-unchanged rule.
+		gui.focus.onFocus[outputViewName] = func() { gui.restartOutput() }
+		gui.focus.onFocusLost[outputViewName] = func() { gui.g.Cursor = false }
 	case statusViewName:
 		view.Frame = false
 		gui.renderStatus(view)

@@ -223,3 +223,115 @@ func TestRenderAtClampsToScrollbackLen(t *testing.T) {
 		t.Errorf("RenderAt beyond ScrollbackLen() = %q, want the same as at the max offset %q", beyond, atMax)
 	}
 }
+
+// write is render's counterpart for the tests that inspect emulator state
+// rather than the rendered screen.
+func write(t *testing.T, s *Screen, input string) {
+	t.Helper()
+
+	if _, err := s.Write([]byte(input)); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+}
+
+// The GUI draws the real cursor at this position, which is the whole
+// difference between "vim is running somewhere" and "I can see where I type".
+func TestCursorPositionFollowsTheEmulator(t *testing.T) {
+	s := New(40, 10)
+
+	// CUP is 1-based, the emulator reports 0-based.
+	write(t, s, "\x1b[5;9H")
+
+	if x, y := s.CursorPosition(); x != 8 || y != 4 {
+		t.Errorf("CursorPosition() = (%d, %d), want (8, 4)", x, y)
+	}
+}
+
+// Full-screen applications hide the cursor while they redraw; drawing it
+// anyway would put a stray block in the middle of their output.
+func TestCursorVisibilityFollowsDECTCEM(t *testing.T) {
+	s := New(40, 10)
+
+	if !s.CursorVisible() {
+		t.Fatal("cursor hidden before anything was written")
+	}
+
+	write(t, s, "\x1b[?25l")
+
+	if s.CursorVisible() {
+		t.Error("ESC[?25l did not hide the cursor")
+	}
+
+	write(t, s, "\x1b[?25h")
+
+	if !s.CursorVisible() {
+		t.Error("ESC[?25h did not show the cursor again")
+	}
+}
+
+// DECCKM decides whether the arrow keys must be encoded as ESC O A or ESC [ A
+// — see pkg/keys.TranslateWithMode.
+func TestApplicationCursorKeysFollowsDECCKM(t *testing.T) {
+	s := New(40, 10)
+
+	if s.ApplicationCursorKeys() {
+		t.Fatal("application cursor keys active before anything was written")
+	}
+
+	write(t, s, "\x1b[?1h")
+
+	if !s.ApplicationCursorKeys() {
+		t.Error("ESC[?1h did not enable application cursor keys")
+	}
+
+	write(t, s, "\x1b[?1l")
+
+	if s.ApplicationCursorKeys() {
+		t.Error("ESC[?1l did not disable application cursor keys")
+	}
+}
+
+// The title a shell sets is usually the running command, which is what makes
+// a session list readable.
+func TestTitleFollowsOSC(t *testing.T) {
+	s := New(40, 10)
+
+	if s.Title() != "" {
+		t.Fatalf("Title() = %q before anything was written, want empty", s.Title())
+	}
+
+	write(t, s, "\x1b]0;vim ROADMAP.md\a")
+
+	if got := s.Title(); got != "vim ROADMAP.md" {
+		t.Errorf("Title() = %q, want %q", got, "vim ROADMAP.md")
+	}
+}
+
+// The bell is a latch, not an event: a session that rang while it was hidden
+// must still be able to report it when the user comes back.
+func TestBellLatchesUntilCleared(t *testing.T) {
+	s := New(40, 10)
+
+	if s.BellPending() {
+		t.Fatal("bell pending before anything was written")
+	}
+
+	write(t, s, "ding\a")
+
+	if !s.BellPending() {
+		t.Fatal("BEL was not latched")
+	}
+
+	// Still pending after more output: only ClearBell acknowledges it.
+	write(t, s, "more output\r\n")
+
+	if !s.BellPending() {
+		t.Error("the bell was cleared by subsequent output")
+	}
+
+	s.ClearBell()
+
+	if s.BellPending() {
+		t.Error("ClearBell did not clear the bell")
+	}
+}

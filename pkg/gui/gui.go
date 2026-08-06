@@ -25,6 +25,11 @@ const reRenderInterval = 30 * time.Millisecond
 // report and the output panel is not in pass-through mode.
 const statusHint = " n: nouvelle session   x/d: tuer   j/k: naviguer   Tab: changer de focus   ?: aide   q: quitter "
 
+// altScreenIndicator marks a session whose alternate screen is active, i.e. a
+// full-screen application (vim, htop, less) is in control. Shown in the status
+// bar for the selected session, and in the sessions list gutter for every one.
+const altScreenIndicator = "[ALT]"
+
 // Gui holds the gocui instance and the state of the interface.
 type Gui struct {
 	g *gocui.Gui
@@ -77,6 +82,13 @@ type Gui struct {
 	// the live bottom; 0 means "live". Reset to 0 whenever the selection
 	// changes or pass-through is (re-)armed.
 	scrollOffset int
+	// lastSessionsContent/lastSessionsSelected/sessionsDrawn memoise what the
+	// sessions panel last pushed, so an unchanged panel does not trigger a
+	// full-screen redraw on every tick. Under the same mu because
+	// renderSessionsPanel runs from both goEvery's goroutine and gocui's.
+	lastSessionsContent  string
+	lastSessionsSelected int
+	sessionsDrawn        bool
 
 	// sessionCounter feeds the default name of sessions created with "n".
 	sessionCounter int
@@ -137,8 +149,15 @@ func (gui *Gui) setScrollOffset(offset int) {
 // Run initialises gocui and blocks in the main loop until the user quits. The
 // terminal is always restored before returning, including on panic.
 func (gui *Gui) Run() (err error) {
+	// OutputTrue is required, not cosmetic, and this is the whole reason
+	// full-screen applications did not work before phase 6: below it, gocui's
+	// escape interpreter rejects the 256-colour and truecolour SGR forms
+	// (escape.go's csiColor) and prints their body as literal text — "[38;5;2m"
+	// in the middle of the screen. pkg/screen emits exactly those forms for any
+	// themed prompt, vim colorscheme or htop bar. Measured in ADR 0001,
+	// validated in cmd/spike-pty, and only now carried over to the real app.
 	g, err := gocui.NewGui(gocui.NewGuiOpts{
-		OutputMode:      gocui.OutputNormal,
+		OutputMode:      gocui.OutputTrue,
 		SupportOverlaps: false,
 	})
 	if err != nil {
@@ -156,8 +175,14 @@ func (gui *Gui) Run() (err error) {
 	defer g.Close()
 
 	gui.g = g
+	// The cursor is off by default and turned on by the output render task
+	// only while a session is actually being typed into — see showOutput.
 	g.Cursor = false
 	g.Mouse = false
+	// Without InputEsc, a lone Esc is held back while the input parser waits to
+	// see whether an escape sequence follows. Esc is vim's central key, so it
+	// has to be delivered as itself; same setting as cmd/spike-pty.
+	g.InputEsc = true
 
 	// Highlight draws the current view's frame in SelFrameColor — the only
 	// code needed for an "active panel" border, gocui does the rest on every
@@ -187,11 +212,12 @@ func (gui *Gui) Run() (err error) {
 }
 
 // renderStatus writes the status bar's content: the last error takes
-// priority, then the pass-through indicator, then the keybinding hint.
-// Without a clear indicator the user cannot tell whether q quits the app or
-// goes to the shell. Safe to call directly (no g.Update) whenever the caller
-// is already running on gocui's main goroutine — a keybinding handler, the
-// output Editor, or initView during layout.
+// priority, then the pass-through indicator, then the keybinding hint. The
+// alt-screen marker is appended to whichever of those is shown. Without a
+// clear indicator the user cannot tell whether q quits the app or goes to the
+// shell. Safe to call directly (no g.Update) whenever the caller is already
+// running on gocui's main goroutine — a keybinding handler, the output
+// Editor, or initView during layout.
 func (gui *Gui) renderStatus(view *gocui.View) {
 	view.Clear()
 
@@ -204,7 +230,22 @@ func (gui *Gui) renderStatus(view *gocui.View) {
 		text = fmt.Sprintf(" -- INSERT --  (%s pour sortir) ", prefixName(gui.prefixKey))
 	}
 
+	if gui.selectedIsAltScreen() {
+		text += altScreenIndicator + " "
+	}
+
 	fmt.Fprint(view, text)
+}
+
+// selectedIsAltScreen reports whether the selected session has a full-screen
+// application in control (vim, htop, less). lazyshell deliberately does not
+// change mode on its own when this flips — it only says so, in the status bar
+// and in the sessions list, and stops offering a scrollback that the alternate
+// screen does not feed.
+func (gui *Gui) selectedIsAltScreen() bool {
+	sess := gui.selectedSession()
+
+	return sess != nil && sess.Screen().IsAltScreen()
 }
 
 // goEvery runs fn once, then on every tick of interval until the process
