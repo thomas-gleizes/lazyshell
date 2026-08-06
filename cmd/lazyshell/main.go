@@ -9,11 +9,9 @@ import (
 )
 
 func main() {
-	a := app.New()
-
-	// Run returns only once the terminal has been restored, so it is safe to
-	// write to stderr here.
-	if err := a.Run(); err != nil {
+	// app.Main returns only once the terminal has been restored, so it is safe
+	// to write to stderr here.
+	if err := app.Main(os.Args[1:], os.Stdout); err != nil {
 		fmt.Fprintf(os.Stderr, "lazyshell: %v\n", err)
 		os.Exit(1)
 	}

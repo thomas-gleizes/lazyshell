@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -54,31 +55,62 @@ func NewManager() *Manager {
 	}
 }
 
-// New starts shell behind a pty, in the current working directory, and
-// registers it under the given name. It is a thin wrapper around NewInDir for
-// the common case; session creation from a chosen directory goes through
-// NewInDir directly.
-func (m *Manager) New(name, shell string) (*Session, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("session: getwd: %w", err)
-	}
+// Options describes a session to create. It exists because the declarative
+// project config (phase 6) needs two things the positional constructors cannot
+// express — extra environment variables and a command to run on startup —
+// without growing a fourth and fifth positional argument on every call site.
+type Options struct {
+	// Name is the session's display name.
+	Name string
+	// Shell is the command started behind the pty.
+	Shell string
+	// Cwd is the shell's working directory. Empty means the process's own.
+	Cwd string
+	// Env adds to (and overrides within) the inherited environment.
+	Env map[string]string
+	// Command, when non-empty, is typed into the session once it is up — see
+	// NewWithOptions for why it is injected rather than exec'd.
+	Command string
+}
 
-	return m.NewInDir(name, shell, cwd)
+// New starts shell behind a pty, in the current working directory, and
+// registers it under the given name. It is a thin wrapper around
+// NewWithOptions for the common case.
+func (m *Manager) New(name, shell string) (*Session, error) {
+	return m.NewWithOptions(Options{Name: name, Shell: shell})
 }
 
 // NewInDir is New with an explicit working directory — the "session dans un
-// cwd choisi" ergonomics feature. The session's drain goroutine is started
-// before NewInDir returns, so no output is lost from the moment the shell is
-// up.
+// cwd choisi" ergonomics feature.
 func (m *Manager) NewInDir(name, shell, cwd string) (*Session, error) {
-	cmd := exec.Command(shell)
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	return m.NewWithOptions(Options{Name: name, Shell: shell, Cwd: cwd})
+}
+
+// NewWithOptions is the full session constructor. The session's drain goroutine
+// is started before it returns, so no output is lost from the moment the shell
+// is up.
+//
+// Options.Command is *typed into* the shell rather than exec'd in its place.
+// Exec'ing would make the session go Exited the instant the command finishes —
+// wrong for the case this exists for, a `npm run dev` you want to Ctrl-C and
+// restart by hand. Injection keeps the shell underneath, exactly like
+// `tmux send-keys`.
+func (m *Manager) NewWithOptions(opts Options) (*Session, error) {
+	cwd := opts.Cwd
+	if cwd == "" {
+		var err error
+		if cwd, err = os.Getwd(); err != nil {
+			return nil, fmt.Errorf("session: getwd: %w", err)
+		}
+	}
+
+	cmd := exec.Command(opts.Shell)
+	cmd.Env = buildEnv(opts.Env)
 	cmd.Dir = cwd
 
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: defaultRows, Cols: defaultCols})
 	if err != nil {
-		return nil, fmt.Errorf("session: start %s: %w", shell, err)
+		return nil, fmt.Errorf("session: start %s: %w", opts.Shell, err)
 	}
 
 	sess := &Session{
@@ -92,7 +124,7 @@ func (m *Manager) NewInDir(name, shell, cwd string) (*Session, error) {
 		rows:      defaultRows,
 		done:      make(chan struct{}),
 	}
-	sess.SetName(name)
+	sess.SetName(opts.Name)
 
 	go sess.drain()
 
@@ -101,7 +133,35 @@ func (m *Manager) NewInDir(name, shell, cwd string) (*Session, error) {
 	m.order = append(m.order, sess.ID)
 	m.mu.Unlock()
 
+	if opts.Command != "" {
+		// The pty's line discipline buffers this until the shell gets round to
+		// reading, so there is no need to wait for a prompt first.
+		if _, err := sess.Write([]byte(opts.Command + "\n")); err != nil {
+			return sess, fmt.Errorf("session %s: injection de %q: %w", sess.ID, opts.Command, err)
+		}
+	}
+
 	return sess, nil
+}
+
+// buildEnv is the child's environment: the process's own, TERM forced to a
+// value the emulator actually implements, then the session's own overrides.
+// Sorted so two runs of the same config produce the same environment, which is
+// what makes it testable.
+func buildEnv(extra map[string]string) []string {
+	env := append(os.Environ(), "TERM=xterm-256color")
+
+	keys := make([]string, 0, len(extra))
+	for k := range extra {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		env = append(env, k+"="+extra[k])
+	}
+
+	return env
 }
 
 // newScreen builds a session's terminal emulator, honouring ScrollbackSize

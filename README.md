@@ -118,6 +118,73 @@ theme:
   pass_through_border_color: "red"
 ```
 
+## Project configuration
+
+Run `lazyshell` in a directory holding a `lazyshell.yml` and it starts the
+sessions that file declares — each in its own directory, with its own
+environment and command — instead of coming up empty.
+
+`lazyshell init` writes a commented starting point in the current directory.
+
+```yaml
+# ./lazyshell.yml
+
+# Optional: overrides the user config's shell, for this project only.
+shell: /bin/zsh
+
+sessions:
+  - name: api
+    # Relative to *this file*, not to where you launched lazyshell from.
+    # `~` is expanded. Left out, it means this file's own directory.
+    cwd: ./services/api
+    # Typed into the shell once it is up, not exec'd in its place: when the
+    # command exits (or you Ctrl-C it), the shell is still there.
+    command: make dev
+    env:
+      PORT: "3000"
+
+  - name: web
+    cwd: ./web
+    command: npm run dev
+
+  - name: shell          # no command: a plain shell in the project directory
+```
+
+Sessions start in file order, and the first one is selected. An entry that
+does not validate (empty or duplicate `name`, missing `cwd`) is skipped and
+reported in the status bar — the others still start.
+
+**Only `shell` and `sessions` are read from a project file.** `theme`,
+`keybindings`, `prefix_key` and the rest stay under your control alone: a
+repository you cloned must not be able to remap your keyboard. Other keys are
+ignored, with a warning on stderr.
+
+### Which file is used
+
+1. `--config-file <file>` (`-f`)
+2. `$LAZYSHELL_PROJECT_CONFIG`
+3. `./lazyshell.yml`
+4. `./.lazyshell.yml`
+
+Only the current directory is searched — no walking up to a repository root,
+so the file that runs is always the one you can see.
+
+### Approving a project file
+
+A `lazyshell.yml` is versioned in a repository, so it would otherwise run
+arbitrary commands the moment you `cd` into a clone. lazyshell asks once, before
+the interface opens, and remembers the answer per file — and asks again as soon
+as the file's content changes:
+
+```sh
+lazyshell allow            # approve the current directory's file, launch nothing
+lazyshell allow ./x.yml    # approve a specific file
+lazyshell --no-autostart   # open the interface without starting anything
+```
+
+Approvals live in `trust.yml` next to your user config. When stdin is not a
+terminal, approval is refused rather than assumed.
+
 ## Development
 
 ```sh

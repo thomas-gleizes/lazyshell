@@ -117,6 +117,21 @@ func New(sessions *session.Manager, cfg config.Config) *Gui {
 	}
 }
 
+// SetStartupError records a problem that happened during bootstrap — a project
+// file that could not be read, a session that failed to start — so it is shown
+// in the status bar as soon as the interface comes up. Must be called before
+// Run: renderStatus already gives lastError priority over everything else.
+func (gui *Gui) SetStartupError(msg string) {
+	gui.lastError = msg
+}
+
+// StartupError reports what SetStartupError recorded, so pkg/app's bootstrap
+// tests can assert on what the user will be told without standing up a
+// terminal.
+func (gui *Gui) StartupError() string {
+	return gui.lastError
+}
+
 // getSelectedIndex/setSelectedIndex, getScrollOffset/setScrollOffset are the
 // only safe way to touch these two fields from a goroutine other than
 // gocui's own — see the mu field comment.
@@ -201,6 +216,14 @@ func (gui *Gui) Run() (err error) {
 	}
 
 	gui.goEvery(reRenderInterval, gui.renderSessionsPanel)
+
+	// Sessions can already exist before the first keypress — pkg/app starts the
+	// ones a project file declares. Nothing else calls onSelectionChanged until
+	// the user moves the selection, so without this the output panel would stay
+	// blank while three sessions are demonstrably running.
+	if len(gui.sessions.List()) > 0 {
+		gui.onSelectionChanged()
+	}
 
 	if err := g.MainLoop(); err != nil && !goerrors.Is(err, gocui.ErrQuit) {
 		return err
