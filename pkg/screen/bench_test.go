@@ -10,7 +10,7 @@ func fill(b *testing.B, s *Screen, lines int) {
 	b.Helper()
 
 	for i := range lines {
-		if _, err := s.Write([]byte(fmt.Sprintf("\x1b[38;5;%dm%04d\x1b[0m  une ligne de sortie de commande\r\n", i%256, i))); err != nil {
+		if _, err := fmt.Fprintf(s, "\x1b[38;5;%dm%04d\x1b[0m  une ligne de sortie de commande\r\n", i%256, i); err != nil {
 			b.Fatalf("Write: %v", err)
 		}
 	}

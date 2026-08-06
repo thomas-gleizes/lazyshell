@@ -9,6 +9,12 @@ linters:
     - misspell
     - staticcheck
     - unused
+  settings:
+    misspell:
+      # Le code et les commentaires sont en français : misspell ne connaît que
+      # l'anglais et signale les mots français homographes d'une faute anglaise.
+      ignore-rules:
+        - commandes
   exclusions:
     presets:
       - comments

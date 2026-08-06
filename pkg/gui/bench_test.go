@@ -21,7 +21,7 @@ func benchSessions(b *testing.B, gui *Gui, n int) []*session.Session {
 		}
 
 		for j := range 2000 {
-			if _, err := sess.Screen().Write([]byte(fmt.Sprintf("\x1b[38;5;%dm%04d\x1b[0m  sortie\r\n", j%256, j))); err != nil {
+			if _, err := fmt.Fprintf(sess.Screen(), "\x1b[38;5;%dm%04d\x1b[0m  sortie\r\n", j%256, j); err != nil {
 				b.Fatalf("Screen().Write: %v", err)
 			}
 		}

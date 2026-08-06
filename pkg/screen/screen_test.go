@@ -165,7 +165,7 @@ func TestRenderAtZeroMatchesRender(t *testing.T) {
 	s := New(40, 5)
 
 	for i := range 20 {
-		if _, err := s.Write([]byte(fmt.Sprintf("line-%d\r\n", i))); err != nil {
+		if _, err := fmt.Fprintf(s, "line-%d\r\n", i); err != nil {
 			t.Fatalf("Write: %v", err)
 		}
 	}
@@ -185,7 +185,7 @@ func TestRenderAtShowsEarlierContent(t *testing.T) {
 	s := New(40, 5)
 
 	for i := range 20 {
-		if _, err := s.Write([]byte(fmt.Sprintf("line-%d\r\n", i))); err != nil {
+		if _, err := fmt.Fprintf(s, "line-%d\r\n", i); err != nil {
 			t.Fatalf("Write: %v", err)
 		}
 	}
@@ -211,7 +211,7 @@ func TestRenderAtClampsToScrollbackLen(t *testing.T) {
 	s := New(40, 5)
 
 	for i := range 20 {
-		if _, err := s.Write([]byte(fmt.Sprintf("line-%d\r\n", i))); err != nil {
+		if _, err := fmt.Fprintf(s, "line-%d\r\n", i); err != nil {
 			t.Fatalf("Write: %v", err)
 		}
 	}
