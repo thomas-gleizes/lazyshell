@@ -286,6 +286,7 @@ func (gui *Gui) applySelection(index int) error {
 // meaningless here.
 func (gui *Gui) onSelectionChanged() {
 	gui.setScrollOffset(0)
+	gui.clearSearch()
 
 	if sess := gui.selectedSession(); sess != nil {
 		// Looking at a session is what acknowledges its bell and its activity:

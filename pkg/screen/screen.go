@@ -10,6 +10,7 @@
 package screen
 
 import (
+	"strings"
 	"sync"
 
 	uv "github.com/charmbracelet/ultraviolet"
@@ -132,23 +133,49 @@ func (s *Screen) Render() string {
 // view (identical to Render); offset is clamped to ScrollbackLen(), so
 // scrolling past the oldest history just stops there instead of erroring.
 //
+// highlight, if non-empty, marks every case-insensitive occurrence of that
+// substring in reverse video — the scrollback-search feature's rendering
+// half (Find is the other half, in search.go). Passing "" skips this
+// entirely and, combined with offset <= 0, keeps the original fast path:
+// the emulator's own Render, with no line-by-line reconstruction.
+//
 // The emulator has no built-in scroll viewport — Render always shows the
-// live screen — so this rebuilds the requested window itself: scrolled-off
-// rows come from Scrollback().Line, still-live rows are reconstructed cell
-// by cell via CellAt (bounded by the panel's height, so this stays cheap),
-// and the combined slice is rendered with uv.Lines.Render, the same styling
-// path vt.Emulator.Render uses internally.
-func (s *Screen) RenderAt(offset int) string {
+// live screen — so any other case rebuilds the requested window itself via
+// linesAt: scrolled-off rows come from Scrollback().Line, still-live rows
+// are reconstructed cell by cell via CellAt (bounded by the panel's height,
+// so this stays cheap), and the combined slice is rendered with
+// uv.Lines.Render, the same styling path vt.Emulator.Render uses internally.
+func (s *Screen) RenderAt(offset int, highlight string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if offset <= 0 {
+	if offset <= 0 && highlight == "" {
 		return s.term.Render()
 	}
 
+	lines := s.linesAt(offset)
+
+	if highlight != "" {
+		lower := strings.ToLower(highlight)
+		for i, line := range lines {
+			lines[i] = highlightLine(line, lower)
+		}
+	}
+
+	return lines.Render()
+}
+
+// linesAt builds the raw uv.Lines window offset lines back from the live
+// bottom, offset <= 0 meaning "all rows live" — the same window RenderAt's
+// fast path renders directly via the emulator when there is no highlight to
+// apply. Callers must hold s.mu.
+func (s *Screen) linesAt(offset int) uv.Lines {
 	scrollback := s.term.Scrollback()
 	scrollbackLen := scrollback.Len()
-	if offset > scrollbackLen {
+
+	if offset < 0 {
+		offset = 0
+	} else if offset > scrollbackLen {
 		offset = scrollbackLen
 	}
 
@@ -168,7 +195,7 @@ func (s *Screen) RenderAt(offset int) string {
 		lines = append(lines, s.liveLine(idx-scrollbackLen, cols))
 	}
 
-	return lines.Render()
+	return lines
 }
 
 // liveLine reconstructs row y of the still-live screen as a uv.Line, cell by

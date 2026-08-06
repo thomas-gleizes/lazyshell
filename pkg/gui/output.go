@@ -50,6 +50,7 @@ type outputFrame struct {
 func (gui *Gui) showOutput(sess *session.Session) {
 	offset := gui.getScrollOffset()
 	passThrough := gui.passThroughActive
+	pattern := gui.searchPattern
 
 	var (
 		previous outputFrame
@@ -57,7 +58,7 @@ func (gui *Gui) showOutput(sess *session.Session) {
 	)
 
 	gui.outputTasks.NewTickerTask(gui.tick(), func(context.Context) {
-		frame := buildOutputFrame(sess, offset, passThrough)
+		frame := buildOutputFrame(sess, offset, passThrough, pattern)
 
 		if drawn && frame == previous {
 			return
@@ -86,11 +87,11 @@ func (gui *Gui) showOutput(sess *session.Session) {
 
 // buildOutputFrame reads everything this tick needs from the session's
 // emulator. Runs on the task's own goroutine, so it touches no Gui state:
-// offset and passThrough were captured by showOutput on gocui's.
-func buildOutputFrame(sess *session.Session, offset int, passThrough bool) outputFrame {
+// offset, passThrough and pattern were captured by showOutput on gocui's.
+func buildOutputFrame(sess *session.Session, offset int, passThrough bool, pattern string) outputFrame {
 	scr := sess.Screen()
 
-	frame := outputFrame{content: scr.RenderAt(offset)}
+	frame := outputFrame{content: scr.RenderAt(offset, pattern)}
 
 	// The cursor is only meaningful on the live screen: scrolled back, the
 	// user is looking at history the cursor is not in. And it is only drawn

@@ -170,11 +170,11 @@ func TestRenderAtZeroMatchesRender(t *testing.T) {
 		}
 	}
 
-	if got, want := s.RenderAt(0), s.Render(); got != want {
+	if got, want := s.RenderAt(0, ""), s.Render(); got != want {
 		t.Errorf("RenderAt(0) = %q, want %q", got, want)
 	}
 
-	if got := s.RenderAt(-1); got != s.Render() {
+	if got := s.RenderAt(-1, ""); got != s.Render() {
 		t.Errorf("RenderAt(-1) = %q, want the live view", got)
 	}
 }
@@ -195,7 +195,7 @@ func TestRenderAtShowsEarlierContent(t *testing.T) {
 		t.Fatal("line-0 should already have scrolled off the live screen")
 	}
 
-	scrolled := s.RenderAt(s.ScrollbackLen())
+	scrolled := s.RenderAt(s.ScrollbackLen(), "")
 	if scrolled == live {
 		t.Fatal("RenderAt with a non-zero offset returned the same content as the live view")
 	}
@@ -216,8 +216,8 @@ func TestRenderAtClampsToScrollbackLen(t *testing.T) {
 		}
 	}
 
-	atMax := s.RenderAt(s.ScrollbackLen())
-	beyond := s.RenderAt(s.ScrollbackLen() * 100)
+	atMax := s.RenderAt(s.ScrollbackLen(), "")
+	beyond := s.RenderAt(s.ScrollbackLen()*100, "")
 
 	if atMax != beyond {
 		t.Errorf("RenderAt beyond ScrollbackLen() = %q, want the same as at the max offset %q", beyond, atMax)

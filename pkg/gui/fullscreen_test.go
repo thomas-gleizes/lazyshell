@@ -55,7 +55,7 @@ func TestOutputPanelConsumes256ColourSequences(t *testing.T) {
 		t.Fatalf("View: %v", err)
 	}
 
-	view.SetContent(buildOutputFrame(sess, 0, false).content)
+	view.SetContent(buildOutputFrame(sess, 0, false, "").content)
 
 	buffer := view.Buffer()
 
@@ -84,7 +84,7 @@ func TestOutputPanelConsumesTruecolourSequences(t *testing.T) {
 		t.Fatalf("View: %v", err)
 	}
 
-	view.SetContent(buildOutputFrame(sess, 0, false).content)
+	view.SetContent(buildOutputFrame(sess, 0, false, "").content)
 
 	if buffer := view.Buffer(); strings.Contains(buffer, "38;2") {
 		t.Errorf("the truecolour sequence was printed as text, not consumed:\n%q", buffer)
@@ -125,7 +125,7 @@ func TestOutputFrameCarriesTheCursorOnlyWhenTypedInto(t *testing.T) {
 	sess := newTestSession(t, gui, "s")
 	feed(t, sess, "\x1b[5;9H")
 
-	frame := buildOutputFrame(sess, 0, true)
+	frame := buildOutputFrame(sess, 0, true, "")
 	if !frame.cursorShown {
 		t.Fatal("cursor not shown while typing into the live screen")
 	}
@@ -135,11 +135,11 @@ func TestOutputFrameCarriesTheCursorOnlyWhenTypedInto(t *testing.T) {
 		t.Errorf("cursor at (%d, %d), want (8, 4)", frame.cursorX, frame.cursorY)
 	}
 
-	if buildOutputFrame(sess, 0, false).cursorShown {
+	if buildOutputFrame(sess, 0, false, "").cursorShown {
 		t.Error("cursor shown while not in pass-through")
 	}
 
-	if buildOutputFrame(sess, 5, true).cursorShown {
+	if buildOutputFrame(sess, 5, true, "").cursorShown {
 		t.Error("cursor shown while scrolled back into history it is not in")
 	}
 }
@@ -152,7 +152,7 @@ func TestOutputFrameHonoursHiddenCursor(t *testing.T) {
 	sess := newTestSession(t, gui, "s")
 	feed(t, sess, "\x1b[?25l")
 
-	if buildOutputFrame(sess, 0, true).cursorShown {
+	if buildOutputFrame(sess, 0, true, "").cursorShown {
 		t.Error("cursor shown although the application hid it")
 	}
 }
@@ -375,8 +375,8 @@ func TestOutputFrameIsStableWhileNothingHappens(t *testing.T) {
 	sess := newTestSession(t, gui, "s")
 	feed(t, sess, "un prompt$ ")
 
-	first := buildOutputFrame(sess, 0, true)
-	second := buildOutputFrame(sess, 0, true)
+	first := buildOutputFrame(sess, 0, true, "")
+	second := buildOutputFrame(sess, 0, true, "")
 
 	if first != second {
 		t.Error("two frames of an unchanged screen differ, so the redraw skip can never fire")
@@ -386,7 +386,7 @@ func TestOutputFrameIsStableWhileNothingHappens(t *testing.T) {
 	// visibly sticks while typing at a prompt that has not echoed yet.
 	feed(t, sess, "\x1b[10;1H")
 
-	if buildOutputFrame(sess, 0, true) == first {
+	if buildOutputFrame(sess, 0, true, "") == first {
 		t.Error("a cursor move produced an identical frame")
 	}
 }

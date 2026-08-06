@@ -68,7 +68,7 @@ func TestPerfBudgetRenderAt(t *testing.T) {
 
 	result := testing.Benchmark(func(b *testing.B) {
 		for range b.N {
-			_ = s.RenderAt(offset)
+			_ = s.RenderAt(offset, "")
 		}
 	})
 

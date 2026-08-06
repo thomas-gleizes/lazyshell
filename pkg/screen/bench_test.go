@@ -53,6 +53,6 @@ func BenchmarkRenderAt(b *testing.B) {
 	b.ResetTimer()
 
 	for range b.N {
-		_ = s.RenderAt(offset)
+		_ = s.RenderAt(offset, "")
 	}
 }

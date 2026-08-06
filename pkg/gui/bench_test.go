@@ -43,7 +43,7 @@ func BenchmarkBuildOutputFrame(b *testing.B) {
 	b.ResetTimer()
 
 	for range b.N {
-		_ = buildOutputFrame(sessions[0], 0, true)
+		_ = buildOutputFrame(sessions[0], 0, true, "")
 	}
 }
 

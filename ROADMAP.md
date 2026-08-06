@@ -458,11 +458,11 @@ datée.
 
 ---
 
-## Phase 9 — Recherche, copie, broadcast — **à faire**
+## Phase 9 — Recherche, copie, broadcast — **en cours**
 
 **But** : les opérations qu'on quitte encore lazyshell pour faire dans un vrai terminal.
 
-- [ ] **Recherche dans le scrollback** : `/` pour saisir un motif, `n`/`N` pour circuler, surlignage
+- [x] **Recherche dans le scrollback** : `/` pour saisir un motif, `n`/`N` pour circuler, surlignage
   des occurrences, `Esc` pour sortir. Se fait sur le modèle de `pkg/screen` (les lignes, pas le
   flux d'octets).
 - [ ] **Filtre de la liste de sessions** quand elle dépasse la hauteur du panneau — même champ de
@@ -623,7 +623,7 @@ qui dépende de la présence d'un agent.
 | 6 | `lazyshell.yml` de projet, sessions déclaratives | **v0.3** | fait |
 | 7 | activité, relance, saut par index, zoom, aides contextuelles | **v0.4** | à faire |
 | 8 | goreleaser, `--version`, bench de redraw en CI | **v0.5 — installable par un tiers** | en cours (benchs) |
-| 9 | recherche, copy-mode, export, broadcast | v0.6 | à faire |
+| 9 | recherche, copy-mode, export, broadcast | v0.6 | en cours (recherche faite) |
 | 10 | émulation terminal complète | **v1.0** | fait (en avance) |
 | 11 | états d'agents IA, notifications, saut vers la session bloquée | **v1.1** | à faire (après 6 et 7) |
 

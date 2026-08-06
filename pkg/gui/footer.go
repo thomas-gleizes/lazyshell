@@ -82,6 +82,14 @@ func (gui *Gui) outputFooterHints() []footerHint {
 		)
 	}
 
+	if gui.searchActive() {
+		hints = append(hints,
+			footerHint{key: "n/N", label: gui.tr.T("footer.search_next")},
+			footerHint{key: "Esc", label: gui.tr.T("footer.search_clear")})
+	} else {
+		hints = append(hints, footerHint{key: "/", label: gui.tr.T("footer.search")})
+	}
+
 	hints = append(hints, footerHint{actions: []string{"zoom"}, label: gui.tr.T("footer.zoom")})
 
 	return hints

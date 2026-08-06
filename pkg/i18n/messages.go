@@ -79,6 +79,10 @@ var messages = map[string]map[string]string{
 		"fr": " -- INSERT --  (%s pour sortir) ",
 		"en": " -- INSERT --  (%s to exit) ",
 	},
+	"status.search": {
+		"fr": " /%s : %d/%d occurrence(s) ",
+		"en": " /%s: %d/%d match(es) ",
+	},
 
 	"sessions.empty": {
 		"fr": "Aucune session — n pour en créer une",
@@ -105,6 +109,15 @@ var messages = map[string]map[string]string{
 	"prompt.new_in_dir": {
 		"fr": "nouvelle session dans...",
 		"en": "new session in...",
+	},
+
+	"search.title": {
+		"fr": "rechercher",
+		"en": "search",
+	},
+	"search.no_matches": {
+		"fr": "aucune occurrence pour %q",
+		"en": "no matches for %q",
 	},
 
 	"input.session_exited": {
@@ -159,5 +172,17 @@ var messages = map[string]map[string]string{
 	"footer.half_page": {
 		"fr": "demi-page",
 		"en": "half page",
+	},
+	"footer.search": {
+		"fr": "chercher",
+		"en": "search",
+	},
+	"footer.search_next": {
+		"fr": "occurrence suiv./préc.",
+		"en": "next/prev match",
+	},
+	"footer.search_clear": {
+		"fr": "quitter la recherche",
+		"en": "exit search",
 	},
 }

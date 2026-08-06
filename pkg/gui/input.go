@@ -177,6 +177,27 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 
 		return true
 
+	case ch == '/':
+		_ = gui.showSearch(gui.g, view)
+
+		return true
+
+	case gui.searchActive() && ch == 'n':
+		gui.nextMatch(1)
+
+		return true
+	case gui.searchActive() && ch == 'N':
+		gui.nextMatch(-1)
+
+		return true
+
+	case gui.searchActive() && key == gocui.KeyEsc && ch == 0:
+		gui.clearSearch()
+		gui.restartOutput()
+		gui.refreshSearchStatus()
+
+		return true
+
 	case ch == 'q':
 		// A plain 'q' global keybinding can never fire as a fallback while
 		// the current view is Editable — gocui excludes printable-character

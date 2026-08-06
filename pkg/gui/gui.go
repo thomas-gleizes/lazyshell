@@ -88,6 +88,16 @@ type Gui struct {
 	// keybinding handler), same reasoning as passThroughActive above.
 	zoomed bool
 
+	// searchPattern, searchMatches and searchIndex are the scrollback-search
+	// state (pkg/gui/search.go): "" means no search is active. Only ever
+	// touched from gocui's own goroutine (editDuringScroll, the search
+	// handlers), same reasoning as passThroughActive above. searchMatches
+	// holds absolute line indices from Screen.Find; searchIndex is the
+	// position within it that n/N last jumped to.
+	searchPattern string
+	searchMatches []int
+	searchIndex   int
+
 	// mu guards selectedIndex and scrollOffset: both are written from
 	// gocui's main goroutine (keybinding handlers, the output Editor) but
 	// also read from background goroutines — goEvery's ticker for
@@ -305,6 +315,8 @@ func (gui *Gui) renderStatus(view *gocui.View) {
 		text = " " + gui.lastError + " "
 	case gui.passThroughActive:
 		text = gui.tr.T("status.passthrough", prefixName(gui.prefixKey))
+	case gui.searchActive():
+		text = gui.tr.T("status.search", gui.searchPattern, gui.searchIndex+1, len(gui.searchMatches))
 	}
 
 	if gui.selectedIsAltScreen() {
