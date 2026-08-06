@@ -18,25 +18,38 @@ import (
 // command is package main.
 const defaultPrefixKey = gocui.KeyCtrlB
 
-// prefixFromEnv reads LAZYSHELL_PREFIX, in gocui's keybinding syntax:
-// "Ctrl+A", "Ctrl+G", "Ctrl+Space"... An unparseable value falls back to the
-// default rather than leaving the user with no way out.
-func prefixFromEnv() gocui.Key {
-	name := os.Getenv("LAZYSHELL_PREFIX")
-	if name == "" {
-		return defaultPrefixKey
+// prefixFrom resolves the pass-through escape prefix: $LAZYSHELL_PREFIX wins
+// if set (a terminal multiplexer running above lazyshell may well eat Ctrl-B
+// before lazyshell ever sees it, so the env var has to be able to override a
+// config file too), then cfgValue (pkg/config's PrefixKey), then the
+// built-in default. Both are in gocui.Parse syntax: "Ctrl+A", "Ctrl+Space"...
+// An unparseable value at either level falls through rather than leaving the
+// user with no way out of pass-through mode.
+func prefixFrom(cfgValue string) gocui.Key {
+	if key, ok := parsePrefixKey(os.Getenv("LAZYSHELL_PREFIX")); ok {
+		return key
 	}
 
-	key, _, err := gocui.Parse(name)
-	if err != nil {
-		return defaultPrefixKey
-	}
-
-	if k, ok := key.(gocui.Key); ok {
-		return k
+	if key, ok := parsePrefixKey(cfgValue); ok {
+		return key
 	}
 
 	return defaultPrefixKey
+}
+
+func parsePrefixKey(name string) (gocui.Key, bool) {
+	if name == "" {
+		return 0, false
+	}
+
+	parsed, _, err := gocui.Parse(name)
+	if err != nil {
+		return 0, false
+	}
+
+	key, ok := parsed.(gocui.Key)
+
+	return key, ok
 }
 
 // prefixName renders a prefix key for the status bar hint.
@@ -139,6 +152,14 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 		gui.g.Update(func(*gocui.Gui) error { return gocui.ErrQuit })
 
 		return true
+
+	case gui.matchesAction("help", key, ch):
+		// Same reasoning as 'q' above: the global "help" binding cannot fire
+		// as a fallback while this view is Editable, so it is matched and
+		// triggered here by hand instead.
+		_ = gui.showHelp(gui.g, view)
+
+		return true
 	}
 
 	return false
@@ -210,9 +231,9 @@ func (gui *Gui) refreshChrome() {
 	}
 
 	if gui.passThroughActive {
-		gui.g.SelFrameColor = passThroughFrameColor
+		gui.g.SelFrameColor = gui.theme.PassThroughBorderColor
 	} else {
-		gui.g.SelFrameColor = activeFrameColor
+		gui.g.SelFrameColor = gui.theme.ActiveBorderColor
 	}
 
 	if view, err := gui.g.View(statusViewName); err == nil {

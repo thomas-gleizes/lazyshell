@@ -3,22 +3,36 @@
 package app
 
 import (
+	"fmt"
+	"os"
+
+	"github.com/thomas-gleizes/lazyshell/pkg/config"
 	"github.com/thomas-gleizes/lazyshell/pkg/gui"
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
-// App is the top-level object of lazyshell. It will later also hold the user
-// configuration (phase 5).
+// App is the top-level object of lazyshell.
 type App struct {
 	sessions *session.Manager
 	gui      *gui.Gui
 }
 
-// New builds the application without touching the terminal.
+// New builds the application without touching the terminal. A malformed
+// config file is reported on stderr and falls back to defaults rather than
+// preventing lazyshell from starting — the terminal is not yet taken over at
+// this point, so it is still safe to print directly.
 func New() *App {
-	sessions := session.NewManager()
+	cfg, err := config.Load(config.Path())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "lazyshell: %v (using defaults)\n", err)
 
-	return &App{sessions: sessions, gui: gui.New(sessions)}
+		cfg = config.Default()
+	}
+
+	sessions := session.NewManager()
+	sessions.ScrollbackSize = cfg.ScrollbackSize
+
+	return &App{sessions: sessions, gui: gui.New(sessions, cfg)}
 }
 
 // Run starts the GUI and blocks until the user quits. The terminal is

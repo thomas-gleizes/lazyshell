@@ -32,7 +32,7 @@ func TestSessionsPanelContentListsSessions(t *testing.T) {
 
 	got := sessionsPanelContent([]*session.Session{a, b})
 
-	for _, want := range []string{a.Name, b.Name, a.Cwd} {
+	for _, want := range []string{a.Name(), b.Name(), a.Cwd} {
 		if !strings.Contains(got, want) {
 			t.Errorf("content %q missing %q", got, want)
 		}

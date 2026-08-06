@@ -38,6 +38,12 @@ type Manager struct {
 	// KillTimeout is exported so tests can shrink it instead of waiting on a
 	// production-sized timeout.
 	KillTimeout time.Duration
+
+	// ScrollbackSize is the terminal emulator's scrollback size (pkg/config's
+	// ScrollbackSize), in lines. Zero means "use the emulator's own default"
+	// (vt.DefaultScrollbackSize) — NewManager's zero value is deliberately
+	// usable as-is by every existing test.
+	ScrollbackSize int
 }
 
 // NewManager returns an empty Manager, ready to create sessions.
@@ -48,15 +54,24 @@ func NewManager() *Manager {
 	}
 }
 
-// New starts shell behind a pty and registers it under the given name. The
-// session's drain goroutine is started before New returns, so no output is
-// lost from the moment the shell is up.
+// New starts shell behind a pty, in the current working directory, and
+// registers it under the given name. It is a thin wrapper around NewInDir for
+// the common case; session creation from a chosen directory goes through
+// NewInDir directly.
 func (m *Manager) New(name, shell string) (*Session, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("session: getwd: %w", err)
 	}
 
+	return m.NewInDir(name, shell, cwd)
+}
+
+// NewInDir is New with an explicit working directory — the "session dans un
+// cwd choisi" ergonomics feature. The session's drain goroutine is started
+// before NewInDir returns, so no output is lost from the moment the shell is
+// up.
+func (m *Manager) NewInDir(name, shell, cwd string) (*Session, error) {
 	cmd := exec.Command(shell)
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 	cmd.Dir = cwd
@@ -68,16 +83,16 @@ func (m *Manager) New(name, shell string) (*Session, error) {
 
 	sess := &Session{
 		ID:        fmt.Sprintf("session-%d", m.nextID.Add(1)),
-		Name:      name,
 		Cmd:       cmd,
 		Cwd:       cwd,
 		CreatedAt: time.Now(),
 		ptmx:      ptmx,
-		screen:    screen.New(defaultCols, defaultRows),
+		screen:    m.newScreen(defaultCols, defaultRows),
 		cols:      defaultCols,
 		rows:      defaultRows,
 		done:      make(chan struct{}),
 	}
+	sess.SetName(name)
 
 	go sess.drain()
 
@@ -87,6 +102,16 @@ func (m *Manager) New(name, shell string) (*Session, error) {
 	m.mu.Unlock()
 
 	return sess, nil
+}
+
+// newScreen builds a session's terminal emulator, honouring ScrollbackSize
+// when set.
+func (m *Manager) newScreen(cols, rows int) *screen.Screen {
+	if m.ScrollbackSize > 0 {
+		return screen.NewWithScrollback(cols, rows, m.ScrollbackSize)
+	}
+
+	return screen.New(cols, rows)
 }
 
 // Kill terminates the session with the given id, per Session.Kill.

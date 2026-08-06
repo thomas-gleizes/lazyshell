@@ -49,7 +49,6 @@ const (
 // no output is ever lost.
 type Session struct {
 	ID        string
-	Name      string
 	Cmd       *exec.Cmd
 	Cwd       string
 	CreatedAt time.Time
@@ -57,11 +56,15 @@ type Session struct {
 	ptmx   *os.File
 	screen *screen.Screen
 
-	// mu guards status, exitCode, cols and rows: status/exitCode are written
-	// by the drain goroutine and read from whichever goroutine owns the GUI;
-	// cols/rows are written by Resize, which the roadmap expects to be called
-	// from the layout pass, again a different goroutine than drain's.
+	// mu guards name, status, exitCode, cols and rows: name is written by
+	// SetName (the "renommage de session" ergonomics feature, phase 5) from
+	// gocui's main goroutine and read from sessionsPanelContent on goEvery's
+	// background goroutine; status/exitCode are written by the drain
+	// goroutine and read from whichever goroutine owns the GUI; cols/rows are
+	// written by Resize, which the roadmap expects to be called from the
+	// layout pass, again a different goroutine than drain's.
 	mu       sync.Mutex
+	name     string
 	status   Status
 	exitCode int
 	cols     int
@@ -74,6 +77,22 @@ type Session struct {
 	done chan struct{}
 
 	killOnce sync.Once
+}
+
+// Name reports the session's current display name.
+func (s *Session) Name() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.name
+}
+
+// SetName changes the session's display name — the "renommage de session"
+// ergonomics feature. Purely cosmetic: it does not touch the running shell.
+func (s *Session) SetName(name string) {
+	s.mu.Lock()
+	s.name = name
+	s.mu.Unlock()
 }
 
 // Status reports the session's current lifecycle state.

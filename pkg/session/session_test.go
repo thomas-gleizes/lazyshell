@@ -88,6 +88,31 @@ func TestManagerNewStartsARunningSession(t *testing.T) {
 	}
 }
 
+func TestSessionNameReflectsCreationName(t *testing.T) {
+	m := newTestManager(t)
+	sess := newTestSession(t, m, "t")
+
+	if got := sess.Name(); got != "t" {
+		t.Errorf("Name() = %q, want %q", got, "t")
+	}
+}
+
+// SetName is the "renommage de session" ergonomics feature: purely
+// cosmetic, it must not touch the running shell.
+func TestSessionSetNameRenames(t *testing.T) {
+	m := newTestManager(t)
+	sess := newTestSession(t, m, "before")
+
+	sess.SetName("after")
+
+	if got := sess.Name(); got != "after" {
+		t.Errorf("Name() after SetName = %q, want %q", got, "after")
+	}
+	if sess.Status() != StatusRunning {
+		t.Errorf("Status() after SetName = %v, want %v (rename must not touch the shell)", sess.Status(), StatusRunning)
+	}
+}
+
 func TestWriteReachesTheShellAndAppearsOnScreen(t *testing.T) {
 	m := newTestManager(t)
 	sess := newTestSession(t, m, "t")

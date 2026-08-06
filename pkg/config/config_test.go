@@ -90,6 +90,27 @@ func TestLoadKeybindings(t *testing.T) {
 	}
 }
 
+func TestLoadThemeOverride(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yml")
+	writeFile(t, path, "theme:\n  active_border_color: yellow\n  selected_bg_color: cyan\n")
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if cfg.Theme.ActiveBorderColor != "yellow" {
+		t.Errorf("Theme.ActiveBorderColor = %q, want yellow", cfg.Theme.ActiveBorderColor)
+	}
+	if cfg.Theme.SelectedBgColor != "cyan" {
+		t.Errorf("Theme.SelectedBgColor = %q, want cyan", cfg.Theme.SelectedBgColor)
+	}
+	// Fields absent from the theme block must keep their (empty) default.
+	if cfg.Theme.InactiveBorderColor != "" {
+		t.Errorf("Theme.InactiveBorderColor = %q, want empty default", cfg.Theme.InactiveBorderColor)
+	}
+}
+
 func TestLoadMalformedYAML(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yml")
 	writeFile(t, path, "shell: [this is not a string\n")

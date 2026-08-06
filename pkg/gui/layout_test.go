@@ -43,7 +43,8 @@ func TestLayoutTinyTerminal(t *testing.T) {
 // threshold, and the sessions panel's static size means a different axis in
 // each case (width in landscape, height in portrait).
 func TestRootBoxSwitchesToPortraitBelowThreshold(t *testing.T) {
-	root := rootBox()
+	gui, _ := newHeadlessGui(t)
+	root := gui.rootBox()
 
 	landscape := boxlayout.ArrangeWindows(root, 0, 0, 200, 50)
 	sessions, ok := landscape[sessionsViewName]
@@ -69,5 +70,21 @@ func TestRootBoxSwitchesToPortraitBelowThreshold(t *testing.T) {
 	output = portrait[outputViewName]
 	if output.Y0 <= sessions.Y1 {
 		t.Errorf("output is not stacked below sessions in portrait: sessions=%v output=%v", sessions, output)
+	}
+}
+
+// pkg/config's SessionsPanelWidth must reach rootBox's landscape sizing.
+func TestRootBoxUsesConfiguredSessionsPanelWidth(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+	gui.sessionsPanelWidth = 50
+
+	dimensions := boxlayout.ArrangeWindows(gui.rootBox(), 0, 0, 200, 50)
+	sessions, ok := dimensions[sessionsViewName]
+	if !ok {
+		t.Fatal("sessions view missing in landscape layout")
+	}
+
+	if width := sessions.X1 - sessions.X0 + 1; width != 50 {
+		t.Errorf("landscape sessions width = %d, want configured 50", width)
 	}
 }

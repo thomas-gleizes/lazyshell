@@ -31,7 +31,12 @@ func isPortrait(width, height int) bool {
 // portrait mode. boxlayout has no built-in orientation switch — this is done
 // entirely via the Conditional* callbacks, evaluated with the size actually
 // assigned to this box at layout time.
-func rootBox() *boxlayout.Box {
+func (gui *Gui) rootBox() *boxlayout.Box {
+	sessionsWidth := gui.sessionsPanelWidth
+	if sessionsWidth <= 0 {
+		sessionsWidth = sessionsWidthLandscape
+	}
+
 	content := &boxlayout.Box{
 		Weight: 1,
 		ConditionalDirection: func(width, height int) boxlayout.Direction {
@@ -42,7 +47,7 @@ func rootBox() *boxlayout.Box {
 			return boxlayout.COLUMN
 		},
 		ConditionalChildren: func(width, height int) []*boxlayout.Box {
-			sessionsSize := sessionsWidthLandscape
+			sessionsSize := sessionsWidth
 			if isPortrait(width, height) {
 				sessionsSize = sessionsHeightPortrait
 			}
@@ -72,7 +77,7 @@ func (gui *Gui) layout(g *gocui.Gui) error {
 		return nil
 	}
 
-	dimensions := boxlayout.ArrangeWindows(rootBox(), 0, 0, maxX, maxY)
+	dimensions := boxlayout.ArrangeWindows(gui.rootBox(), 0, 0, maxX, maxY)
 
 	for _, name := range []string{sessionsViewName, outputViewName, statusViewName} {
 		dim, ok := dimensions[name]
@@ -132,7 +137,7 @@ func (gui *Gui) initView(name string, view *gocui.View) {
 		view.Title = " sessions "
 		view.Highlight = true
 		view.HighlightInactive = true
-		view.SelBgColor = gocui.ColorBlue
+		view.SelBgColor = gui.theme.SelectedBgColor
 		gui.focus.onFocus[sessionsViewName] = func() { view.HighlightInactive = false }
 		gui.focus.onFocusLost[sessionsViewName] = func() { view.HighlightInactive = true }
 	case outputViewName:

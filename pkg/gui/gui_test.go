@@ -6,6 +6,7 @@ import (
 
 	"github.com/jesseduffield/gocui"
 
+	"github.com/thomas-gleizes/lazyshell/pkg/config"
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
@@ -23,6 +24,15 @@ func newHeadlessGui(t *testing.T) (*Gui, *gocui.Gui) {
 // tests exercising layout behaviour at specific dimensions (tiny terminal,
 // portrait vs. landscape).
 func newHeadlessGuiSized(t *testing.T, width, height int) (*Gui, *gocui.Gui) {
+	t.Helper()
+
+	return newHeadlessGuiSizedWithConfig(t, width, height, config.Default())
+}
+
+// newHeadlessGuiSizedWithConfig is newHeadlessGuiSized with an explicit
+// config, for tests exercising config-driven behaviour (keybinding remap,
+// theme, panel width...).
+func newHeadlessGuiSizedWithConfig(t *testing.T, width, height int, cfg config.Config) (*Gui, *gocui.Gui) {
 	t.Helper()
 
 	g, err := gocui.NewGui(gocui.NewGuiOpts{
@@ -43,7 +53,7 @@ func newHeadlessGuiSized(t *testing.T, width, height int) (*Gui, *gocui.Gui) {
 	sessions.KillTimeout = 300 * time.Millisecond
 	t.Cleanup(sessions.Shutdown)
 
-	gui := New(sessions)
+	gui := New(sessions, cfg)
 	gui.g = g
 
 	return gui, g
@@ -67,7 +77,7 @@ func TestSetKeybindings(t *testing.T) {
 }
 
 func TestQuitReturnsErrQuit(t *testing.T) {
-	gui := New(session.NewManager())
+	gui := New(session.NewManager(), config.Default())
 
 	if err := gui.quit(nil, nil); err != gocui.ErrQuit {
 		t.Errorf("quit() = %v, want gocui.ErrQuit", err)

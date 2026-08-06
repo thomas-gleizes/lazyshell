@@ -11,6 +11,7 @@ import (
 	goerrors "github.com/go-errors/errors"
 	"github.com/jesseduffield/gocui"
 
+	"github.com/thomas-gleizes/lazyshell/pkg/config"
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 	"github.com/thomas-gleizes/lazyshell/pkg/tasks"
 )
@@ -22,16 +23,7 @@ const reRenderInterval = 30 * time.Millisecond
 
 // statusHint is shown in the status bar as long as there is no error to
 // report and the output panel is not in pass-through mode.
-const statusHint = " n: nouvelle session   x/d: tuer   j/k: naviguer   Tab: changer de focus   q: quitter "
-
-// activeFrameColor/passThroughFrameColor are the current view's border
-// colour: green normally, red while the output panel is in pass-through —
-// the roadmap's second suggested mode indicator, alongside the status bar
-// text, cheap enough to do both.
-const (
-	activeFrameColor      = gocui.ColorGreen
-	passThroughFrameColor = gocui.ColorRed
-)
+const statusHint = " n: nouvelle session   x/d: tuer   j/k: naviguer   Tab: changer de focus   ?: aide   q: quitter "
 
 // Gui holds the gocui instance and the state of the interface.
 type Gui struct {
@@ -41,8 +33,31 @@ type Gui struct {
 	outputTasks *tasks.Manager
 	focus       *focusManager
 
-	// prefixKey is the pass-through escape prefix, see prefixFromEnv.
+	// theme holds every color the UI draws chrome with, resolved from
+	// pkg/config's Theme at construction time.
+	theme Theme
+
+	// prefixKey is the pass-through escape prefix, see prefixFrom.
 	prefixKey gocui.Key
+	// configuredShell is pkg/config's Shell, used by newSession when
+	// non-empty instead of falling back to $SHELL/bash.
+	configuredShell string
+	// sessionsPanelWidth is pkg/config's SessionsPanelWidth: the sessions
+	// panel's width in landscape mode (columns), height in portrait mode
+	// (rows). See pkg/gui/layout.go's rootBox.
+	sessionsPanelWidth int
+	// keymap is pkg/config's Keybindings: action id -> gocui.Parse key spec,
+	// consulted by resolveBinding for every Binding with a non-empty Action.
+	keymap map[string]string
+	// helpReturnView is the view that was current when showHelp opened the
+	// help popup, so closeHelp can restore focus to it rather than always
+	// landing back on the sessions panel.
+	helpReturnView string
+	// promptReturnView is helpReturnView's equivalent for showPrompt's popup.
+	promptReturnView string
+	// promptOnSubmit is the callback showPrompt is currently waiting on,
+	// captured at open time and consumed (then cleared) by submitPrompt.
+	promptOnSubmit func(string) error
 	// prefixPending and passThroughActive are only ever touched from
 	// editOutput, called synchronously from gocui's own event dispatch —
 	// always the same goroutine, no mutex needed.
@@ -74,14 +89,19 @@ type Gui struct {
 	PauseBackgroundThreads bool
 }
 
-// New allocates the Gui around an already-running session Manager. It does
-// not touch the terminal: that only happens in Run.
-func New(sessions *session.Manager) *Gui {
+// New allocates the Gui around an already-running session Manager and a
+// loaded configuration. It does not touch the terminal: that only happens in
+// Run.
+func New(sessions *session.Manager, cfg config.Config) *Gui {
 	return &Gui{
-		sessions:    sessions,
-		outputTasks: tasks.NewManager(),
-		focus:       newFocusManager(),
-		prefixKey:   prefixFromEnv(),
+		sessions:           sessions,
+		outputTasks:        tasks.NewManager(),
+		focus:              newFocusManager(),
+		theme:              newTheme(cfg.Theme),
+		prefixKey:          prefixFrom(cfg.PrefixKey),
+		configuredShell:    cfg.Shell,
+		sessionsPanelWidth: cfg.SessionsPanelWidth,
+		keymap:             cfg.Keybindings,
 	}
 }
 
@@ -141,9 +161,10 @@ func (gui *Gui) Run() (err error) {
 
 	// Highlight draws the current view's frame in SelFrameColor — the only
 	// code needed for an "active panel" border, gocui does the rest on every
-	// SetCurrentView.
+	// SetCurrentView. FrameColor is every other (inactive) view's frame.
 	g.Highlight = true
-	g.SelFrameColor = activeFrameColor
+	g.SelFrameColor = gui.theme.ActiveBorderColor
+	g.FrameColor = gui.theme.InactiveBorderColor
 
 	// SetManager purges existing keybindings, so it must run before
 	// setKeybindings. The second manager (focus) touches no view; it only

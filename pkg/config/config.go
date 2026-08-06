@@ -45,6 +45,19 @@ type Config struct {
 	// gocui.Parse key spec. An action missing from this map keeps its
 	// built-in default.
 	Keybindings map[string]string `yaml:"keybindings"`
+	// Theme overrides the UI's colors. An empty field keeps its built-in
+	// default (see pkg/gui's Theme/defaultTheme).
+	Theme Theme `yaml:"theme"`
+}
+
+// Theme is the color part of Config, kept as plain strings (W3C color names
+// or "#rrggbb", gocui.GetColor's syntax) so this package stays free of a
+// gocui dependency — pkg/gui resolves them to actual gocui Attributes.
+type Theme struct {
+	ActiveBorderColor      string `yaml:"active_border_color"`
+	InactiveBorderColor    string `yaml:"inactive_border_color"`
+	SelectedBgColor        string `yaml:"selected_bg_color"`
+	PassThroughBorderColor string `yaml:"pass_through_border_color"`
 }
 
 // Default returns the configuration lazyshell runs with when there is no

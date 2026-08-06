@@ -23,9 +23,19 @@ type Screen struct {
 	term *vt.Emulator
 }
 
-// New returns a Screen of the given size, in cells.
+// New returns a Screen of the given size, in cells, with the emulator's
+// default scrollback size (vt.DefaultScrollbackSize).
 func New(cols, rows int) *Screen {
-	return &Screen{term: vt.NewEmulator(cols, rows)}
+	return NewWithScrollback(cols, rows, vt.DefaultScrollbackSize)
+}
+
+// NewWithScrollback is New with an explicit scrollback size, in lines —
+// pkg/config's ScrollbackSize, threaded through by pkg/session.Manager.
+func NewWithScrollback(cols, rows, scrollback int) *Screen {
+	term := vt.NewEmulator(cols, rows)
+	term.SetScrollbackSize(scrollback)
+
+	return &Screen{term: term}
 }
 
 // Write feeds pty output into the emulator.
