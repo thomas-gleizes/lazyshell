@@ -23,6 +23,21 @@ type Theme struct {
 	PassThroughBorderColor gocui.Attribute
 }
 
+// The default colors' names, in the syntax a config file uses. They exist
+// alongside the attributes below because a gocui.Attribute cannot be turned
+// back into a name — it is a palette index — and `lazyshell config show` has to
+// tell the user what to write, not what the palette holds.
+//
+// They are ANSI names, resolved through ansiColorAliases like any other value.
+// TestREADMEThemeMatchesDefaults and TestAnsiAliasesResolveToTerminalColors are
+// what keep these names and the attributes below in agreement.
+const (
+	defaultActiveBorderColorName      = "green"
+	defaultInactiveBorderColorName    = "default"
+	defaultSelectedBgColorName        = "blue"
+	defaultPassThroughBorderColorName = "red"
+)
+
 // defaultTheme is what lazyshell draws with when nothing in the config file
 // overrides it — the same colors phase 3/4 hardcoded.
 func defaultTheme() Theme {
@@ -50,13 +65,44 @@ func newTheme(cfg config.Theme) Theme {
 	}
 }
 
-// ansiColorAliases covers the two common ANSI/terminal color names that do
-// not match gocui.GetColor's underlying W3C table: it knows "aqua" and
-// "fuchsia", not the "cyan"/"magenta" every terminal multiplexer's own config
-// (lazygit's, lazydocker's, tmux's) uses instead.
+// ansiColorAliases maps the terminal color names people actually write to the
+// W3C names gocui.GetColor understands. lazyshell's config talks in ANSI terms
+// — that is what a terminal UI is drawn in, and what every comparable config
+// (lazygit's, lazydocker's, tmux's) uses — while GetColor's table is the CSS
+// one, where the names disagree twice over:
+//
+//   - four ANSI names are simply absent ("cyan", "magenta", and the bright
+//     variants of most colors);
+//   - four more exist but mean the *bright* variant. "blue" is #0000FF, which
+//     is ANSI 12, not ANSI 4; the ordinary blue is called "navy". Same for
+//     "red" vs "maroon", "green" (W3C #008000, which happens to agree) and
+//     "white" vs "silver".
+//
+// The second kind is the dangerous one: it resolves, so it silently gives a
+// color one shade off from the one asked for. Mapping the whole ANSI set here,
+// rather than only the names that fail outright, is what makes
+// `selected_bg_color: blue` mean the blue a terminal user means.
+//
+// The W3C names still work unaliased for anyone who wants them: they fall
+// through to GetColor untouched.
 var ansiColorAliases = map[string]string{
-	"cyan":    "aqua",
-	"magenta": "fuchsia",
+	"black":   "black",
+	"red":     "maroon",
+	"green":   "green",
+	"yellow":  "olive",
+	"blue":    "navy",
+	"magenta": "purple",
+	"cyan":    "teal",
+	"white":   "silver",
+
+	"brightblack":   "gray",
+	"brightred":     "red",
+	"brightgreen":   "lime",
+	"brightyellow":  "yellow",
+	"brightblue":    "blue",
+	"brightmagenta": "fuchsia",
+	"brightcyan":    "aqua",
+	"brightwhite":   "white",
 }
 
 // resolveColor parses name (a W3C color name or "#rrggbb", gocui.GetColor's

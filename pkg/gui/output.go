@@ -56,7 +56,7 @@ func (gui *Gui) showOutput(sess *session.Session) {
 		drawn    bool
 	)
 
-	gui.outputTasks.NewTickerTask(reRenderInterval, func(context.Context) {
+	gui.outputTasks.NewTickerTask(gui.tick(), func(context.Context) {
 		frame := buildOutputFrame(sess, offset, passThrough)
 
 		if drawn && frame == previous {

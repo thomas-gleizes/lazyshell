@@ -112,22 +112,25 @@ func ParseProject(path string, data []byte) (ProjectConfig, error) {
 
 	pcfg.Path = path
 	pcfg.Raw = data
-	pcfg.Warnings = unknownKeys(data)
+	pcfg.Warnings = unknownKeys(data, &ProjectConfig{})
 
 	return pcfg, nil
 }
 
-// unknownKeys reports the top-level keys the file contains but ProjectConfig
-// has no field for. It re-decodes with KnownFields(true) — which turns exactly
+// unknownKeys reports the keys the file contains but probe's type has no field
+// for. It re-decodes into probe with KnownFields(true) — which turns exactly
 // those into an error — and downgrades that error to a list of warnings, since
-// an unusable key must not stop a valid project from starting.
-func unknownKeys(data []byte) []string {
+// an unusable key must not stop a valid file from being used.
+//
+// probe must be a pointer to a fresh zero value of the target type; it is
+// written to and discarded. Shared by the project file and the user config: the
+// two have different schemas but exactly the same "a typo must never be silent"
+// requirement.
+func unknownKeys(data []byte, probe any) []string {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 
-	var probe ProjectConfig
-
-	err := dec.Decode(&probe)
+	err := dec.Decode(probe)
 
 	var typeErr *yaml.TypeError
 	if err == nil || !errors.As(err, &typeErr) {

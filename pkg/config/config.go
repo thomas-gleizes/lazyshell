@@ -10,33 +10,93 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// defaultScrollbackSize mirrors vt.DefaultScrollbackSize (pkg/screen's
-// terminal emulator dependency): duplicated rather than imported so this
-// package stays free of any gocui/vt dependency.
-const defaultScrollbackSize = 10000
-
-// defaultSessionsPanelWidth is today's hardcoded sessions panel width
-// (pkg/gui/layout.go's sessionsWidthLandscape).
-const defaultSessionsPanelWidth = 30
-
-// defaultPrefixKey is the tmux-style pass-through escape prefix, in
-// gocui.Parse syntax (pkg/gui/input.go's defaultPrefixKey).
-const defaultPrefixKey = "Ctrl+B"
+// The built-in defaults. Each one mirrors a constant that used to be hardcoded
+// in the package that consumes it; the constant stays there as that package's
+// own fallback, and these are what the config layer hands it instead.
+const (
+	// defaultLanguage is the language the UI is written in today. Reserved and
+	// validated now, applied by the i18n phase — see Config.Language.
+	defaultLanguage = "fr"
+	// defaultScrollbackSize mirrors vt.DefaultScrollbackSize (pkg/screen's
+	// terminal emulator dependency): duplicated rather than imported so this
+	// package stays free of any gocui/vt dependency.
+	defaultScrollbackSize = 10000
+	// defaultSessionsPanelWidth is the sessions panel's width in landscape mode
+	// (pkg/gui/layout.go's sessionsWidthLandscape).
+	defaultSessionsPanelWidth = 30
+	// defaultSessionsPanelHeight is its height in portrait mode
+	// (pkg/gui/layout.go's sessionsHeightPortrait).
+	defaultSessionsPanelHeight = 10
+	// defaultPortraitMaxWidth/defaultPortraitMinHeight are the thresholds at
+	// which the layout stacks the panels instead of splitting them side by side
+	// (pkg/gui/layout.go's isPortrait).
+	defaultPortraitMaxWidth  = 84
+	defaultPortraitMinHeight = 45
+	// defaultPrefixKey is the tmux-style pass-through escape prefix, in
+	// gocui.Parse syntax (pkg/gui/input.go's defaultPrefixKey).
+	defaultPrefixKey = "Ctrl+B"
+	// defaultRefreshIntervalMs is the UI's redraw tick (pkg/gui/gui.go's
+	// reRenderInterval), in milliseconds.
+	defaultRefreshIntervalMs = 30
+	// defaultKillTimeoutMs is how long killing a session waits before escalating
+	// to SIGKILL (pkg/session's DefaultKillTimeout), in milliseconds.
+	defaultKillTimeoutMs = 2000
+	// defaultTerm is the TERM value sessions are started with — a value the
+	// bundled emulator actually implements (pkg/session/manager.go's buildEnv).
+	defaultTerm = "xterm-256color"
+	// defaultBellMarker/defaultAltScreenMarker are the sessions list's gutter
+	// markers (pkg/gui/sessions_panel.go).
+	defaultBellMarker      = "!"
+	defaultAltScreenMarker = "#"
+	// defaultHalfPageDivisor is what the output panel's height is divided by for
+	// a Ctrl-U/Ctrl-D scroll (pkg/gui/input.go's scrollHalfPage).
+	defaultHalfPageDivisor = 2
+)
 
 // Config is lazyshell's user-facing configuration. Every field has a
 // meaningful default (see Default), so a config file only needs to mention
 // the fields it wants to override.
+//
+// Adding a field here is not enough to ship it: it must be wired to whatever
+// used to hardcode it, validated in Validate, and documented in the README's
+// reference table — doc_test.go fails the build otherwise.
 type Config struct {
+	// Language is the UI language, "fr" or "en". Read and validated today,
+	// but not yet applied: the interface is still written in French. The i18n
+	// phase is what makes this field do something.
+	Language string `yaml:"language"`
 	// Shell is the command started behind each new session's pty. Empty means
 	// "use $SHELL, falling back to /bin/bash" (resolved at use, not at load,
 	// so Default() does not need to touch the environment).
 	Shell string `yaml:"shell"`
+	// Term is the TERM value every session is started with. Lowering it below
+	// the bundled emulator's actual capabilities is the point of exposing it:
+	// some programs behave better when told less.
+	Term string `yaml:"term"`
 	// ScrollbackSize is the maximum number of lines a session's terminal
 	// emulator keeps once they scroll off-screen.
 	ScrollbackSize int `yaml:"scrollback_size"`
-	// SessionsPanelWidth is the sessions list's width in landscape mode
-	// (columns), or height in portrait mode (rows) — see pkg/gui/layout.go.
+	// SessionsPanelWidth is the sessions list's width in landscape mode, in
+	// columns — see pkg/gui/layout.go.
 	SessionsPanelWidth int `yaml:"sessions_panel_width"`
+	// SessionsPanelHeight is the sessions list's height in portrait mode, in
+	// rows.
+	SessionsPanelHeight int `yaml:"sessions_panel_height"`
+	// PortraitMaxWidth and PortraitMinHeight are the terminal geometry at which
+	// the layout switches to stacking the panels: portrait applies when the
+	// terminal is at most PortraitMaxWidth columns wide *and* more than
+	// PortraitMinHeight rows tall.
+	PortraitMaxWidth  int `yaml:"portrait_max_width"`
+	PortraitMinHeight int `yaml:"portrait_min_height"`
+	// RefreshIntervalMs is how often, in milliseconds, the sessions list and
+	// the output panel are re-rendered. Lower is smoother and costs more CPU;
+	// an unchanged panel is never pushed, so idle cost stays near zero either
+	// way.
+	RefreshIntervalMs int `yaml:"refresh_interval_ms"`
+	// KillTimeoutMs is how long, in milliseconds, killing a session waits after
+	// SIGTERM before escalating to SIGKILL, and again after that before giving
+	// up.
+	KillTimeoutMs int `yaml:"kill_timeout_ms"`
 	// PrefixKey is the pass-through escape prefix, in gocui.Parse syntax
 	// ("Ctrl+A", "Ctrl+Space", ...). Overridable at runtime via
 	// $LAZYSHELL_PREFIX, which wins over this value.
@@ -45,9 +105,18 @@ type Config struct {
 	// gocui.Parse key spec. An action missing from this map keeps its
 	// built-in default.
 	Keybindings map[string]string `yaml:"keybindings"`
+	// Markers overrides the sessions list's gutter markers.
+	Markers Markers `yaml:"markers"`
+	// Scroll overrides the output panel's scrolling steps.
+	Scroll Scroll `yaml:"scroll"`
 	// Theme overrides the UI's colors. An empty field keeps its built-in
 	// default (see pkg/gui's Theme/defaultTheme).
 	Theme Theme `yaml:"theme"`
+
+	// Warnings lists the keys the file contained but this struct has no field
+	// for, so that a typo says why it does nothing instead of being silently
+	// dropped. Filled by Load; never read from the file itself.
+	Warnings []string `yaml:"-"`
 }
 
 // Theme is the color part of Config, kept as plain strings (W3C color names
@@ -60,15 +129,50 @@ type Theme struct {
 	PassThroughBorderColor string `yaml:"pass_through_border_color"`
 }
 
+// Markers is the two-column gutter every session line starts with — the only
+// way to learn something about a session that is not the one on screen.
+type Markers struct {
+	// Bell flags a session that emitted a BEL since it was last looked at.
+	Bell string `yaml:"bell"`
+	// AltScreen flags a session with a full-screen application in control.
+	AltScreen string `yaml:"alt_screen"`
+}
+
+// Scroll is how far the output panel moves per scrolling keystroke.
+type Scroll struct {
+	// PageLines is how many lines PgUp/PgDn move by. Zero means "one full
+	// panel height", which is what a page key normally does.
+	PageLines int `yaml:"page_lines"`
+	// HalfPageDivisor is what the panel height is divided by for Ctrl-U and
+	// Ctrl-D. The default of 2 is the half page the keys are named after; 4
+	// gives a quarter page.
+	HalfPageDivisor int `yaml:"half_page_divisor"`
+}
+
 // Default returns the configuration lazyshell runs with when there is no
 // config file, and what a partial file is merged onto.
 func Default() Config {
 	return Config{
-		Shell:              "",
-		ScrollbackSize:     defaultScrollbackSize,
-		SessionsPanelWidth: defaultSessionsPanelWidth,
-		PrefixKey:          defaultPrefixKey,
-		Keybindings:        map[string]string{},
+		Language:            defaultLanguage,
+		Shell:               "",
+		Term:                defaultTerm,
+		ScrollbackSize:      defaultScrollbackSize,
+		SessionsPanelWidth:  defaultSessionsPanelWidth,
+		SessionsPanelHeight: defaultSessionsPanelHeight,
+		PortraitMaxWidth:    defaultPortraitMaxWidth,
+		PortraitMinHeight:   defaultPortraitMinHeight,
+		RefreshIntervalMs:   defaultRefreshIntervalMs,
+		KillTimeoutMs:       defaultKillTimeoutMs,
+		PrefixKey:           defaultPrefixKey,
+		Keybindings:         map[string]string{},
+		Markers: Markers{
+			Bell:      defaultBellMarker,
+			AltScreen: defaultAltScreenMarker,
+		},
+		Scroll: Scroll{
+			PageLines:       0,
+			HalfPageDivisor: defaultHalfPageDivisor,
+		},
 	}
 }
 
@@ -97,6 +201,11 @@ func Path() string {
 // file is not an error — it just means "run with the defaults". Fields
 // absent from the file are left untouched by yaml.Unmarshal, which is what
 // makes the merge work: Unmarshal only sets the keys it actually finds.
+//
+// Keys the file contains but Config has no field for end up in Warnings rather
+// than being dropped in silence: `session_panel_width` (one letter short) is
+// otherwise indistinguishable, from the user's side, from lazyshell ignoring
+// the config file entirely.
 func Load(path string) (Config, error) {
 	cfg := Default()
 
@@ -116,6 +225,8 @@ func Load(path string) (Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return cfg, fmt.Errorf("config: parse %s: %w", path, err)
 	}
+
+	cfg.Warnings = unknownKeys(data, &Config{})
 
 	return cfg, nil
 }

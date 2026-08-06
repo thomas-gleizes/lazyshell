@@ -17,6 +17,17 @@ const (
 	// CommandAllow approves a project file without launching anything, the
 	// equivalent of `direnv allow`.
 	CommandAllow = "allow"
+	// CommandConfig writes or inspects the user configuration. Its verb is in
+	// Invocation.Arg.
+	CommandConfig = "config"
+)
+
+// Verbs of `lazyshell config`. A bare `lazyshell config` means ConfigShow:
+// reading is safe and is what someone typing the command blind most likely
+// wants, whereas defaulting to init would create a file they did not ask for.
+const (
+	ConfigShow = "show"
+	ConfigInit = "init"
 )
 
 // Options are the run-time flags.
@@ -35,8 +46,8 @@ type Invocation struct {
 
 	// Command is one of the Command* constants.
 	Command string
-	// Arg is the sub-command's optional positional argument: the file to
-	// approve for `allow`, empty for `init`.
+	// Arg is the sub-command's positional argument: the file to approve for
+	// `allow`, the verb for `config`, empty for `init`.
 	Arg string
 }
 
@@ -46,6 +57,8 @@ Usage :
   lazyshell [options]           ouvre l'interface
   lazyshell init                écrit un lazyshell.yml commenté dans le dossier courant
   lazyshell allow [fichier]     approuve un fichier de projet sans rien lancer
+  lazyshell config show         affiche la configuration réellement appliquée
+  lazyshell config init         écrit une config utilisateur commentée
 
 Options :
   -f, --config-file <fichier>   fichier de projet à utiliser
@@ -62,7 +75,7 @@ func ParseArgs(args []string) (Invocation, error) {
 	// to the sub-command or to a preceding flag.
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		switch args[0] {
-		case CommandInit, CommandAllow:
+		case CommandInit, CommandAllow, CommandConfig:
 			inv.Command = args[0]
 			args = args[1:]
 		default:
@@ -83,9 +96,27 @@ func ParseArgs(args []string) (Invocation, error) {
 	}
 
 	rest := fs.Args()
-	if inv.Command == CommandAllow && len(rest) > 0 {
+
+	switch {
+	case inv.Command == CommandAllow && len(rest) > 0:
 		inv.Arg = rest[0]
 		rest = rest[1:]
+
+	case inv.Command == CommandConfig:
+		// Validated here rather than in the handler: an unknown verb is a typo,
+		// and `lazyshell config sho` silently showing nothing (or worse,
+		// writing a file) would be the wrong answer to it.
+		inv.Arg = ConfigShow
+
+		if len(rest) > 0 {
+			if rest[0] != ConfigShow && rest[0] != ConfigInit {
+				return inv, fmt.Errorf("commande inconnue %q pour config (attendu : %s ou %s)\n\n%s",
+					rest[0], ConfigShow, ConfigInit, usage)
+			}
+
+			inv.Arg = rest[0]
+			rest = rest[1:]
+		}
 	}
 
 	if len(rest) > 0 {

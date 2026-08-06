@@ -7,12 +7,15 @@ import (
 
 	"github.com/jesseduffield/gocui"
 
+	"github.com/thomas-gleizes/lazyshell/pkg/config"
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
-// Gutter markers, in the two columns every session line starts with. They are
-// the only way to learn something about a session that is not the one on
-// screen: what it is running, and whether it asked for attention while hidden.
+// Default gutter markers, in the two columns every session line starts with.
+// They are the only way to learn something about a session that is not the one
+// on screen: what it is running, and whether it asked for attention while
+// hidden. Both are overridden by pkg/config's Markers; an empty override turns
+// that marker off.
 const (
 	// bellMarker flags a session that emitted a BEL since it was last looked
 	// at — a finished build, a shell asking a question.
@@ -21,6 +24,31 @@ const (
 	// control (vim, htop, less).
 	altScreenMarker = "#"
 )
+
+// markerSet is the resolved pair of gutter characters, so sessionsPanelContent
+// stays a pure function of its inputs rather than reaching into a Gui.
+type markerSet struct {
+	bell      string
+	altScreen string
+}
+
+// markerSet resolves the configured markers against the built-in defaults. A
+// marker the user explicitly set to "" stays empty — that is how you turn one
+// off — which is why this cannot be a plain "empty means default" merge on the
+// already-merged config: pkg/config's Default() has already filled both, so
+// anything empty at this point was asked for.
+func (gui *Gui) markerSet() markerSet {
+	set := markerSet{bell: gui.markers.Bell, altScreen: gui.markers.AltScreen}
+
+	// The zero-value Gui case only: a bare struct literal (tests) never went
+	// through config.Default, so both fields are empty at once and mean
+	// "nothing was configured" rather than "both were turned off".
+	if gui.markers == (config.Markers{}) {
+		set.bell, set.altScreen = bellMarker, altScreenMarker
+	}
+
+	return set
+}
 
 // sessionsPanelContent renders one line per session: a two-column gutter of
 // markers, then name, status, PID, and either the terminal title the shell set
@@ -33,7 +61,7 @@ const (
 //
 // A pure function, kept separate from the gocui-writing side so it can be
 // tested directly, the same way keys.Translate and spike.edit are.
-func sessionsPanelContent(sessions []*session.Session) string {
+func sessionsPanelContent(sessions []*session.Session, markers markerSet) string {
 	if len(sessions) == 0 {
 		return "Aucune session — n pour en créer une"
 	}
@@ -50,25 +78,25 @@ func sessionsPanelContent(sessions []*session.Session) string {
 			detail = sess.Cwd
 		}
 
-		fmt.Fprintf(&b, "%-2s%-12s %-8s %6d  %s\n", sessionMarkers(sess), sess.Name(), sess.Status(), pid, detail)
+		fmt.Fprintf(&b, "%-2s%-12s %-8s %6d  %s\n", sessionMarkers(sess, markers), sess.Name(), sess.Status(), pid, detail)
 	}
 
 	return b.String()
 }
 
 // sessionMarkers builds a session's gutter, at most two characters wide.
-func sessionMarkers(sess *session.Session) string {
-	markers := ""
+func sessionMarkers(sess *session.Session, markers markerSet) string {
+	gutter := ""
 
 	if sess.Screen().BellPending() {
-		markers += bellMarker
+		gutter += markers.bell
 	}
 
 	if sess.Screen().IsAltScreen() {
-		markers += altScreenMarker
+		gutter += markers.altScreen
 	}
 
-	return markers
+	return gutter
 }
 
 // selectedSession returns the session at the current selection, clamped to
@@ -112,7 +140,7 @@ func (gui *Gui) renderSessionsPanel() error {
 		return nil
 	}
 
-	content := sessionsPanelContent(gui.sessions.List())
+	content := sessionsPanelContent(gui.sessions.List(), gui.markerSet())
 	selected := gui.getSelectedIndex()
 
 	if !gui.sessionsPanelChanged(content, selected) {

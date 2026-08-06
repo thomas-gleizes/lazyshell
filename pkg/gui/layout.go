@@ -11,19 +11,36 @@ const (
 	outputViewName   = "output"
 	statusViewName   = "status"
 
-	// sessionsWidthLandscape/sessionsHeightPortrait are Box.Size for the
-	// sessions panel: a width in landscape (parent direction COLUMN), a
+	// sessionsWidthLandscape/sessionsHeightPortrait are the default Box.Size for
+	// the sessions panel: a width in landscape (parent direction COLUMN), a
 	// height in portrait (parent direction ROW) — the same Size field means a
-	// different axis depending on which direction its parent picked.
+	// different axis depending on which direction its parent picked. Both are
+	// overridden by pkg/config (sessions_panel_width/_height).
 	sessionsWidthLandscape = 30
 	sessionsHeightPortrait = 10
 	statusBarHeight        = 1
+
+	// portraitMaxWidth/portraitMinHeight are the default thresholds of
+	// isPortrait, overridden by pkg/config.
+	portraitMaxWidth  = 84
+	portraitMinHeight = 45
 )
 
 // isPortrait matches ROADMAP.md's threshold: narrow and tall enough that a
-// side-by-side split would leave the output panel too thin to be useful.
-func isPortrait(width, height int) bool {
-	return width <= 84 && height > 45
+// side-by-side split would leave the output panel too thin to be useful. The
+// thresholds are configurable because "too thin to be useful" depends on the
+// font and the terminal, which lazyshell cannot see.
+func (gui *Gui) isPortrait(width, height int) bool {
+	maxWidth, minHeight := gui.portraitMaxWidth, gui.portraitMinHeight
+	if maxWidth <= 0 {
+		maxWidth = portraitMaxWidth
+	}
+
+	if minHeight <= 0 {
+		minHeight = portraitMinHeight
+	}
+
+	return width <= maxWidth && height > minHeight
 }
 
 // rootBox describes the whole screen: sessions+output above a status bar,
@@ -37,10 +54,15 @@ func (gui *Gui) rootBox() *boxlayout.Box {
 		sessionsWidth = sessionsWidthLandscape
 	}
 
+	sessionsHeight := gui.sessionsPanelHeight
+	if sessionsHeight <= 0 {
+		sessionsHeight = sessionsHeightPortrait
+	}
+
 	content := &boxlayout.Box{
 		Weight: 1,
 		ConditionalDirection: func(width, height int) boxlayout.Direction {
-			if isPortrait(width, height) {
+			if gui.isPortrait(width, height) {
 				return boxlayout.ROW
 			}
 
@@ -48,8 +70,8 @@ func (gui *Gui) rootBox() *boxlayout.Box {
 		},
 		ConditionalChildren: func(width, height int) []*boxlayout.Box {
 			sessionsSize := sessionsWidth
-			if isPortrait(width, height) {
-				sessionsSize = sessionsHeightPortrait
+			if gui.isPortrait(width, height) {
+				sessionsSize = sessionsHeight
 			}
 
 			return []*boxlayout.Box{

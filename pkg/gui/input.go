@@ -62,12 +62,32 @@ func prefixName(key gocui.Key) string {
 	return fmt.Sprintf("touche %d", key)
 }
 
-// scrollPage/scrollHalfPage name the two step sizes PgUp/PgDn and
-// Ctrl-U/Ctrl-D scroll by, in terms of the output view's own row count.
-const (
-	scrollPage     = 1
-	scrollHalfPage = 2
-)
+// scrollHalfPage is the default divisor applied to the output view's row count
+// for a Ctrl-U/Ctrl-D scroll — the "half" the keys are named after. Overridden
+// by pkg/config's scroll.half_page_divisor.
+const scrollHalfPage = 2
+
+// pageStep is how many lines PgUp/PgDn move by, given the output view's current
+// height: a full page unless scroll.page_lines asks for a fixed number.
+func (gui *Gui) pageStep(rows int) int {
+	if gui.scroll.PageLines > 0 {
+		return gui.scroll.PageLines
+	}
+
+	return rows
+}
+
+// halfPageStep is how many lines Ctrl-U/Ctrl-D move by. The divisor is never
+// allowed to reach zero here — Config.Validate rejects it, but a Gui built as a
+// bare struct literal (tests) has not been through validation.
+func (gui *Gui) halfPageStep(rows int) int {
+	divisor := gui.scroll.HalfPageDivisor
+	if divisor < 1 {
+		divisor = scrollHalfPage
+	}
+
+	return rows / divisor
+}
 
 // editOutput is the sole keystroke handler for the output view (wired in
 // initView as its permanent Editor). It cannot be split into ordinary
@@ -140,20 +160,20 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 		return true
 
 	case key == gocui.KeyPgup:
-		gui.scrollBy(rows * scrollPage)
+		gui.scrollBy(gui.pageStep(rows))
 
 		return true
 	case key == gocui.KeyCtrlU:
-		gui.scrollBy(rows / scrollHalfPage)
+		gui.scrollBy(gui.halfPageStep(rows))
 
 		return true
 
 	case key == gocui.KeyPgdn:
-		gui.scrollBy(-rows * scrollPage)
+		gui.scrollBy(-gui.pageStep(rows))
 
 		return true
 	case key == gocui.KeyCtrlD:
-		gui.scrollBy(-rows / scrollHalfPage)
+		gui.scrollBy(-gui.halfPageStep(rows))
 
 		return true
 

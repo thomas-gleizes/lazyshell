@@ -80,7 +80,12 @@ back.
 
 ## Configuration
 
-`lazyshell` reads a YAML config file from (in order of precedence):
+Run `lazyshell config init` to write a fully commented config file at the right
+place, and `lazyshell config show` to print the configuration actually in
+effect — after every layer below has had its say — together with the sources it
+came from. That second command is the answer to "why is my setting not taking".
+
+`lazyshell` reads its YAML config file from (first match wins):
 
 1. `$LAZYSHELL_CONFIG`, if set
 2. `$XDG_CONFIG_HOME/lazyshell/config.yml`
@@ -90,46 +95,114 @@ A missing file is not an error — lazyshell just runs with its built-in
 defaults. A partial file only needs to mention the fields it wants to
 override; everything else keeps its default.
 
+Precedence, weakest to strongest:
+
+```
+built-in defaults  <  ~/.config/lazyshell/config.yml  <  project lazyshell.yml
+                   <  environment variables  <  command-line flags
+```
+
+Nothing in a config file can stop lazyshell from starting. A key it does not
+know, a value out of range, an unparseable keybinding or an unknown color are
+each reported on stderr before the interface opens, and the built-in default is
+used instead — never a silent no-op, never a refusal to run.
+
+### Reference
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `language` | `fr` \| `en` | `fr` | UI language. Read and validated, **not yet applied**: the interface is still in French. |
+| `shell` | string | `""` | Command started behind each session's pty. Empty means `$SHELL`, falling back to `/bin/bash`. |
+| `term` | string | `xterm-256color` | `TERM` announced to sessions. Lower it to make programs degrade on purpose. |
+| `scrollback_size` | int ≥ 0 | `10000` | Lines kept per session once they scroll off-screen. |
+| `sessions_panel_width` | int ≥ 5 | `30` | Sessions list width, in columns, in landscape mode. |
+| `sessions_panel_height` | int ≥ 5 | `10` | Sessions list height, in rows, in portrait mode. |
+| `portrait_max_width` | int | `84` | Portrait mode applies at or below this terminal width… |
+| `portrait_min_height` | int | `45` | …and above this terminal height. Portrait stacks the panels instead of splitting them side by side. |
+| `refresh_interval_ms` | int, 10–1000 | `30` | Redraw period. An unchanged panel is never pushed, so idle cost stays near zero at any value. |
+| `kill_timeout_ms` | int ≥ 100 | `2000` | Wait after `SIGTERM` before escalating to `SIGKILL`, and again before giving up. |
+| `prefix_key` | key spec | `Ctrl+B` | Pass-through escape prefix. Must be a control key. `$LAZYSHELL_PREFIX` overrides it. |
+| `keybindings` | map | see below | Remaps an action id to a key spec. An action left out keeps its default key. |
+| `markers.bell` | 0–1 char | `!` | Gutter marker for a session that rang while hidden. `""` turns it off. |
+| `markers.alt_screen` | 0–1 char | `#` | Gutter marker for a session running a full-screen application. `""` turns it off. |
+| `scroll.page_lines` | int ≥ 0 | `0` | Lines `PgUp`/`PgDn` move by. `0` means one full panel height. |
+| `scroll.half_page_divisor` | int ≥ 1 | `2` | `Ctrl-U`/`Ctrl-D` move by the panel height divided by this. |
+| `theme.active_border_color` | color | `green` | Focused panel's border. |
+| `theme.inactive_border_color` | color | `default` | Every other panel's border. |
+| `theme.selected_bg_color` | color | `blue` | Selected line's background in the sessions list. |
+| `theme.pass_through_border_color` | color | `red` | Focused panel's border while in pass-through mode. |
+
+Key specs use `gocui.Parse` syntax: a bare character (`n`), or `Ctrl+N`,
+`Alt+Space`, `Tab`, `Esc`.
+
+Colors accept any of:
+
+- an **ANSI terminal color name** — `black`, `red`, `green`, `yellow`, `blue`,
+  `magenta`, `cyan`, `white`, and each one prefixed with `bright`
+  (`brightblue`, …). These mean what they mean in a terminal, and follow your
+  terminal's own palette.
+- a **W3C/CSS color name** (`navy`, `teal`, `chartreuse`, …) or `#rrggbb`, for
+  a specific color rather than a palette slot.
+- `default`, for the terminal's own default color.
+
+The two name sets overlap and disagree: in CSS, `blue` is `#0000FF`, which a
+terminal shows as *bright* blue. lazyshell resolves the ANSI names first, so
+`blue` gives you ordinary blue; write `navy` if you want the CSS one, or
+`brightblue` for the bright terminal slot.
+
+The remappable action ids are `new_session`, `new_session_in_dir`,
+`kill_session`, `rename_session`, `duplicate_session`, `select_next`,
+`select_prev`, `cycle_focus`, `help` and `quit`. An id outside that list is
+reported rather than ignored.
+
+### Example
+
+This is what `lazyshell config init` writes — every option at its default
+value, so you can delete whatever you do not change.
+
 ```yaml
 # ~/.config/lazyshell/config.yml
 
-# Command started behind each new session's pty. Empty means "$SHELL,
-# falling back to /bin/bash".
+language: fr
 shell: ""
-
-# Maximum number of lines a session's terminal emulator keeps once they
-# scroll off-screen.
+term: xterm-256color
 scrollback_size: 10000
 
-# Sessions list's width in landscape mode (columns), height in portrait
-# mode (rows).
 sessions_panel_width: 30
+sessions_panel_height: 10
+portrait_max_width: 84
+portrait_min_height: 45
 
-# Pass-through escape prefix, in gocui.Parse syntax. Overridable at
-# runtime via $LAZYSHELL_PREFIX, which wins over this value.
-prefix_key: "Ctrl+B"
+refresh_interval_ms: 30
+kill_timeout_ms: 2000
 
-# Remap any action below to another key (gocui.Parse syntax, e.g.
-# "Ctrl+N" or "Alt+Space"). Actions left out keep their default key.
+prefix_key: Ctrl+B
+
 keybindings:
   new_session: "n"
+  new_session_in_dir: "N"
   kill_session: "x"
   rename_session: "r"
   duplicate_session: "c"
-  new_session_in_dir: "N"
   select_next: "j"
   select_prev: "k"
-  cycle_focus: "Tab"
+  cycle_focus: Tab
   help: "?"
   quit: "q"
 
-# Every color accepts a W3C color name (gocui.GetColor's syntax) or
-# "default" to use the terminal's own color.
+markers:
+  bell: "!"
+  alt_screen: "#"
+
+scroll:
+  page_lines: 0
+  half_page_divisor: 2
+
 theme:
-  active_border_color: "green"
-  inactive_border_color: "default"
-  selected_bg_color: "blue"
-  pass_through_border_color: "red"
+  active_border_color: green
+  inactive_border_color: default
+  selected_bg_color: blue
+  pass_through_border_color: red
 ```
 
 ## Project configuration

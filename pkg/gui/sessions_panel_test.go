@@ -8,8 +8,13 @@ import (
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
+// testMarkers is the built-in gutter, the same pair a Gui with no configured
+// markers resolves to. Used by every test that calls sessionsPanelContent
+// directly instead of going through a Gui.
+var testMarkers = markerSet{bell: bellMarker, altScreen: altScreenMarker}
+
 func TestSessionsPanelContentEmpty(t *testing.T) {
-	got := sessionsPanelContent(nil)
+	got := sessionsPanelContent(nil, testMarkers)
 
 	if !strings.Contains(got, "n pour en créer une") {
 		t.Errorf("empty content = %q, want a hint about the n keybinding", got)
@@ -30,7 +35,7 @@ func TestSessionsPanelContentListsSessions(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	got := sessionsPanelContent([]*session.Session{a, b})
+	got := sessionsPanelContent([]*session.Session{a, b}, testMarkers)
 
 	for _, want := range []string{a.Name(), b.Name(), a.Cwd} {
 		if !strings.Contains(got, want) {

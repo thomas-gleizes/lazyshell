@@ -2,6 +2,7 @@ package session
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -132,5 +133,31 @@ func TestPositionalConstructorsStillWork(t *testing.T) {
 
 	if plain.Name() != "plain" || plain.Status() != StatusRunning {
 		t.Errorf("New gave name=%q status=%v, want plain/running", plain.Name(), plain.Status())
+	}
+}
+
+// TERM is the one environment variable lazyshell sets on its own, and the one a
+// user might need to lower: some programs behave better when told the terminal
+// can do less than it actually can.
+func TestManagerTermReachesTheChildEnvironment(t *testing.T) {
+	m := NewManager()
+
+	if got := m.term(); got != DefaultTerm {
+		t.Errorf("term() = %q, want the default %q", got, DefaultTerm)
+	}
+
+	m.Term = "xterm"
+
+	env := buildEnv(m.term(), nil)
+
+	var found string
+	for _, entry := range env {
+		if after, ok := strings.CutPrefix(entry, "TERM="); ok {
+			found = after
+		}
+	}
+
+	if found != "xterm" {
+		t.Errorf("TERM = %q in the child environment, want the configured %q", found, "xterm")
 	}
 }

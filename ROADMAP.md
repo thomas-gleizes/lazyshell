@@ -19,6 +19,7 @@ L'état est celui du code présent dans le dépôt, pas d'une intention.
 | 4 · Pass-through (MVP) | **fait** |
 | 5 · Config, thème, ergonomie | **en cours** — tout est fait sauf le GIF de démo |
 | 6 · Config de projet | **fait** |
+| 6.5 · Config utilisateur complète | **fait** |
 | 7 · Ergonomie multi-sessions | **à faire** |
 | 8 · Distribution et budget de perf | **en cours** — les benchs existent, rien d'autre |
 | 9 · Recherche, copie, broadcast | **à faire** |
@@ -300,6 +301,77 @@ confiance, et il n'est pas sorti des tests unitaires mais du premier lancement �
 
 ---
 
+## Phase 6.5 — Configuration utilisateur complète, générée et documentée — **fait**
+
+**But** : que tout ce qui se règle dans lazyshell se règle depuis
+`~/.config/lazyshell/config.yml`, que le fichier se génère au lieu de se deviner, et qu'une
+erreur dedans se voie. Intercalée avant la phase 7 parce que la bascule de langue de cette
+phase doit se piloter par une option, et parce que le socle de config n'était pas aussi
+complet qu'il en avait l'air.
+
+**Ce qui existait déjà** (phases 3 à 6, souvent oublié) : `config.Path()` et sa précédence
+`$LAZYSHELL_CONFIG` > `$XDG_CONFIG_HOME` > `~/.config`, `config.Load` fusionnant sur
+`Default()`, et les clés `shell`, `scrollback_size`, `sessions_panel_width`, `prefix_key`,
+`keybindings` (10 actions), `theme`.
+
+**Ce que la phase ajoute :**
+
+- [x] **Onze options de plus**, chacune câblée à la constante qu'elle remplace, validée et
+  documentée : `language` (`fr`/`en`, lue et validée, appliquée en phase 7),
+  `term`, `refresh_interval_ms`, `kill_timeout_ms`, `sessions_panel_height`,
+  `portrait_max_width`, `portrait_min_height`, `markers.bell`, `markers.alt_screen`,
+  `scroll.page_lines`, `scroll.half_page_divisor`. Les constantes restent dans leur
+  package comme défaut — la config les surcharge, elle ne les remplace pas — et
+  `pkg/config` n'acquiert toujours aucune dépendance vers `gocui` ou `vt`.
+- [x] **`lazyshell config init`** (`pkg/app/config_cmd.go`) : écrit un fichier entièrement
+  commenté, dossier parent créé, ouverture en `O_EXCL` donc jamais d'écrasement. Le
+  gabarit est testé : il doit charger sans un seul avertissement *et* donner exactement
+  les défauts, sinon on livre un exemple qui reconfigure ceux qui le copient.
+- [x] **`lazyshell config show`** : la configuration réellement appliquée, sources en
+  commentaire. C'est la réponse à « pourquoi ma clé ne prend pas ». Elle imprime les
+  valeurs *effectives*, pas celles du fichier : `gui.Effective` remplit le thème et les
+  touches dont les vrais défauts vivent dans `pkg/gui`, et rend en syntaxe `gocui.Parse`
+  (`Ctrl+Q`, pas le `Ctrl-Q` d'affichage) puisque la sortie se relit comme un fichier de
+  config.
+- [x] **Fin du silence.** Trois trous bouchés, tous du même genre — une valeur inutilisable
+  dégradait proprement, sans jamais le dire : `unknownKeys` (qui n'existait que pour les
+  fichiers de projet) s'applique désormais à la config utilisateur, `Config.Validate`
+  ramène toute valeur hors bornes à son défaut en le signalant, et `gui.ValidateConfig`
+  rapporte les touches illisibles, les ids d'action inexistants (`new_sesion:`) et les
+  couleurs inconnues. **Rien n'est fatal** : tout est corrigé, dit sur stderr avant que
+  gocui prenne le terminal, puis résumé dans la barre de statut.
+- [x] **README** : tableau de référence (clé, type, défaut, effet) plus l'exemple complet.
+- [x] **Test de synchronisation doc ↔ code** (`pkg/config/doc_test.go`) : les tags `yaml`
+  de `Config` sont comparés par réflexion aux clés du tableau *et* de l'exemple, dans les
+  deux sens. Une option ajoutée sans sa ligne de README casse le build. `pkg/gui` complète
+  en vérifiant que les touches et couleurs documentées sont bien celles qui s'appliquent —
+  leurs défauts vivent là et `pkg/config` ne peut pas les connaître.
+
+**Trouvé au passage** : le test de synchronisation a fait remonter, dès sa première
+exécution, que `selected_bg_color: blue` et `pass_through_border_color: red` (documentés
+et codés en dur depuis la phase 3) ne donnaient pas le bleu et le rouge ordinaires d'un
+terminal. `gocui.GetColor` suit la table W3C/CSS, où `blue` vaut `#0000FF` — le bleu *vif*
+d'un terminal, pas l'ordinaire, qui s'y appelle `navy`. Une divergence purement silencieuse
+: le nom résolvait, juste vers la mauvaise nuance.
+
+Corrigé à la racine plutôt qu'en changeant seulement la doc : `ansiColorAliases`
+(`pkg/gui/theme.go`) couvre maintenant toute la table ANSI (les 8 couleurs de base et
+leurs variantes `bright*`), résolue en priorité sur la table W3C. `blue`/`red` désignent de
+nouveau le bleu et le rouge ordinaires du terminal ; le bleu CSS reste accessible sous
+`navy`, le bleu vif sous `brightblue`. Verrouillé par
+`TestAnsiAliasesResolveToTerminalColors` (`pkg/gui/theme_alias_test.go`).
+
+**Critère de sortie — atteint.** Vérifié à la main : `config init` crée le fichier puis
+refuse de l'écraser ; un fichier contenant une clé mal orthographiée, une langue inconnue,
+un intervalle nul, une action inexistante et une touche illisible produit cinq messages
+distincts, démarre quand même, et `config show` affiche les valeurs corrigées.
+
+**Reste ouvert** : `language` ne fait rien encore — l'interface est en français, et c'est
+la phase 7 qui la traduit. Le champ existe maintenant pour que cette phase soit un travail
+de traduction et pas aussi un travail de configuration.
+
+---
+
 ## Phase 7 — Ergonomie multi-sessions — **à faire**
 
 **But** : rendre supportable le régime que la phase 6 installe — 4 à 8 sessions ouvertes en
@@ -337,10 +409,13 @@ qu'ensemble.
   raccourcis les moins utiles disparaissent en premier), et une ligne, pas deux : elle est prise
   sur la hauteur du panneau output.
 
-  **Conséquence assumée : toute l'UI passe en anglais** (descriptions des bindings, titres de vues,
-  messages d'erreur, popup `?`), aujourd'hui en français — un mélange des deux langues serait pire
-  que l'un ou l'autre. À faire d'un bloc dans cette phase. La documentation (README, ROADMAP, ADR)
-  reste en français.
+  **Conséquence assumée : toute l'UI devient traduisible, fr et en** (descriptions des bindings,
+  titres de vues, messages d'erreur, popup `?`, sorties CLI de `pkg/app`), aujourd'hui en français
+  en dur — un mélange des deux langues serait pire que l'un ou l'autre, donc c'est à faire d'un
+  bloc dans cette phase. La documentation (README, ROADMAP, ADR) reste en français.
+
+  Le choix ne se refait pas ici : `language` existe depuis la phase 6.5, elle est lue, validée et
+  documentée. Il ne reste qu'à extraire les chaînes et à les brancher dessus.
 
 **Critère de sortie** : lancer un projet de la phase 6, laisser tourner un build dans une session
 masquée, voir le marqueur apparaître puis le code de sortie, la relancer avec `R` sans retaper la

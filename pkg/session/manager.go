@@ -26,6 +26,12 @@ import (
 // trying to fix signal delivery itself (out of userspace's control).
 const DefaultKillTimeout = 2 * time.Second
 
+// DefaultTerm is the TERM value sessions are started with unless Manager.Term
+// says otherwise: the bundled emulator (pkg/screen) implements 256-colour
+// xterm, and announcing anything less makes shells and editors degrade for no
+// reason.
+const DefaultTerm = "xterm-256color"
+
 // Manager owns every session's lifecycle: creation, lookup, listing and
 // killing. It is deliberately independent from any future TaskManager, which
 // will only own display/reading goroutines, never the shell processes
@@ -45,6 +51,10 @@ type Manager struct {
 	// (vt.DefaultScrollbackSize) — NewManager's zero value is deliberately
 	// usable as-is by every existing test.
 	ScrollbackSize int
+
+	// Term is the TERM value sessions are started with (pkg/config's Term).
+	// Empty means DefaultTerm.
+	Term string
 }
 
 // NewManager returns an empty Manager, ready to create sessions.
@@ -105,7 +115,7 @@ func (m *Manager) NewWithOptions(opts Options) (*Session, error) {
 	}
 
 	cmd := exec.Command(opts.Shell)
-	cmd.Env = buildEnv(opts.Env)
+	cmd.Env = buildEnv(m.term(), opts.Env)
 	cmd.Dir = cwd
 
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: defaultRows, Cols: defaultCols})
@@ -144,12 +154,21 @@ func (m *Manager) NewWithOptions(opts Options) (*Session, error) {
 	return sess, nil
 }
 
-// buildEnv is the child's environment: the process's own, TERM forced to a
-// value the emulator actually implements, then the session's own overrides.
-// Sorted so two runs of the same config produce the same environment, which is
-// what makes it testable.
-func buildEnv(extra map[string]string) []string {
-	env := append(os.Environ(), "TERM=xterm-256color")
+// term is the TERM value to start sessions with: the configured one, else
+// DefaultTerm — a value the bundled emulator actually implements.
+func (m *Manager) term() string {
+	if m.Term != "" {
+		return m.Term
+	}
+
+	return DefaultTerm
+}
+
+// buildEnv is the child's environment: the process's own, TERM forced to term,
+// then the session's own overrides. Sorted so two runs of the same config
+// produce the same environment, which is what makes it testable.
+func buildEnv(term string, extra map[string]string) []string {
+	env := append(os.Environ(), "TERM="+term)
 
 	keys := make([]string, 0, len(extra))
 	for k := range extra {

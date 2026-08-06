@@ -16,9 +16,10 @@ import (
 	"github.com/thomas-gleizes/lazyshell/pkg/tasks"
 )
 
-// reRenderInterval is the rate at which the sessions panel is refreshed
+// reRenderInterval is the default rate at which the sessions panel is refreshed
 // (session statuses change asynchronously in the background) and at which a
-// selected session's output is re-rendered. Same value as lazydocker.
+// selected session's output is re-rendered. Same value as lazydocker; overridden
+// by pkg/config's RefreshIntervalMs, which is what Gui.refreshInterval carries.
 const reRenderInterval = 30 * time.Millisecond
 
 // statusHint is shown in the status bar as long as there is no error to
@@ -47,10 +48,22 @@ type Gui struct {
 	// configuredShell is pkg/config's Shell, used by newSession when
 	// non-empty instead of falling back to $SHELL/bash.
 	configuredShell string
-	// sessionsPanelWidth is pkg/config's SessionsPanelWidth: the sessions
-	// panel's width in landscape mode (columns), height in portrait mode
-	// (rows). See pkg/gui/layout.go's rootBox.
-	sessionsPanelWidth int
+	// sessionsPanelWidth/sessionsPanelHeight are the sessions panel's size:
+	// a width in landscape mode (columns), a height in portrait mode (rows).
+	// See pkg/gui/layout.go's rootBox.
+	sessionsPanelWidth  int
+	sessionsPanelHeight int
+	// portraitMaxWidth/portraitMinHeight are the geometry at which the layout
+	// stacks the panels instead of splitting them — see isPortrait.
+	portraitMaxWidth  int
+	portraitMinHeight int
+	// refreshInterval is pkg/config's RefreshIntervalMs: the redraw tick used
+	// by goEvery for the sessions panel and by showOutput for the output one.
+	refreshInterval time.Duration
+	// markers are the sessions list's gutter characters, and scroll the output
+	// panel's scrolling steps — both straight from pkg/config.
+	markers config.Markers
+	scroll  config.Scroll
 	// keymap is pkg/config's Keybindings: action id -> gocui.Parse key spec,
 	// consulted by resolveBinding for every Binding with a non-empty Action.
 	keymap map[string]string
@@ -106,15 +119,44 @@ type Gui struct {
 // Run.
 func New(sessions *session.Manager, cfg config.Config) *Gui {
 	return &Gui{
-		sessions:           sessions,
-		outputTasks:        tasks.NewManager(),
-		focus:              newFocusManager(),
-		theme:              newTheme(cfg.Theme),
-		prefixKey:          prefixFrom(cfg.PrefixKey),
-		configuredShell:    cfg.Shell,
-		sessionsPanelWidth: cfg.SessionsPanelWidth,
-		keymap:             cfg.Keybindings,
+		sessions:            sessions,
+		outputTasks:         tasks.NewManager(),
+		focus:               newFocusManager(),
+		theme:               newTheme(cfg.Theme),
+		prefixKey:           prefixFrom(cfg.PrefixKey),
+		configuredShell:     cfg.Shell,
+		sessionsPanelWidth:  cfg.SessionsPanelWidth,
+		sessionsPanelHeight: cfg.SessionsPanelHeight,
+		portraitMaxWidth:    cfg.PortraitMaxWidth,
+		portraitMinHeight:   cfg.PortraitMinHeight,
+		refreshInterval:     refreshIntervalFrom(cfg.RefreshIntervalMs),
+		markers:             cfg.Markers,
+		scroll:              cfg.Scroll,
+		keymap:              cfg.Keybindings,
 	}
+}
+
+// refreshIntervalFrom turns pkg/config's milliseconds into a duration, falling
+// back to reRenderInterval for a zero value. Zero is not a user choice here —
+// Config.Validate rejects it — but a Gui built from a config.Config{} literal
+// (several tests in this package do exactly that) must still tick.
+func refreshIntervalFrom(ms int) time.Duration {
+	if ms <= 0 {
+		return reRenderInterval
+	}
+
+	return time.Duration(ms) * time.Millisecond
+}
+
+// tick is the redraw period to use, guarding the one thing that would turn a
+// zero value into a crash rather than a default: time.NewTicker panics on a
+// non-positive duration, and tests build a Gui as a bare struct literal.
+func (gui *Gui) tick() time.Duration {
+	if gui.refreshInterval <= 0 {
+		return reRenderInterval
+	}
+
+	return gui.refreshInterval
 }
 
 // SetStartupError records a problem that happened during bootstrap — a project
@@ -220,7 +262,7 @@ func (gui *Gui) Run() (err error) {
 		return err
 	}
 
-	gui.goEvery(reRenderInterval, gui.renderSessionsPanel)
+	gui.goEvery(gui.tick(), gui.renderSessionsPanel)
 
 	// Sessions can already exist before the first keypress — pkg/app starts the
 	// ones a project file declares. Nothing else calls onSelectionChanged until

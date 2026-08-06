@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/thomas-gleizes/lazyshell/pkg/config"
 	"github.com/thomas-gleizes/lazyshell/pkg/gui"
@@ -41,6 +42,12 @@ func Main(args []string, out io.Writer) error {
 		return InitProject(".", out)
 	case CommandAllow:
 		return AllowProject(inv.Arg, out)
+	case CommandConfig:
+		if inv.Arg == ConfigInit {
+			return InitUserConfig(config.Path(), out)
+		}
+
+		return ShowConfig(inv.Options, out, os.Stderr)
 	}
 
 	return New(inv.Options).Run()
@@ -66,10 +73,18 @@ func newApp(opts Options, approve approver, errOut io.Writer) *App {
 		cfg = config.Default()
 	}
 
-	cfg, pcfg, startupErrs := loadProject(opts, cfg, errOut)
+	startupErrs := checkConfig(&cfg, errOut)
+
+	cfg, pcfg, projectErrs := loadProject(opts, cfg, errOut)
+	startupErrs = append(startupErrs, projectErrs...)
 
 	sessions := session.NewManager()
 	sessions.ScrollbackSize = cfg.ScrollbackSize
+	sessions.Term = cfg.Term
+
+	if cfg.KillTimeoutMs > 0 {
+		sessions.KillTimeout = time.Duration(cfg.KillTimeoutMs) * time.Millisecond
+	}
 
 	switch {
 	case len(pcfg.Sessions) == 0:
@@ -89,6 +104,34 @@ func newApp(opts Options, approve approver, errOut io.Writer) *App {
 	g.SetStartupError(joinErrors(startupErrs))
 
 	return &App{sessions: sessions, gui: g}
+}
+
+// checkConfig runs every validation the user configuration is subject to, in
+// the one window where saying something is still possible: gocui has not taken
+// the terminal yet, so warnings printed here are readable, and errors returned
+// here reach the status bar through SetStartupError.
+//
+// Nothing it finds is fatal. Config.Validate has already replaced out-of-range
+// values with their defaults, and the key/color checks report values that their
+// consumers were already falling back on — silently, which is the actual bug
+// this fixes. A config file typo must never be the reason a session manager
+// refuses to start.
+//
+// Unknown keys go to stderr rather than to the status bar: they are the loudest
+// and least urgent of the three, and the status bar is one line.
+func checkConfig(cfg *config.Config, errOut io.Writer) []error {
+	for _, w := range cfg.Warnings {
+		fmt.Fprintf(errOut, "lazyshell: %s: clé ignorée dans la config utilisateur (%s)\n", config.Path(), w)
+	}
+
+	errs := cfg.Validate()
+	errs = append(errs, gui.ValidateConfig(*cfg)...)
+
+	for _, err := range errs {
+		fmt.Fprintf(errOut, "lazyshell: config: %v\n", err)
+	}
+
+	return errs
 }
 
 // loadProject discovers and reads the project file, merges it onto the user

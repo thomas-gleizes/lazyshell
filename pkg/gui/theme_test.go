@@ -22,36 +22,35 @@ func TestNewThemeEmptyConfigKeepsDefaults(t *testing.T) {
 // constants (a termbox-go legacy 0-7 index) — same visual color, different
 // Attribute. So the assertion here is against gocui.GetColor's own output,
 // not against those constants.
+//
+// "white" is deliberately not covered here: it is itself an ANSI name (see
+// ansiColorAliases), so it resolves through the alias table, not straight
+// through GetColor — that path is TestAnsiAliasesResolveToTerminalColors'
+// job, in theme_alias_test.go.
 func TestNewThemeOverridesFields(t *testing.T) {
 	theme := newTheme(config.Theme{
-		ActiveBorderColor:      "yellow",
-		InactiveBorderColor:    "white",
-		SelectedBgColor:        "cyan",
-		PassThroughBorderColor: "magenta",
+		ActiveBorderColor:   "chartreuse",
+		InactiveBorderColor: "orchid",
 	})
 
-	if want := gocui.GetColor("yellow"); theme.ActiveBorderColor != want {
+	if want := gocui.GetColor("chartreuse"); theme.ActiveBorderColor != want {
 		t.Errorf("ActiveBorderColor = %v, want %v", theme.ActiveBorderColor, want)
 	}
-	if want := gocui.GetColor("white"); theme.InactiveBorderColor != want {
+	if want := gocui.GetColor("orchid"); theme.InactiveBorderColor != want {
 		t.Errorf("InactiveBorderColor = %v, want %v", theme.InactiveBorderColor, want)
-	}
-	if want := gocui.GetColor("aqua"); theme.SelectedBgColor != want {
-		t.Errorf("SelectedBgColor = %v, want %v (cyan aliased to aqua)", theme.SelectedBgColor, want)
-	}
-	if want := gocui.GetColor("fuchsia"); theme.PassThroughBorderColor != want {
-		t.Errorf("PassThroughBorderColor = %v, want %v (magenta aliased to fuchsia)", theme.PassThroughBorderColor, want)
 	}
 }
 
-// The two names gocui.GetColor cannot resolve on its own but every terminal
-// multiplexer's config convention uses (lazygit, lazydocker, tmux).
+// ansiColorAliases resolves the 8 ANSI names to the *ordinary* terminal color,
+// not the CSS color GetColor would otherwise give: "cyan" means ANSI cyan
+// (teal in CSS terms), not the CSS "cyan" (which is actually bright cyan, aka
+// "aqua"). See TestAnsiAliasesResolveToTerminalColors for the full table.
 func TestNewThemeResolvesCommonAnsiAliases(t *testing.T) {
-	if got, want := resolveColor("cyan", gocui.ColorDefault), gocui.GetColor("aqua"); got != want {
-		t.Errorf("resolveColor(\"cyan\", ...) = %v, want %v", got, want)
+	if got, want := resolveColor("cyan", gocui.ColorDefault), gocui.GetColor("teal"); got != want {
+		t.Errorf("resolveColor(\"cyan\", ...) = %v, want %v (ordinary cyan, i.e. \"teal\")", got, want)
 	}
-	if got, want := resolveColor("magenta", gocui.ColorDefault), gocui.GetColor("fuchsia"); got != want {
-		t.Errorf("resolveColor(\"magenta\", ...) = %v, want %v", got, want)
+	if got, want := resolveColor("magenta", gocui.ColorDefault), gocui.GetColor("purple"); got != want {
+		t.Errorf("resolveColor(\"magenta\", ...) = %v, want %v (ordinary magenta, i.e. \"purple\")", got, want)
 	}
 }
 
