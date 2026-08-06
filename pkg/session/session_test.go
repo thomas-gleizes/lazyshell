@@ -196,11 +196,15 @@ func TestOutputFeedsTheScreenContinuously(t *testing.T) {
 	m := newTestManager(t)
 	sess := newTestSession(t, m, "t")
 
-	if _, err := sess.Write([]byte("for i in $(seq 1 200); do echo line-$i; done; echo done-marker\n")); err != nil {
+	if _, err := sess.Write([]byte("for i in $(seq 1 200); do echo line-$i; done\n")); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
-	waitForScreen(t, sess, "done-marker")
+	// The marker must be something the pty's echo of the command line cannot
+	// contain, or this returns immediately — before the loop has produced
+	// anything — and the scrollback assertion below fails under load. "line-200"
+	// only ever exists as loop output; "$i" is what appears in the command.
+	waitForScreen(t, sess, "line-200")
 
 	if sess.Screen().ScrollbackLen() == 0 {
 		t.Error("nothing went to the scrollback despite 200 lines of output")
