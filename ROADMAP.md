@@ -20,8 +20,8 @@ L'état est celui du code présent dans le dépôt, pas d'une intention.
 | 5 · Config, thème, ergonomie | **en cours** — tout est fait sauf le GIF de démo |
 | 6 · Config de projet | **fait** |
 | 6.5 · Config utilisateur complète | **fait** |
-| 7 · Ergonomie multi-sessions | **à faire** |
-| 8 · Distribution et budget de perf | **en cours** — les benchs existent, rien d'autre |
+| 7 · Ergonomie multi-sessions | **fait** |
+| 8 · Distribution et budget de perf | **en cours** — release automatisée, `--version` et budget de redraw gaté en CI faits ; reste à générer le GIF de démo |
 | 9 · Recherche, copie, broadcast | **à faire** |
 | 10 · Émulation de terminal complète | **fait** (faite en avance, voir la phase) |
 | 11 · Sessions d'agents IA | **à faire** — dépend de 6 et 7 |
@@ -372,13 +372,13 @@ de traduction et pas aussi un travail de configuration.
 
 ---
 
-## Phase 7 — Ergonomie multi-sessions — **à faire**
+## Phase 7 — Ergonomie multi-sessions — **fait**
 
 **But** : rendre supportable le régime que la phase 6 installe — 4 à 8 sessions ouvertes en
 permanence, dont on n'en regarde qu'une. Quatre manques, tous petits, qui ne prennent leur sens
 qu'ensemble.
 
-- [ ] **Indicateur d'activité et de résultat dans la liste** : marqueur `●` sur une session masquée qui
+- [x] **Indicateur d'activité et de résultat dans la liste** : marqueur `●` sur une session masquée qui
   a produit de la sortie depuis la dernière fois qu'on l'a regardée (remis à zéro à la sélection),
   bell (`\a`) signalé distinctement, et `✓` / `✗ <code>` sur une session `Exited`. Le signal
   d'activité se prend dans la goroutine de drain de `pkg/session` (elle voit déjà passer chaque
@@ -386,15 +386,15 @@ qu'ensemble.
   (*La cloche et la gouttière de marqueurs existent déjà depuis la phase 10 — `bellMarker` /
   `altScreenMarker` dans `pkg/gui/sessions_panel.go` ; il reste le marqueur d'activité et le
   résultat de sortie, à y ajouter plutôt qu'à côté.*)
-- [ ] **Relance d'une session terminée** (`R`) : même nom, même cwd, même shell, même commande
+- [x] **Relance d'une session terminée** (`R`) : même nom, même cwd, même shell, même commande
   initiale. Suppose que la session conserve sa *spec* de création — c'est exactement la struct
   introduite par la phase 6 pour les sessions déclaratives, à extraire donc à ce moment-là et non
   à réinventer. Décider si la relance réutilise l'ID ou en crée un nouveau (recommandation : même
   ID, la session est « la même » du point de vue de l'utilisateur).
-- [ ] **Saut direct par index** (`1`–`9` sélectionnent la n-ième session) et **zoom** (`z` : le
+- [x] **Saut direct par index** (`1`–`9` sélectionnent la n-ième session) et **zoom** (`z` : le
   panneau output prend tout l'écran, la liste disparaît ; même touche pour revenir). Le zoom est
   un cas particulier de `boxlayout` — un flag dans `layout()`, pas un second arbre.
-- [ ] **Aides contextuelles permanentes, en anglais** : une ligne de rappel des raccourcis *pertinents
+- [x] **Aides contextuelles permanentes, en anglais** : une ligne de rappel des raccourcis *pertinents
   ici et maintenant*, toujours visible, au lieu du seul popup `?` qui liste tout
   (`pkg/gui/help.go`). Le contexte, c'est le couple (vue ayant le focus, mode) :
   - `sessions` : `n new  x kill  r rename  R restart  z zoom  Tab output  ? help` ;
@@ -432,20 +432,23 @@ permanent : il change d'état, il ne « clignote » pas.
 **But** : ce qui manque pour que le critère de sortie de la phase 5 (« quelqu'un d'autre installe
 et utilise lazyshell depuis le README seul ») soit vraiment atteint.
 
-- [ ] **Release automatisée** : `goreleaser`, binaires linux/macOS (amd64 + arm64), archives attachées
-  au tag GitHub, checksums. `go install` documenté et vérifié sur une machine vierge, tap Homebrew
-  si le besoin se confirme.
-- [ ] **Version dans le binaire** : `--version` alimenté par `-ldflags`, affiché aussi dans le panneau
+- [x] **Release automatisée** : `.goreleaser.yml` (linux/macOS, amd64 + arm64, ldflags
+  `version.Version`, archives `tar.gz` + `checksums.txt`) et `.github/workflows/release.yml`
+  déclenché sur un tag `v*`. Pas de section Homebrew : différée avec l'absence de `LICENSE`, comme
+  prévu ici (« si le besoin se confirme »). `go install` déjà documenté dans le README ; l'install
+  binaire précompilé y est ajoutée à côté.
+- [x] **Version dans le binaire** : `--version` alimenté par `-ldflags`, affiché aussi dans le panneau
   d'aide — indispensable pour trier les rapports de bug.
-- [~] **Budget de redraw mesuré, pas commenté** : bench Go sur le rendu d'un écran avec 10 000 lignes
-  de scrollback et N sessions actives, exécuté en CI avec un seuil qui casse le build en cas de
-  régression. L'ADR 0001 documente déjà que ce coût peut figer l'UI ; le verrouiller par un test
-  est le seul moyen que ça reste vrai après la phase 10.
-  **Les benchs existent** depuis la phase 10 (`pkg/screen/bench_test.go`, `pkg/gui/bench_test.go`,
-  plus `TestIdleSessionDoesNotRepaint` qui compte les repeints au repos) ; **ce qui manque, c'est
-  de les brancher en CI avec un seuil.**
-- [ ] **GIF de démo** régénéré sur les fonctions des phases 6-7 (c'est là que l'outil devient
-  démontrable en 15 secondes) — recouvre le point resté ouvert de la phase 5.
+- [x] **Budget de redraw mesuré, pas commenté** : `pkg/screen/perf_test.go` et `pkg/gui/perf_test.go`
+  (tag `!race`, exclus du `go test -race` déjà en CI) enveloppent les benchs existants dans
+  `testing.Benchmark` et font échouer le test si le `ns/op` dépasse un seuil fixé avec une large
+  marge sur une mesure locale — nouvelle étape `go test -run TestPerfBudget ./...` dans
+  `ci.yml`. `TestIdleSessionDoesNotRepaint` (phase 10) était déjà gaté et tourne déjà dans le job
+  existant.
+- [~] **GIF de démo** : `docs/demo.tape` (script `vhs`) et `make demo` sont en place, démontrant le
+  saut par index, le zoom et la relance `R` des phases 6-7. Le rendu `docs/demo.gif` lui-même reste
+  à générer (`vhs` n'était pas disponible dans l'environnement qui a écrit le script) — recouvre le
+  point resté ouvert de la phase 5.
 
 **Critère de sortie** : `brew install` ou `go install` sur une machine sans Go dev setup, puis
 `lazyshell --version`, sans lire autre chose que le README.

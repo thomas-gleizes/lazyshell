@@ -38,6 +38,10 @@ type Options struct {
 	// NoAutostart is --no-autostart: open the UI without starting anything the
 	// project file declares.
 	NoAutostart bool
+	// Version is --version: print the build version and exit, without touching
+	// the terminal or the config. Not a sub-command, since it must also work as
+	// a trailing flag (`lazyshell --version`) the way most CLIs accept it.
+	Version bool
 }
 
 // Invocation is a fully parsed command line.
@@ -63,6 +67,7 @@ Usage :
 Options :
   -f, --config-file <fichier>   fichier de projet à utiliser
       --no-autostart            n'ouvre que l'interface, ne démarre aucune session déclarée
+      --version                 affiche la version et quitte
 `
 
 // ParseArgs turns a command line into an Invocation. It lives here rather than
@@ -90,6 +95,7 @@ func ParseArgs(args []string) (Invocation, error) {
 	fs.StringVar(&inv.ConfigFile, "config-file", "", "fichier de projet à utiliser")
 	fs.StringVar(&inv.ConfigFile, "f", "", "fichier de projet à utiliser (raccourci)")
 	fs.BoolVar(&inv.NoAutostart, "no-autostart", false, "ne démarre aucune session déclarée")
+	fs.BoolVar(&inv.Version, "version", false, "affiche la version et quitte")
 
 	if err := fs.Parse(args); err != nil {
 		return inv, fmt.Errorf("%w\n\n%s", err, usage)

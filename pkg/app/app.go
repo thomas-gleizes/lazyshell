@@ -14,6 +14,7 @@ import (
 	"github.com/thomas-gleizes/lazyshell/pkg/config"
 	"github.com/thomas-gleizes/lazyshell/pkg/gui"
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
+	"github.com/thomas-gleizes/lazyshell/pkg/version"
 )
 
 // App is the top-level object of lazyshell.
@@ -35,6 +36,12 @@ func Main(args []string, out io.Writer) error {
 		}
 
 		return err
+	}
+
+	if inv.Version {
+		fmt.Fprintf(out, "lazyshell %s\n", version.Version)
+
+		return nil
 	}
 
 	switch inv.Command {

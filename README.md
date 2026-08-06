@@ -10,15 +10,27 @@ The output panel is a real terminal emulator, so full-screen applications
 work: `vim`, `htop` and `less` run inside a session, cursor and colours
 included.
 
-<!-- TODO: demo gif -->
+![démo](docs/demo.gif)
 
 ## Install
+
+Binaire précompilé, sans toolchain Go : télécharger l'archive de son OS/arch
+depuis la [page des releases](https://github.com/thomas-gleizes/lazyshell/releases),
+vérifier `checksums.txt`, puis extraire `lazyshell` dans un dossier de son `PATH` :
+
+```sh
+tar xzf lazyshell_<os>_<arch>.tar.gz
+sudo mv lazyshell /usr/local/bin/
+lazyshell --version
+```
+
+Avec Go installé :
 
 ```sh
 go install github.com/thomas-gleizes/lazyshell/cmd/lazyshell@latest
 ```
 
-Or build from source:
+Ou depuis les sources :
 
 ```sh
 git clone https://github.com/thomas-gleizes/lazyshell.git

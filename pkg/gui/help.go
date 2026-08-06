@@ -6,6 +6,8 @@ import (
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/jesseduffield/gocui"
+
+	"github.com/thomas-gleizes/lazyshell/pkg/version"
 )
 
 const helpViewName = "help"
@@ -56,7 +58,7 @@ func keyLabel(key any, mod gocui.Modifier) string {
 func (gui *Gui) helpContent() string {
 	var b strings.Builder
 
-	fmt.Fprintln(&b, gui.tr.T("help.header"))
+	fmt.Fprintf(&b, "%s — lazyshell %s\n", gui.tr.T("help.header"), version.Version)
 	fmt.Fprintln(&b)
 
 	for _, binding := range gui.bindings() {
