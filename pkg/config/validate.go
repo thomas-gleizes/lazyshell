@@ -53,14 +53,18 @@ func (c *Config) Validate() []error {
 		c.Language = def.Language
 	}
 
-	// A marker is drawn in a two-column gutter, one column per marker, and both
-	// can show at once — anything wider would shift every session line and break
-	// the fixed-width columns sessionsPanelContent lays out.
+	// A marker is drawn in a three-column gutter, one column per marker, and all
+	// three can show at once — anything wider would shift every session line and
+	// break the fixed-width columns sessionsPanelContent lays out.
 	if err := singleColumn("markers.bell", &c.Markers.Bell, def.Markers.Bell); err != nil {
 		errs = append(errs, err)
 	}
 
 	if err := singleColumn("markers.alt_screen", &c.Markers.AltScreen, def.Markers.AltScreen); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := singleColumn("markers.activity", &c.Markers.Activity, def.Markers.Activity); err != nil {
 		errs = append(errs, err)
 	}
 

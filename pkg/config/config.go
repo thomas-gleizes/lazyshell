@@ -44,10 +44,11 @@ const (
 	// defaultTerm is the TERM value sessions are started with — a value the
 	// bundled emulator actually implements (pkg/session/manager.go's buildEnv).
 	defaultTerm = "xterm-256color"
-	// defaultBellMarker/defaultAltScreenMarker are the sessions list's gutter
-	// markers (pkg/gui/sessions_panel.go).
+	// defaultBellMarker/defaultAltScreenMarker/defaultActivityMarker are the
+	// sessions list's gutter markers (pkg/gui/sessions_panel.go).
 	defaultBellMarker      = "!"
 	defaultAltScreenMarker = "#"
+	defaultActivityMarker  = "●"
 	// defaultHalfPageDivisor is what the output panel's height is divided by for
 	// a Ctrl-U/Ctrl-D scroll (pkg/gui/input.go's scrollHalfPage).
 	defaultHalfPageDivisor = 2
@@ -61,9 +62,11 @@ const (
 // used to hardcode it, validated in Validate, and documented in the README's
 // reference table — doc_test.go fails the build otherwise.
 type Config struct {
-	// Language is the UI language, "fr" or "en". Read and validated today,
-	// but not yet applied: the interface is still written in French. The i18n
-	// phase is what makes this field do something.
+	// Language is the UI language, "fr" or "en" — see pkg/i18n. Covers the
+	// interactive TUI (bindings, popups, status bar, footers, session
+	// messages); pkg/app's CLI output (`lazyshell config ...`) is unaffected
+	// and stays French, since it can run before a config file — and so a
+	// Language — has even been loaded.
 	Language string `yaml:"language"`
 	// Shell is the command started behind each new session's pty. Empty means
 	// "use $SHELL, falling back to /bin/bash" (resolved at use, not at load,
@@ -136,6 +139,9 @@ type Markers struct {
 	Bell string `yaml:"bell"`
 	// AltScreen flags a session with a full-screen application in control.
 	AltScreen string `yaml:"alt_screen"`
+	// Activity flags a session that produced output since it was last looked
+	// at, other than the one currently selected.
+	Activity string `yaml:"activity"`
 }
 
 // Scroll is how far the output panel moves per scrolling keystroke.
@@ -168,6 +174,7 @@ func Default() Config {
 		Markers: Markers{
 			Bell:      defaultBellMarker,
 			AltScreen: defaultAltScreenMarker,
+			Activity:  defaultActivityMarker,
 		},
 		Scroll: Scroll{
 			PageLines:       0,

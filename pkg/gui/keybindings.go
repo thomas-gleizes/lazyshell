@@ -23,6 +23,32 @@ type Binding struct {
 // setKeybindings registers them and the help panel (pkg/gui/help.go) lists
 // them.
 func (gui *Gui) bindings() []Binding {
+	b := gui.staticBindings()
+
+	// "1".."9" jump straight to the n-th session. Scoped to sessionsViewName
+	// only, never global: the output view's Editor (pkg/gui/input.go's
+	// editOutput) intercepts every keystroke before gocui ever consults
+	// SetKeybinding, but a global binding on a printable key would still be
+	// consulted while a *different*, Editor-less view has focus — there is
+	// none of those here, but a global scope would also be wrong in
+	// principle, since typing a digit into a pass-through shell must never
+	// be mistaken for a jump. Not user-remappable: a digit's meaning is its
+	// position, remapping it would defeat the point.
+	for i := 1; i <= 9; i++ {
+		b = append(b, Binding{
+			ViewName:    sessionsViewName,
+			Key:         rune('0' + i),
+			Modifier:    gocui.ModNone,
+			Handler:     gui.selectIndex(i - 1),
+			Description: gui.tr.T("action.jump", i),
+		})
+	}
+
+	return b
+}
+
+// staticBindings is every keybinding that is not generated — see bindings.
+func (gui *Gui) staticBindings() []Binding {
 	return []Binding{
 		{
 			ViewName:    "",
@@ -30,14 +56,14 @@ func (gui *Gui) bindings() []Binding {
 			Key:         'q',
 			Modifier:    gocui.ModNone,
 			Handler:     gui.quit,
-			Description: "Quitter lazyshell",
+			Description: gui.tr.T("action.quit"),
 		},
 		{
 			ViewName:    "",
 			Key:         gocui.KeyCtrlC,
 			Modifier:    gocui.ModNone,
 			Handler:     gui.quit,
-			Description: "Quitter lazyshell",
+			Description: gui.tr.T("action.quit"),
 		},
 		{
 			ViewName:    "",
@@ -45,7 +71,7 @@ func (gui *Gui) bindings() []Binding {
 			Key:         gocui.KeyTab,
 			Modifier:    gocui.ModNone,
 			Handler:     gui.cycleFocus,
-			Description: "Changer de panneau actif",
+			Description: gui.tr.T("action.cycle_focus"),
 		},
 		{
 			ViewName:    "",
@@ -53,7 +79,7 @@ func (gui *Gui) bindings() []Binding {
 			Key:         '?',
 			Modifier:    gocui.ModNone,
 			Handler:     gui.showHelp,
-			Description: "Afficher l'aide",
+			Description: gui.tr.T("action.help"),
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -61,14 +87,14 @@ func (gui *Gui) bindings() []Binding {
 			Key:         'j',
 			Modifier:    gocui.ModNone,
 			Handler:     gui.selectionMoved(1),
-			Description: "Session suivante",
+			Description: gui.tr.T("action.select_next"),
 		},
 		{
 			ViewName:    sessionsViewName,
 			Key:         gocui.KeyArrowDown,
 			Modifier:    gocui.ModNone,
 			Handler:     gui.selectionMoved(1),
-			Description: "Session suivante",
+			Description: gui.tr.T("action.select_next"),
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -76,14 +102,14 @@ func (gui *Gui) bindings() []Binding {
 			Key:         'k',
 			Modifier:    gocui.ModNone,
 			Handler:     gui.selectionMoved(-1),
-			Description: "Session précédente",
+			Description: gui.tr.T("action.select_prev"),
 		},
 		{
 			ViewName:    sessionsViewName,
 			Key:         gocui.KeyArrowUp,
 			Modifier:    gocui.ModNone,
 			Handler:     gui.selectionMoved(-1),
-			Description: "Session précédente",
+			Description: gui.tr.T("action.select_prev"),
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -91,7 +117,7 @@ func (gui *Gui) bindings() []Binding {
 			Key:         'n',
 			Modifier:    gocui.ModNone,
 			Handler:     gui.newSession,
-			Description: "Nouvelle session",
+			Description: gui.tr.T("action.new_session"),
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -99,14 +125,14 @@ func (gui *Gui) bindings() []Binding {
 			Key:         'x',
 			Modifier:    gocui.ModNone,
 			Handler:     gui.killSession,
-			Description: "Tuer la session sélectionnée",
+			Description: gui.tr.T("action.kill_session"),
 		},
 		{
 			ViewName:    sessionsViewName,
 			Key:         'd',
 			Modifier:    gocui.ModNone,
 			Handler:     gui.killSession,
-			Description: "Tuer la session sélectionnée",
+			Description: gui.tr.T("action.kill_session"),
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -114,7 +140,7 @@ func (gui *Gui) bindings() []Binding {
 			Key:         'r',
 			Modifier:    gocui.ModNone,
 			Handler:     gui.renameSession,
-			Description: "Renommer la session sélectionnée",
+			Description: gui.tr.T("action.rename_session"),
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -122,7 +148,7 @@ func (gui *Gui) bindings() []Binding {
 			Key:         'c',
 			Modifier:    gocui.ModNone,
 			Handler:     gui.duplicateSession,
-			Description: "Dupliquer la session sélectionnée",
+			Description: gui.tr.T("action.duplicate_session"),
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -130,7 +156,23 @@ func (gui *Gui) bindings() []Binding {
 			Key:         'N',
 			Modifier:    gocui.ModNone,
 			Handler:     gui.newSessionInDir,
-			Description: "Nouvelle session dans un dossier choisi",
+			Description: gui.tr.T("action.new_session_in_dir"),
+		},
+		{
+			ViewName:    sessionsViewName,
+			Action:      "restart_session",
+			Key:         'R',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.restartSession,
+			Description: gui.tr.T("action.restart_session"),
+		},
+		{
+			ViewName:    sessionsViewName,
+			Action:      "zoom",
+			Key:         'z',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.toggleZoom,
+			Description: gui.tr.T("action.zoom"),
 		},
 	}
 }

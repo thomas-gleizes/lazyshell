@@ -137,3 +137,70 @@ func TestManagerListPreservesInsertionOrder(t *testing.T) {
 		}
 	}
 }
+
+// Restart must bring back an exited session with the same id, name and cwd —
+// same position in List() too, since the id does not change.
+func TestManagerRestartRecreatesAnExitedSession(t *testing.T) {
+	m := newTestManager(t)
+
+	dir := t.TempDir()
+	original, err := m.NewWithOptions(Options{Name: "build", Shell: testShell, Cwd: dir})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+
+	if _, err := original.Write([]byte("exit 1\n")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	waitForStatus(t, original, StatusExited)
+
+	restarted, err := m.Restart(original.ID)
+	if err != nil {
+		t.Fatalf("Restart: %v", err)
+	}
+
+	if restarted.ID != original.ID {
+		t.Errorf("Restart() ID = %s, want the same id %s", restarted.ID, original.ID)
+	}
+	if restarted.Name() != "build" {
+		t.Errorf("Restart() Name() = %q, want %q", restarted.Name(), "build")
+	}
+	if restarted.Cwd != dir {
+		t.Errorf("Restart() Cwd = %q, want %q", restarted.Cwd, dir)
+	}
+	if restarted.Status() != StatusRunning {
+		t.Errorf("Restart() Status() = %v, want %v", restarted.Status(), StatusRunning)
+	}
+	if restarted.Cmd == original.Cmd {
+		t.Error("Restart() reused the exited process instead of starting a new one")
+	}
+
+	got, ok := m.Get(original.ID)
+	if !ok || got != restarted {
+		t.Error("Manager.sessions was not swapped to the restarted session")
+	}
+
+	list := m.List()
+	if len(list) != 1 || list[0].ID != original.ID {
+		t.Errorf("List() = %v, want the single restarted session in the same slot", list)
+	}
+}
+
+// A session still running must not be restarted out from under itself.
+func TestManagerRestartRefusesARunningSession(t *testing.T) {
+	m := newTestManager(t)
+
+	sess := newTestSession(t, m, "s")
+
+	if _, err := m.Restart(sess.ID); err == nil {
+		t.Error("Restart on a running session did not error")
+	}
+}
+
+func TestManagerRestartUnknownIDReturnsError(t *testing.T) {
+	m := newTestManager(t)
+
+	if _, err := m.Restart("no-such-id"); err == nil {
+		t.Error("Restart on an unknown id did not error")
+	}
+}

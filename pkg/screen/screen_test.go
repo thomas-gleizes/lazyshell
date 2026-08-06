@@ -335,3 +335,35 @@ func TestBellLatchesUntilCleared(t *testing.T) {
 		t.Error("ClearBell did not clear the bell")
 	}
 }
+
+// Activity is a latch too, for the same reason as the bell: a session that
+// produced output while hidden must still be able to report it once looked
+// back at.
+func TestActivityLatchesUntilCleared(t *testing.T) {
+	s := New(40, 10)
+
+	if s.ActivityPending() {
+		t.Fatal("activity pending before anything was written")
+	}
+
+	write(t, s, "some output\r\n")
+
+	if !s.ActivityPending() {
+		t.Fatal("output was not latched as activity")
+	}
+
+	s.ClearActivity()
+
+	if s.ActivityPending() {
+		t.Error("ClearActivity did not clear the activity")
+	}
+
+	// A write of zero bytes must not re-arm the latch.
+	if _, err := s.Write(nil); err != nil {
+		t.Fatalf("Write(nil): %v", err)
+	}
+
+	if s.ActivityPending() {
+		t.Error("an empty write re-armed the activity latch")
+	}
+}

@@ -32,10 +32,11 @@ type Screen struct {
 	// accessors below read them under the same mu. The rule that comes with
 	// it: a callback handler must never call back into a Screen method, or it
 	// would deadlock on a mutex it is already holding.
-	cursorVisible bool
-	appCursorKeys bool
-	title         string
-	bellPending   bool
+	cursorVisible   bool
+	appCursorKeys   bool
+	title           string
+	bellPending     bool
+	activityPending bool
 }
 
 // New returns a Screen of the given size, in cells, with the emulator's
@@ -80,7 +81,12 @@ func (s *Screen) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.term.Write(p)
+	n, err := s.term.Write(p)
+	if n > 0 {
+		s.activityPending = true
+	}
+
+	return n, err
 }
 
 // Read returns what the emulator answers back to the application: terminal
@@ -264,5 +270,23 @@ func (s *Screen) BellPending() bool {
 func (s *Screen) ClearBell() {
 	s.mu.Lock()
 	s.bellPending = false
+	s.mu.Unlock()
+}
+
+// ActivityPending reports whether output has been received since the last
+// ClearActivity. Like BellPending, a latch rather than an event: a session
+// that produced output while it was not on screen must still be able to say
+// so when the user comes back to the list.
+func (s *Screen) ActivityPending() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.activityPending
+}
+
+// ClearActivity acknowledges pending activity.
+func (s *Screen) ClearActivity() {
+	s.mu.Lock()
+	s.activityPending = false
 	s.mu.Unlock()
 }

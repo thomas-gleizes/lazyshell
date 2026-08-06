@@ -69,6 +69,16 @@ func (gui *Gui) rootBox() *boxlayout.Box {
 			return boxlayout.COLUMN
 		},
 		ConditionalChildren: func(width, height int) []*boxlayout.Box {
+			// Zoom is a special case of this same box, not a second layout
+			// tree: the sessions panel is simply left out of the children
+			// boxlayout.ArrangeWindows lays out, so it gets no dimensions and
+			// layout's own SetView loop leaves it undrawn for this frame.
+			if gui.zoomed {
+				return []*boxlayout.Box{
+					{Window: outputViewName, Weight: 1},
+				}
+			}
+
 			sessionsSize := sessionsWidth
 			if gui.isPortrait(width, height) {
 				sessionsSize = sessionsHeight
@@ -104,8 +114,15 @@ func (gui *Gui) layout(g *gocui.Gui) error {
 	for _, name := range []string{sessionsViewName, outputViewName, statusViewName} {
 		dim, ok := dimensions[name]
 		if !ok {
-			// A box with no width/height left ends up dropped by boxlayout;
-			// nothing to draw for it this frame.
+			// A box with no width/height left ends up dropped by boxlayout —
+			// nothing to arrange for it this frame. That alone would not hide
+			// it though: gocui draws every registered view every frame at its
+			// last known bounds, SetView'd this pass or not, so it has to be
+			// told explicitly that it is off.
+			if view, err := g.View(name); err == nil {
+				view.Visible = false
+			}
+
 			continue
 		}
 
@@ -117,6 +134,15 @@ func (gui *Gui) layout(g *gocui.Gui) error {
 
 			gui.initView(name, view)
 		}
+
+		// gocui draws every registered view every frame regardless of whether
+		// SetView touched it this pass — a view simply left out of
+		// dimensions (the sessions panel while zoomed) would otherwise still
+		// be drawn at its last known bounds instead of disappearing. Visible
+		// is what actually hides it; the sessions panel is the only view
+		// that can ever be left out this way, so it is the only one that
+		// needs re-arming here.
+		view.Visible = true
 
 		// Refreshed on every layout pass, not just at creation: the footer
 		// depends on the panel's current width (it truncates to fit) and, for
@@ -138,6 +164,26 @@ func (gui *Gui) layout(g *gocui.Gui) error {
 	gui.propagateResize(g)
 
 	return nil
+}
+
+// toggleZoom flips the output panel between its normal share of the screen
+// and full-screen, hiding the sessions panel — a case rootBox already handles
+// as a flag, not a second layout tree. Bound on both the sessions view (the
+// common case, "z" to zoom in) and matched by hand inside editDuringScroll
+// for the output view (the only way back out, since the sessions view no
+// longer exists to receive its own binding once zoomed).
+func (gui *Gui) toggleZoom(g *gocui.Gui, _ *gocui.View) error {
+	gui.zoomed = !gui.zoomed
+
+	if gui.zoomed {
+		_, err := g.SetCurrentView(outputViewName)
+
+		return err
+	}
+
+	_, err := g.SetCurrentView(sessionsViewName)
+
+	return err
 }
 
 // propagateResize keeps every session's pty and emulator aligned with the

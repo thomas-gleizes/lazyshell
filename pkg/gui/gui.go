@@ -12,6 +12,7 @@ import (
 	"github.com/jesseduffield/gocui"
 
 	"github.com/thomas-gleizes/lazyshell/pkg/config"
+	"github.com/thomas-gleizes/lazyshell/pkg/i18n"
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 	"github.com/thomas-gleizes/lazyshell/pkg/tasks"
 )
@@ -21,10 +22,6 @@ import (
 // selected session's output is re-rendered. Same value as lazydocker; overridden
 // by pkg/config's RefreshIntervalMs, which is what Gui.refreshInterval carries.
 const reRenderInterval = 30 * time.Millisecond
-
-// statusHint is shown in the status bar as long as there is no error to
-// report and the output panel is not in pass-through mode.
-const statusHint = " n: nouvelle session   x/d: tuer   j/k: naviguer   Tab: changer de focus   ?: aide   q: quitter "
 
 // altScreenIndicator marks a session whose alternate screen is active, i.e. a
 // full-screen application (vim, htop, less) is in control. Shown in the status
@@ -38,6 +35,11 @@ type Gui struct {
 	sessions    *session.Manager
 	outputTasks *tasks.Manager
 	focus       *focusManager
+
+	// tr resolves every user-facing string against pkg/config's Language. Nil
+	// on a bare Gui{} literal (most tests): Catalog.T is nil-safe and falls
+	// back to French, matching what those tests already assert on.
+	tr *i18n.Catalog
 
 	// theme holds every color the UI draws chrome with, resolved from
 	// pkg/config's Theme at construction time.
@@ -81,6 +83,10 @@ type Gui struct {
 	// always the same goroutine, no mutex needed.
 	prefixPending     bool
 	passThroughActive bool
+	// zoomed hides the sessions panel and gives the output panel the whole
+	// screen. Only ever touched from gocui's own goroutine (toggleZoom, a
+	// keybinding handler), same reasoning as passThroughActive above.
+	zoomed bool
 
 	// mu guards selectedIndex and scrollOffset: both are written from
 	// gocui's main goroutine (keybinding handlers, the output Editor) but
@@ -122,6 +128,7 @@ func New(sessions *session.Manager, cfg config.Config) *Gui {
 		sessions:            sessions,
 		outputTasks:         tasks.NewManager(),
 		focus:               newFocusManager(),
+		tr:                  i18n.New(cfg.Language),
 		theme:               newTheme(cfg.Theme),
 		prefixKey:           prefixFrom(cfg.PrefixKey),
 		configuredShell:     cfg.Shell,
@@ -291,13 +298,13 @@ func (gui *Gui) Run() (err error) {
 func (gui *Gui) renderStatus(view *gocui.View) {
 	view.Clear()
 
-	text := statusHint
+	text := gui.tr.T("status.hint")
 
 	switch {
 	case gui.lastError != "":
 		text = " " + gui.lastError + " "
 	case gui.passThroughActive:
-		text = fmt.Sprintf(" -- INSERT --  (%s pour sortir) ", prefixName(gui.prefixKey))
+		text = gui.tr.T("status.passthrough", prefixName(gui.prefixKey))
 	}
 
 	if gui.selectedIsAltScreen() {

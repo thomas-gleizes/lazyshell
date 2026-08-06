@@ -56,7 +56,7 @@ func keyLabel(key any, mod gocui.Modifier) string {
 func (gui *Gui) helpContent() string {
 	var b strings.Builder
 
-	fmt.Fprintln(&b, "Aide — une touche quelconque pour fermer")
+	fmt.Fprintln(&b, gui.tr.T("help.header"))
 	fmt.Fprintln(&b)
 
 	for _, binding := range gui.bindings() {
@@ -104,7 +104,7 @@ func (gui *Gui) showHelp(g *gocui.Gui, _ *gocui.View) error {
 			return err
 		}
 
-		view.Title = " aide "
+		view.Title = gui.tr.T("help.title")
 		// Editable+Editor, not SetKeybinding: the point is that *any* key
 		// closes this popup, and gocui has no "catch-all" keybinding — an
 		// Editor sees every keystroke instead. Mirrors output.go's

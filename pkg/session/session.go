@@ -53,6 +53,11 @@ type Session struct {
 	Cwd       string
 	CreatedAt time.Time
 
+	// opts is the Options this session was created from, kept so Restart can
+	// spawn a fresh process with the same shell, cwd, env and initial command
+	// — killOnce means the object that just exited can never run again.
+	opts Options
+
 	ptmx   *os.File
 	screen *screen.Screen
 

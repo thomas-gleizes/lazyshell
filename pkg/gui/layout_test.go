@@ -88,3 +88,73 @@ func TestRootBoxUsesConfiguredSessionsPanelWidth(t *testing.T) {
 		t.Errorf("landscape sessions width = %d, want configured 50", width)
 	}
 }
+
+// Zoom is a flag on the same box, not a second layout tree: it must simply
+// leave the sessions panel out of the arranged boxes, giving output the
+// whole width.
+func TestRootBoxZoomedHidesSessionsPanel(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+	gui.zoomed = true
+
+	dimensions := boxlayout.ArrangeWindows(gui.rootBox(), 0, 0, 200, 50)
+
+	if _, ok := dimensions[sessionsViewName]; ok {
+		t.Error("sessions view is still arranged while zoomed")
+	}
+
+	output, ok := dimensions[outputViewName]
+	if !ok {
+		t.Fatal("output view missing while zoomed")
+	}
+	if width := output.X1 - output.X0 + 1; width != 200 {
+		t.Errorf("zoomed output width = %d, want the full 200", width)
+	}
+}
+
+// toggleZoom is the only way in and out: it flips the flag and moves focus
+// to whichever view still exists.
+func TestToggleZoomFlipsStateAndFocus(t *testing.T) {
+	gui, g := newHeadlessGui(t)
+
+	if err := gui.layout(g); err != nil {
+		t.Fatalf("layout: %v", err)
+	}
+
+	if err := gui.toggleZoom(g, nil); err != nil {
+		t.Fatalf("toggleZoom: %v", err)
+	}
+	if !gui.zoomed {
+		t.Fatal("toggleZoom did not zoom in")
+	}
+	if current := g.CurrentView(); current == nil || current.Name() != outputViewName {
+		t.Errorf("current view after zooming in = %v, want %q", current, outputViewName)
+	}
+
+	if err := gui.layout(g); err != nil {
+		t.Fatalf("layout after zooming in: %v", err)
+	}
+	sessions, err := g.View(sessionsViewName)
+	if err != nil {
+		t.Fatalf("View(sessions): %v", err)
+	}
+	if sessions.Visible {
+		t.Error("sessions view is still Visible while zoomed")
+	}
+
+	if err := gui.toggleZoom(g, nil); err != nil {
+		t.Fatalf("toggleZoom (out): %v", err)
+	}
+	if gui.zoomed {
+		t.Fatal("toggleZoom did not zoom back out")
+	}
+	if current := g.CurrentView(); current == nil || current.Name() != sessionsViewName {
+		t.Errorf("current view after zooming out = %v, want %q", current, sessionsViewName)
+	}
+
+	if err := gui.layout(g); err != nil {
+		t.Fatalf("layout after zooming out: %v", err)
+	}
+	if !sessions.Visible {
+		t.Error("sessions view was not made Visible again after zooming out")
+	}
+}

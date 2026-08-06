@@ -118,7 +118,7 @@ func TestNewCarriesRefreshInterval(t *testing.T) {
 // one place the sessions panel hardcodes a key, and it is worth a test because
 // nothing else would catch it.
 func TestEmptyPanelHintMentionsCreation(t *testing.T) {
-	if got := sessionsPanelContent(nil, testMarkers); !strings.Contains(got, "n") {
+	if got := sessionsPanelContent(nil, testMarkers, "", nil); !strings.Contains(got, "n") {
 		t.Errorf("empty panel content = %q, want it to mention the new-session key", got)
 	}
 }

@@ -2,6 +2,9 @@ package gui
 
 import (
 	"testing"
+	"time"
+
+	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
 // newSessionsErgonomicsTestGui builds a Gui with one real session selected
@@ -190,5 +193,50 @@ func TestNewSessionInDirEmptySubmitCreatesNoSession(t *testing.T) {
 
 	if got := len(gui.sessions.List()); got != before {
 		t.Errorf("session count after empty submit = %d, want unchanged %d", got, before)
+	}
+}
+
+// restartSession refuses a running session rather than silently no-op'ing, so
+// the user learns why nothing happened.
+func TestRestartSessionRefusesARunningSession(t *testing.T) {
+	gui := newSessionsErgonomicsTestGui(t)
+
+	if err := gui.restartSession(gui.g, nil); err != nil {
+		t.Fatalf("restartSession: %v", err)
+	}
+
+	if gui.lastError == "" {
+		t.Error("restartSession on a running session left lastError empty")
+	}
+}
+
+func TestRestartSessionRecreatesAnExitedSession(t *testing.T) {
+	gui := newSessionsErgonomicsTestGui(t)
+	sess := gui.selectedSession()
+
+	if err := gui.sessions.Kill(sess.ID); err != nil {
+		t.Fatalf("Kill: %v", err)
+	}
+
+	select {
+	case <-sess.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("the session never terminated")
+	}
+
+	if err := gui.restartSession(gui.g, nil); err != nil {
+		t.Fatalf("restartSession: %v", err)
+	}
+
+	if gui.lastError != "" {
+		t.Errorf("lastError after a successful restart = %q, want empty", gui.lastError)
+	}
+
+	restarted := gui.selectedSession()
+	if restarted.ID != sess.ID {
+		t.Errorf("selected session after restart = %s, want the same id %s", restarted.ID, sess.ID)
+	}
+	if restarted.Status() != session.StatusRunning {
+		t.Errorf("Status() after restart = %v, want %v", restarted.Status(), session.StatusRunning)
 	}
 }

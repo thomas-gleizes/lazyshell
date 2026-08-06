@@ -111,7 +111,7 @@ used instead — never a silent no-op, never a refusal to run.
 
 | Key | Type | Default | Effect |
 | --- | --- | --- | --- |
-| `language` | `fr` \| `en` | `fr` | UI language. Read and validated, **not yet applied**: the interface is still in French. |
+| `language` | `fr` \| `en` | `fr` | UI language: bindings, popups, status bar, footers and session messages. CLI output (`lazyshell config ...`) stays French. |
 | `shell` | string | `""` | Command started behind each session's pty. Empty means `$SHELL`, falling back to `/bin/bash`. |
 | `term` | string | `xterm-256color` | `TERM` announced to sessions. Lower it to make programs degrade on purpose. |
 | `scrollback_size` | int ≥ 0 | `10000` | Lines kept per session once they scroll off-screen. |
@@ -125,6 +125,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `keybindings` | map | see below | Remaps an action id to a key spec. An action left out keeps its default key. |
 | `markers.bell` | 0–1 char | `!` | Gutter marker for a session that rang while hidden. `""` turns it off. |
 | `markers.alt_screen` | 0–1 char | `#` | Gutter marker for a session running a full-screen application. `""` turns it off. |
+| `markers.activity` | 0–1 char | `●` | Gutter marker for a session that produced output while hidden. `""` turns it off. |
 | `scroll.page_lines` | int ≥ 0 | `0` | Lines `PgUp`/`PgDn` move by. `0` means one full panel height. |
 | `scroll.half_page_divisor` | int ≥ 1 | `2` | `Ctrl-U`/`Ctrl-D` move by the panel height divided by this. |
 | `theme.active_border_color` | color | `green` | Focused panel's border. |
@@ -151,9 +152,9 @@ terminal shows as *bright* blue. lazyshell resolves the ANSI names first, so
 `brightblue` for the bright terminal slot.
 
 The remappable action ids are `new_session`, `new_session_in_dir`,
-`kill_session`, `rename_session`, `duplicate_session`, `select_next`,
-`select_prev`, `cycle_focus`, `help` and `quit`. An id outside that list is
-reported rather than ignored.
+`kill_session`, `rename_session`, `duplicate_session`, `restart_session`,
+`zoom`, `select_next`, `select_prev`, `cycle_focus`, `help` and `quit`. An id
+outside that list is reported rather than ignored.
 
 ### Example
 
@@ -184,6 +185,8 @@ keybindings:
   kill_session: "x"
   rename_session: "r"
   duplicate_session: "c"
+  restart_session: "R"
+  zoom: "z"
   select_next: "j"
   select_prev: "k"
   cycle_focus: Tab
@@ -193,6 +196,7 @@ keybindings:
 markers:
   bell: "!"
   alt_screen: "#"
+  activity: "●"
 
 scroll:
   page_lines: 0

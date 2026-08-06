@@ -229,7 +229,7 @@ func TestSessionsPanelGutterMarkers(t *testing.T) {
 	feed(t, ringing, "\a")
 	feed(t, editing, "\x1b[?1049h")
 
-	lines := strings.Split(strings.TrimRight(sessionsPanelContent([]*session.Session{quiet, ringing, editing}, testMarkers), "\n"), "\n")
+	lines := strings.Split(strings.TrimRight(sessionsPanelContent([]*session.Session{quiet, ringing, editing}, testMarkers, "", nil), "\n"), "\n")
 	if len(lines) != 3 {
 		t.Fatalf("got %d lines, want one per session:\n%q", len(lines), lines)
 	}
@@ -244,6 +244,60 @@ func TestSessionsPanelGutterMarkers(t *testing.T) {
 
 	if !strings.HasPrefix(lines[2], altScreenMarker) {
 		t.Errorf("session on the alternate screen has no %s marker: %q", altScreenMarker, lines[2])
+	}
+}
+
+// A session that produced output shows the activity marker, unless it is the
+// one currently selected — watching it live already counts as having seen it.
+func TestSessionsPanelActivityMarker(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+
+	quiet := newTestSession(t, gui, "quiet")
+	busy := newTestSession(t, gui, "busy")
+	watched := newTestSession(t, gui, "watched")
+
+	feed(t, busy, "output\r\n")
+	feed(t, watched, "output\r\n")
+
+	content := sessionsPanelContent([]*session.Session{quiet, busy, watched}, testMarkers, watched.ID, nil)
+	lines := strings.Split(strings.TrimRight(content, "\n"), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("got %d lines, want one per session:\n%q", len(lines), lines)
+	}
+
+	if strings.Contains(lines[0][:3], activityMarker) {
+		t.Errorf("quiet session has the activity marker: %q", lines[0])
+	}
+
+	if !strings.Contains(lines[1][:3], activityMarker) {
+		t.Errorf("busy session has no %s marker: %q", activityMarker, lines[1])
+	}
+
+	if strings.Contains(lines[2][:3], activityMarker) {
+		t.Errorf("the selected session shows the activity marker despite being watched: %q", lines[2])
+	}
+}
+
+// An exited session shows its result instead of the running/exited word: a
+// checkmark for a clean exit, a cross with the code otherwise.
+func TestSessionsPanelExitResult(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+
+	sess := newTestSession(t, gui, "s")
+
+	if _, err := sess.Write([]byte("exit 7\n")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	select {
+	case <-sess.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("the session never terminated")
+	}
+
+	got := sessionsPanelContent([]*session.Session{sess}, testMarkers, "", nil)
+	if !strings.Contains(got, "✗ 7") {
+		t.Errorf("content = %q, want the ✗ 7 exit result", got)
 	}
 }
 
@@ -272,13 +326,13 @@ func TestSessionsPanelShowsTheTerminalTitle(t *testing.T) {
 
 	sess := newTestSession(t, gui, "s")
 
-	if got := sessionsPanelContent([]*session.Session{sess}, testMarkers); !strings.Contains(got, sess.Cwd) {
+	if got := sessionsPanelContent([]*session.Session{sess}, testMarkers, "", nil); !strings.Contains(got, sess.Cwd) {
 		t.Errorf("content = %q, want the cwd while no title is set", got)
 	}
 
 	feed(t, sess, "\x1b]0;vim ROADMAP.md\a")
 
-	got := sessionsPanelContent([]*session.Session{sess}, testMarkers)
+	got := sessionsPanelContent([]*session.Session{sess}, testMarkers, "", nil)
 	if !strings.Contains(got, "vim ROADMAP.md") {
 		t.Errorf("content = %q, want the terminal title", got)
 	}
@@ -292,7 +346,7 @@ func TestSessionsPanelSkipsUnchangedRedraws(t *testing.T) {
 
 	newTestSession(t, gui, "s")
 
-	content := sessionsPanelContent(gui.sessions.List(), testMarkers)
+	content := sessionsPanelContent(gui.sessions.List(), testMarkers, "", nil)
 
 	if !gui.sessionsPanelChanged(content, 0) {
 		t.Fatal("the first render was reported as unchanged")

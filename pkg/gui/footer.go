@@ -36,13 +36,17 @@ const footerSeparator = " "
 
 // sessionsFooterHints is the sessions panel's keys, most-used first. Order is
 // what survives truncation, so it is a priority list, not a catalogue.
-var sessionsFooterHints = []footerHint{
-	{actions: []string{"new_session"}, label: "nouvelle"},
-	{actions: []string{"kill_session"}, label: "tuer"},
-	{actions: []string{"select_next", "select_prev"}, label: "naviguer"},
-	{actions: []string{"rename_session"}, label: "renommer"},
-	{actions: []string{"duplicate_session"}, label: "dupliquer"},
-	{actions: []string{"new_session_in_dir"}, label: "dossier"},
+func (gui *Gui) sessionsFooterHints() []footerHint {
+	return []footerHint{
+		{actions: []string{"new_session"}, label: gui.tr.T("footer.new")},
+		{actions: []string{"kill_session"}, label: gui.tr.T("footer.kill")},
+		{actions: []string{"select_next", "select_prev"}, label: gui.tr.T("footer.navigate")},
+		{actions: []string{"rename_session"}, label: gui.tr.T("footer.rename")},
+		{actions: []string{"restart_session"}, label: gui.tr.T("footer.restart")},
+		{actions: []string{"zoom"}, label: gui.tr.T("footer.zoom")},
+		{actions: []string{"duplicate_session"}, label: gui.tr.T("footer.duplicate")},
+		{actions: []string{"new_session_in_dir"}, label: gui.tr.T("footer.new_in_dir")},
+	}
 }
 
 // panelFooter returns the footer for a view at the given inner width, or ""
@@ -50,7 +54,7 @@ var sessionsFooterHints = []footerHint{
 func (gui *Gui) panelFooter(viewName string, width int) string {
 	switch viewName {
 	case sessionsViewName:
-		return gui.footerText(sessionsFooterHints, width)
+		return gui.footerText(gui.sessionsFooterHints(), width)
 	case outputViewName:
 		return gui.footerText(gui.outputFooterHints(), width)
 	}
@@ -64,19 +68,21 @@ func (gui *Gui) outputFooterHints() []footerHint {
 	// In pass-through every key but the prefix goes to the shell, so the prefix
 	// is the only thing that is true about this panel right now.
 	if gui.passThroughActive {
-		return []footerHint{{key: prefixName(gui.prefixKey), label: "sortir"}}
+		return []footerHint{{key: prefixName(gui.prefixKey), label: gui.tr.T("footer.exit_passthrough")}}
 	}
 
-	hints := []footerHint{{key: "i", label: "saisir"}}
+	hints := []footerHint{{key: "i", label: gui.tr.T("footer.type")}}
 
 	// A full-screen application does not feed the scrollback, so scrolling does
 	// nothing (see scrollBy) — advertising it there would be a lie.
 	if !gui.selectedIsAltScreen() {
 		hints = append(hints,
-			footerHint{key: "PgUp/PgDn", label: "défiler"},
-			footerHint{key: "Ctrl-U/D", label: "demi-page"},
+			footerHint{key: "PgUp/PgDn", label: gui.tr.T("footer.scroll")},
+			footerHint{key: "Ctrl-U/D", label: gui.tr.T("footer.half_page")},
 		)
 	}
+
+	hints = append(hints, footerHint{actions: []string{"zoom"}, label: gui.tr.T("footer.zoom")})
 
 	return hints
 }

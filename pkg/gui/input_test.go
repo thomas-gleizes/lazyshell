@@ -176,3 +176,22 @@ func TestEditOutputIgnoresScrollKeysDuringPassThrough(t *testing.T) {
 		t.Error("PgUp during pass-through unexpectedly left pass-through")
 	}
 }
+
+// A digit typed during pass-through must reach the shell like any other
+// character — never be mistaken for the "1".."9" direct-jump keys, which are
+// only ever registered on sessionsViewName and so structurally unreachable
+// from here, but worth a test that documents and locks in the intent.
+func TestEditOutputForwardsDigitsDuringPassThrough(t *testing.T) {
+	gui, view := newOutputTestGui(t)
+
+	before := gui.getSelectedIndex()
+
+	typeIntoOutput(gui, view, "i") // arm pass-through
+	typeIntoOutput(gui, view, "echo 42\r")
+
+	waitForSessionScreen(t, gui, "42")
+
+	if got := gui.getSelectedIndex(); got != before {
+		t.Errorf("selected index changed to %d during pass-through, want unchanged %d", got, before)
+	}
+}

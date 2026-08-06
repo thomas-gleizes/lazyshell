@@ -99,13 +99,62 @@ func (m *Manager) NewInDir(name, shell, cwd string) (*Session, error) {
 // NewWithOptions is the full session constructor. The session's drain goroutine
 // is started before it returns, so no output is lost from the moment the shell
 // is up.
+func (m *Manager) NewWithOptions(opts Options) (*Session, error) {
+	sess, err := m.newSession(fmt.Sprintf("session-%d", m.nextID.Add(1)), opts)
+	if err != nil {
+		return nil, err
+	}
+
+	m.mu.Lock()
+	m.sessions[sess.ID] = sess
+	m.order = append(m.order, sess.ID)
+	m.mu.Unlock()
+
+	return sess, nil
+}
+
+// Restart re-creates an exited session with the same id and the Options it
+// was originally started with — same name, shell, cwd, env and initial
+// command. The session that just exited cannot be reused directly: killOnce
+// means Kill (and the exit that already happened) can only ever run once on
+// a given *Session*, so this spawns a fresh one and swaps it in under the
+// same id, keeping the session's position in List().
+func (m *Manager) Restart(id string) (*Session, error) {
+	m.mu.RLock()
+	old, ok := m.sessions[id]
+	m.mu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("session: unknown id %q", id)
+	}
+
+	if old.Status() != StatusExited {
+		return nil, fmt.Errorf("session %s: still running, cannot restart", id)
+	}
+
+	sess, err := m.newSession(id, old.opts)
+	if err != nil {
+		return nil, err
+	}
+
+	m.mu.Lock()
+	m.sessions[id] = sess
+	m.mu.Unlock()
+
+	return sess, nil
+}
+
+// newSession is the shared session constructor behind NewWithOptions and
+// Restart: it starts the process and its drain goroutine under the given id,
+// but does not touch m.sessions/m.order — callers decide whether that means
+// inserting a new entry or replacing an existing one.
 //
 // Options.Command is *typed into* the shell rather than exec'd in its place.
 // Exec'ing would make the session go Exited the instant the command finishes —
 // wrong for the case this exists for, a `npm run dev` you want to Ctrl-C and
 // restart by hand. Injection keeps the shell underneath, exactly like
 // `tmux send-keys`.
-func (m *Manager) NewWithOptions(opts Options) (*Session, error) {
+func (m *Manager) newSession(id string, opts Options) (*Session, error) {
 	cwd := opts.Cwd
 	if cwd == "" {
 		var err error
@@ -124,10 +173,11 @@ func (m *Manager) NewWithOptions(opts Options) (*Session, error) {
 	}
 
 	sess := &Session{
-		ID:        fmt.Sprintf("session-%d", m.nextID.Add(1)),
+		ID:        id,
 		Cmd:       cmd,
 		Cwd:       cwd,
 		CreatedAt: time.Now(),
+		opts:      opts,
 		ptmx:      ptmx,
 		screen:    m.newScreen(defaultCols, defaultRows),
 		cols:      defaultCols,
@@ -137,11 +187,6 @@ func (m *Manager) NewWithOptions(opts Options) (*Session, error) {
 	sess.SetName(opts.Name)
 
 	go sess.drain()
-
-	m.mu.Lock()
-	m.sessions[sess.ID] = sess
-	m.order = append(m.order, sess.ID)
-	m.mu.Unlock()
 
 	if opts.Command != "" {
 		// The pty's line discipline buffers this until the shell gets round to

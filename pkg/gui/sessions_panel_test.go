@@ -11,10 +11,10 @@ import (
 // testMarkers is the built-in gutter, the same pair a Gui with no configured
 // markers resolves to. Used by every test that calls sessionsPanelContent
 // directly instead of going through a Gui.
-var testMarkers = markerSet{bell: bellMarker, altScreen: altScreenMarker}
+var testMarkers = markerSet{bell: bellMarker, altScreen: altScreenMarker, activity: activityMarker}
 
 func TestSessionsPanelContentEmpty(t *testing.T) {
-	got := sessionsPanelContent(nil, testMarkers)
+	got := sessionsPanelContent(nil, testMarkers, "", nil)
 
 	if !strings.Contains(got, "n pour en créer une") {
 		t.Errorf("empty content = %q, want a hint about the n keybinding", got)
@@ -35,7 +35,7 @@ func TestSessionsPanelContentListsSessions(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	got := sessionsPanelContent([]*session.Session{a, b}, testMarkers)
+	got := sessionsPanelContent([]*session.Session{a, b}, testMarkers, "", nil)
 
 	for _, want := range []string{a.Name(), b.Name(), a.Cwd} {
 		if !strings.Contains(got, want) {
@@ -98,6 +98,45 @@ func TestSelectionMovedClampsAtBounds(t *testing.T) {
 	move(-1)
 	if got := gui.selectedSession(); got.ID != a.ID {
 		t.Errorf("selected after clamping at the start = %s, want %s", got.ID, a.ID)
+	}
+}
+
+func TestSelectIndexJumpsDirectly(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+
+	a, err := gui.sessions.New("a", "/bin/sh")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if _, err := gui.sessions.New("b", "/bin/sh"); err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	c, err := gui.sessions.New("c", "/bin/sh")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	if err := gui.selectIndex(2)(nil, nil); err != nil {
+		t.Fatalf("selectIndex(2): %v", err)
+	}
+	if got := gui.selectedSession(); got.ID != c.ID {
+		t.Errorf("selected = %s, want %s", got.ID, c.ID)
+	}
+
+	if err := gui.selectIndex(0)(nil, nil); err != nil {
+		t.Fatalf("selectIndex(0): %v", err)
+	}
+	if got := gui.selectedSession(); got.ID != a.ID {
+		t.Errorf("selected = %s, want %s", got.ID, a.ID)
+	}
+
+	// Pressing "9" (index 8) with only 3 sessions open must do nothing,
+	// silently — not clamp to the last one, not error.
+	if err := gui.selectIndex(8)(nil, nil); err != nil {
+		t.Fatalf("selectIndex(8): %v", err)
+	}
+	if got := gui.selectedSession(); got.ID != a.ID {
+		t.Errorf("selected after out-of-range jump = %s, want unchanged %s", got.ID, a.ID)
 	}
 }
 

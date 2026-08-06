@@ -85,6 +85,8 @@ keybindings:
   kill_session: "x"
   rename_session: "r"
   duplicate_session: "c"
+  restart_session: "R"
+  zoom: "z"
   select_next: "j"
   select_prev: "k"
   cycle_focus: Tab
@@ -96,6 +98,7 @@ keybindings:
 markers:
   bell: "!"        # la session a émis un BEL depuis la dernière fois qu'on l'a regardée
   alt_screen: "#"  # une application plein écran (vim, htop, less) a la main
+  activity: "●"    # la session a produit de la sortie depuis la dernière fois qu'on l'a regardée
 
 # Pas de défilement du panneau de sortie.
 scroll:

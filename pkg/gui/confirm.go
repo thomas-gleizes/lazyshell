@@ -31,7 +31,7 @@ func (gui *Gui) showConfirm(message string, onConfirm func() error) error {
 			return err
 		}
 
-		view.Title = " confirmer "
+		view.Title = gui.tr.T("confirm.title")
 	}
 
 	view.Clear()

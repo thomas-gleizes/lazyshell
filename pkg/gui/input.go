@@ -194,6 +194,16 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 		_ = gui.showHelp(gui.g, view)
 
 		return true
+
+	case gui.matchesAction("zoom", key, ch):
+		// "zoom" is scoped to sessionsViewName, not global, but the same
+		// problem applies: this view is Editable, so SetKeybinding is never
+		// consulted for it regardless of scope. This is also the only way
+		// back out of a zoomed output view — the sessions view that would
+		// otherwise own this key does not exist while zoomed.
+		_ = gui.toggleZoom(gui.g, view)
+
+		return true
 	}
 
 	return false
@@ -221,7 +231,7 @@ func (gui *Gui) writeToSelected(b []byte) {
 	}
 
 	if sess.Status() == session.StatusExited {
-		_ = gui.reportSessionError(fmt.Errorf("session %s terminée (code %d)", sess.Name(), sess.ExitCode()))
+		_ = gui.reportSessionError(fmt.Errorf("%s", gui.tr.T("input.session_exited", sess.Name(), sess.ExitCode())))
 
 		return
 	}

@@ -8,14 +8,15 @@ import (
 	"github.com/jesseduffield/gocui"
 
 	"github.com/thomas-gleizes/lazyshell/pkg/config"
+	"github.com/thomas-gleizes/lazyshell/pkg/i18n"
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
-// Default gutter markers, in the two columns every session line starts with.
-// They are the only way to learn something about a session that is not the one
-// on screen: what it is running, and whether it asked for attention while
-// hidden. Both are overridden by pkg/config's Markers; an empty override turns
-// that marker off.
+// Default gutter markers, in the three columns every session line starts
+// with. They are the only way to learn something about a session that is not
+// the one on screen: what it is running, whether it asked for attention while
+// hidden, and whether it produced output while hidden. All three are
+// overridden by pkg/config's Markers; an empty override turns that marker off.
 const (
 	// bellMarker flags a session that emitted a BEL since it was last looked
 	// at — a finished build, a shell asking a question.
@@ -23,37 +24,43 @@ const (
 	// altScreenMarker flags a session with a full-screen application in
 	// control (vim, htop, less).
 	altScreenMarker = "#"
+	// activityMarker flags a session, other than the one currently selected,
+	// that produced output since it was last looked at.
+	activityMarker = "●"
 )
 
-// markerSet is the resolved pair of gutter characters, so sessionsPanelContent
-// stays a pure function of its inputs rather than reaching into a Gui.
+// markerSet is the resolved triple of gutter characters, so
+// sessionsPanelContent stays a pure function of its inputs rather than
+// reaching into a Gui.
 type markerSet struct {
 	bell      string
 	altScreen string
+	activity  string
 }
 
 // markerSet resolves the configured markers against the built-in defaults. A
 // marker the user explicitly set to "" stays empty — that is how you turn one
 // off — which is why this cannot be a plain "empty means default" merge on the
-// already-merged config: pkg/config's Default() has already filled both, so
+// already-merged config: pkg/config's Default() has already filled all three, so
 // anything empty at this point was asked for.
 func (gui *Gui) markerSet() markerSet {
-	set := markerSet{bell: gui.markers.Bell, altScreen: gui.markers.AltScreen}
+	set := markerSet{bell: gui.markers.Bell, altScreen: gui.markers.AltScreen, activity: gui.markers.Activity}
 
 	// The zero-value Gui case only: a bare struct literal (tests) never went
-	// through config.Default, so both fields are empty at once and mean
-	// "nothing was configured" rather than "both were turned off".
+	// through config.Default, so all three fields are empty at once and mean
+	// "nothing was configured" rather than "all were turned off".
 	if gui.markers == (config.Markers{}) {
-		set.bell, set.altScreen = bellMarker, altScreenMarker
+		set.bell, set.altScreen, set.activity = bellMarker, altScreenMarker, activityMarker
 	}
 
 	return set
 }
 
-// sessionsPanelContent renders one line per session: a two-column gutter of
-// markers, then name, status, PID, and either the terminal title the shell set
-// (usually the running command, which is what you actually want to read in a
-// session list) or the working directory when it set none.
+// sessionsPanelContent renders one line per session: a three-column gutter of
+// markers, then name, status (or exit result), PID, and either the terminal
+// title the shell set (usually the running command, which is what you
+// actually want to read in a session list) or the working directory when it
+// set none.
 //
 // Exactly one line per session is a hard constraint, not a style choice:
 // renderSessionsPanel's view.SetCursor(0, selected) and the view's Highlight
@@ -61,9 +68,9 @@ func (gui *Gui) markerSet() markerSet {
 //
 // A pure function, kept separate from the gocui-writing side so it can be
 // tested directly, the same way keys.Translate and spike.edit are.
-func sessionsPanelContent(sessions []*session.Session, markers markerSet) string {
+func sessionsPanelContent(sessions []*session.Session, markers markerSet, selectedID string, tr *i18n.Catalog) string {
 	if len(sessions) == 0 {
-		return "Aucune session — n pour en créer une"
+		return tr.T("sessions.empty")
 	}
 
 	var b strings.Builder
@@ -78,14 +85,20 @@ func sessionsPanelContent(sessions []*session.Session, markers markerSet) string
 			detail = sess.Cwd
 		}
 
-		fmt.Fprintf(&b, "%-2s%-12s %-8s %6d  %s\n", sessionMarkers(sess, markers), sess.Name(), sess.Status(), pid, detail)
+		gutter := sessionMarkers(sess, markers, sess.ID == selectedID)
+		status := statusColumn(sess)
+
+		fmt.Fprintf(&b, "%-3s%-12s %-8s %6d  %s\n", gutter, sess.Name(), status, pid, detail)
 	}
 
 	return b.String()
 }
 
-// sessionMarkers builds a session's gutter, at most two characters wide.
-func sessionMarkers(sess *session.Session, markers markerSet) string {
+// sessionMarkers builds a session's gutter, at most three characters wide.
+// The activity marker never applies to the currently selected session: it
+// would otherwise stay lit permanently on the one the user is looking at,
+// since every byte of its output re-arms the underlying latch.
+func sessionMarkers(sess *session.Session, markers markerSet, isSelected bool) string {
 	gutter := ""
 
 	if sess.Screen().BellPending() {
@@ -96,7 +109,25 @@ func sessionMarkers(sess *session.Session, markers markerSet) string {
 		gutter += markers.altScreen
 	}
 
+	if !isSelected && sess.Screen().ActivityPending() {
+		gutter += markers.activity
+	}
+
 	return gutter
+}
+
+// statusColumn renders a session's status field: its result once it has
+// exited (✓, or ✗ with the exit code), the running/exited word otherwise.
+func statusColumn(sess *session.Session) string {
+	if sess.Status() != session.StatusExited {
+		return sess.Status().String()
+	}
+
+	if sess.ExitCode() == 0 {
+		return "✓"
+	}
+
+	return fmt.Sprintf("✗ %d", sess.ExitCode())
 }
 
 // selectedSession returns the session at the current selection, clamped to
@@ -140,7 +171,18 @@ func (gui *Gui) renderSessionsPanel() error {
 		return nil
 	}
 
-	content := sessionsPanelContent(gui.sessions.List(), gui.markerSet())
+	selectedID := ""
+	if sess := gui.selectedSession(); sess != nil {
+		selectedID = sess.ID
+		// The selected session is being watched live, so any activity it
+		// produces while it has focus is by definition already seen — clear
+		// it on every tick rather than only on selection change, or the
+		// marker would light up the instant the user looks away from a
+		// session that kept producing output the whole time they were on it.
+		sess.Screen().ClearActivity()
+	}
+
+	content := sessionsPanelContent(gui.sessions.List(), gui.markerSet(), selectedID, gui.tr)
 	selected := gui.getSelectedIndex()
 
 	if !gui.sessionsPanelChanged(content, selected) {
@@ -209,12 +251,33 @@ func (gui *Gui) selectionMoved(delta int) func(*gocui.Gui, *gocui.View) error {
 		if index >= len(sessions) {
 			index = len(sessions) - 1
 		}
-		gui.setSelectedIndex(index)
 
-		gui.onSelectionChanged()
-
-		return gui.renderSessionsPanel()
+		return gui.applySelection(index)
 	}
+}
+
+// selectIndex jumps straight to the i-th session (0-based) — the "1"-"9"
+// direct-jump keys. Silently does nothing if the list is shorter than i, the
+// same way selectionMoved silently clamps rather than erroring: pressing "7"
+// with 5 sessions open is not a mistake worth interrupting the user over.
+func (gui *Gui) selectIndex(i int) func(*gocui.Gui, *gocui.View) error {
+	return func(*gocui.Gui, *gocui.View) error {
+		if i >= len(gui.sessions.List()) {
+			return nil
+		}
+
+		return gui.applySelection(i)
+	}
+}
+
+// applySelection is the common tail of every absolute or relative move: set
+// the index, show the newly selected session's output, redraw the list.
+func (gui *Gui) applySelection(index int) error {
+	gui.setSelectedIndex(index)
+
+	gui.onSelectionChanged()
+
+	return gui.renderSessionsPanel()
 }
 
 // onSelectionChanged starts rendering the newly selected session's output,
@@ -225,9 +288,10 @@ func (gui *Gui) onSelectionChanged() {
 	gui.setScrollOffset(0)
 
 	if sess := gui.selectedSession(); sess != nil {
-		// Looking at a session is what acknowledges its bell: the marker is
-		// there to say "this one rang while you were elsewhere".
+		// Looking at a session is what acknowledges its bell and its activity:
+		// both markers exist to say "this one moved while you were elsewhere".
 		sess.Screen().ClearBell()
+		sess.Screen().ClearActivity()
 		gui.showOutput(sess)
 	}
 }
@@ -255,9 +319,33 @@ func (gui *Gui) killSession(*gocui.Gui, *gocui.View) error {
 		return nil
 	}
 
-	return gui.showConfirm(fmt.Sprintf("Tuer la session %q ? (y/n)", sess.Name()), func() error {
+	return gui.showConfirm(gui.tr.T("sessions.kill_confirm", sess.Name()), func() error {
 		return gui.sessions.Kill(sess.ID)
 	})
+}
+
+// restartSession re-creates the selected session if it has exited — same
+// name, shell, cwd, env and initial command as when it was created. Refuses
+// (rather than silently no-op) on a session that is still running, so the
+// user learns why nothing happened instead of wondering.
+func (gui *Gui) restartSession(*gocui.Gui, *gocui.View) error {
+	sess := gui.selectedSession()
+	if sess == nil {
+		return nil
+	}
+
+	if sess.Status() != session.StatusExited {
+		return gui.reportSessionError(fmt.Errorf("%s", gui.tr.T("sessions.restart_running", sess.Name())))
+	}
+
+	if _, err := gui.sessions.Restart(sess.ID); err != nil {
+		return gui.reportSessionError(err)
+	}
+
+	gui.lastError = ""
+	gui.onSelectionChanged()
+
+	return gui.renderSessionsPanel()
 }
 
 // renameSession prompts for a new name, pre-filled with the current one — the
@@ -269,7 +357,7 @@ func (gui *Gui) renameSession(*gocui.Gui, *gocui.View) error {
 		return nil
 	}
 
-	return gui.showPrompt("renommer la session", sess.Name(), func(newName string) error {
+	return gui.showPrompt(gui.tr.T("prompt.rename"), sess.Name(), func(newName string) error {
 		if newName == "" {
 			return nil
 		}
@@ -307,7 +395,7 @@ func (gui *Gui) newSessionInDir(*gocui.Gui, *gocui.View) error {
 		cwd = ""
 	}
 
-	return gui.showPrompt("nouvelle session dans...", cwd, func(dir string) error {
+	return gui.showPrompt(gui.tr.T("prompt.new_in_dir"), cwd, func(dir string) error {
 		if dir == "" {
 			return nil
 		}
