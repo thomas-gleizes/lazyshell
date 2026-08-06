@@ -18,11 +18,12 @@ L'état est celui du code présent dans le dépôt, pas d'une intention.
 | 3 · Layout, panels, navigation | **fait** |
 | 4 · Pass-through (MVP) | **fait** |
 | 5 · Config, thème, ergonomie | **en cours** — tout est fait sauf le GIF de démo |
-| 6 · Config de projet | **à faire** |
+| 6 · Config de projet | **fait** |
 | 7 · Ergonomie multi-sessions | **à faire** |
 | 8 · Distribution et budget de perf | **en cours** — les benchs existent, rien d'autre |
 | 9 · Recherche, copie, broadcast | **à faire** |
 | 10 · Émulation de terminal complète | **fait** (faite en avance, voir la phase) |
+| 11 · Sessions d'agents IA | **à faire** — dépend de 6 et 7 |
 
 ---
 
@@ -217,27 +218,33 @@ session de travail sans avoir à le tuer.
 
 ---
 
-## Phase 6 — Config de projet : sessions déclaratives — **à faire**
+## Phase 6 — Config de projet : sessions déclaratives — **fait**
 
 **But** : `lazyshell` lancé dans un dossier qui contient un `lazyshell.yml` démarre tout seul les
 sessions décrites dans ce fichier, chacune dans son cwd et avec sa commande. C'est ce qui fait
 passer l'outil de « multiplexeur générique » à « lanceur d'environnement de dev d'un projet ».
 
-**Découverte du fichier** (par ordre de priorité) :
+**Découverte du fichier** (par ordre de priorité) — `pkg/config/project.go`, `ProjectPath` :
 
-1. [ ] `--config <fichier>` / `-f` en ligne de commande ;
-2. [ ] `$LAZYSHELL_PROJECT_CONFIG` ;
-3. [ ] `./lazyshell.yml` puis `./.lazyshell.yml` dans le répertoire courant.
+1. [x] `--config-file <fichier>` / `-f` en ligne de commande ;
+2. [x] `$LAZYSHELL_PROJECT_CONFIG` ;
+3. [x] `./lazyshell.yml` puis `./.lazyshell.yml` dans le répertoire courant.
 
-Pas de remontée d'arborescence en première itération (voir « Ce qui reste ouvert »).
+Pas de remontée d'arborescence : **décision prise**, c'est le cwd strict. Un chemin explicite
+(flag ou env) est retourné même s'il n'existe pas — demander un fichier précis et n'obtenir que du
+silence est pire que l'erreur.
 
-- [ ] **Précédence de la configuration** : defaults en dur < `~/.config/lazyshell/config.yml` <
-  config de projet < variables d'environnement (`$LAZYSHELL_PREFIX`) < flags. Le mécanisme de merge
-  existe déjà (`config.Load` déserialise par-dessus `Default()`) : il suffit d'enchaîner deux
-  `yaml.Unmarshal` sur la même struct, dans cet ordre.
+- [x] **Précédence de la configuration** : defaults en dur < `~/.config/lazyshell/config.yml` <
+  config de projet < variables d'environnement (`$LAZYSHELL_PREFIX`) < flags. Réalisé par
+  `Config.MergeProject`, **pas** par un second `yaml.Unmarshal` sur la même struct comme envisagé
+  ici : voir la décision de portée ci-dessous.
 
-**Schéma du fichier** — le bloc `sessions` est le seul ajout au schéma existant ; les autres clés
-sont celles de `pkg/config.Config`, surchargeables par projet :
+**Schéma du fichier** — le bloc `sessions` est le seul ajout au schéma existant. **Correction par
+rapport au plan initial** : les autres clés de `pkg/config.Config` ne sont **pas** surchargeables
+par projet. Un fichier de projet ne peut écrire que `shell` et `sessions` (`ProjectConfig`, dont la
+struct *est* la liste blanche) ; `theme`, `keybindings` et `prefix_key` restent la propriété de
+l'utilisateur, sinon un dépôt cloné remappe son clavier. Les clés hors liste sont ignorées avec un
+avertissement sur stderr.
 
 ```yaml
 shell: /bin/zsh          # optionnel : surcharge la config utilisateur pour ce projet
@@ -253,35 +260,43 @@ sessions:
   - name: shell          # aucune commande : simple shell dans le cwd du projet
 ```
 
-**Points à trancher / implémenter :**
+**Points tranchés / implémentés :**
 
-- [ ] **Sémantique de `command`** : l'injecter dans le pty du shell interactif (façon `tmux send-keys`,
-  le shell reste utilisable quand la commande se termine) plutôt que de l'`exec` à la place du
-  shell (la session passerait `Exited` dès la fin de la commande). **Recommandation : injection**,
-  à documenter — c'est le comportement attendu pour un `npm run dev` qu'on relance à la main.
-- [ ] **Confiance** : un `lazyshell.yml` versionné dans un dépôt cloné exécute des commandes
-  arbitraires au démarrage. Prévoir un garde-fou avant toute exécution automatique — prompt
-  d'approbation par chemin, mémorisé (modèle `direnv allow`), plus un `--no-autostart` pour ouvrir
-  l'UI sans rien lancer. **À ne pas repousser : c'est le seul point de cette phase qui est un vrai
-  risque.**
-- [ ] **Validation** : `name` unique et non vide, `cwd` existant, `shell` exécutable. Une entrée
-  invalide n'empêche pas le démarrage des autres : la session concernée apparaît en erreur dans la
-  liste, l'erreur est affichée dans la barre de statut (jamais de `panic`, jamais de sortie muette).
-- [ ] **Support côté `pkg/session`** : `Manager.NewInDir(name, shell, cwd)` couvre déjà le cwd ; reste
-  à ajouter l'environnement supplémentaire (`env`) et l'injection de la commande initiale.
-- [ ] **Ordre et sélection** : sessions créées dans l'ordre du fichier, la première sélectionnée au
-  démarrage.
-- [ ] **`lazyshell init`** : génère un `lazyshell.yml` commenté dans le dossier courant, pour ne pas
-  avoir à lire le README pour connaître le schéma.
-- [ ] Documenter le format dans le README, à côté de la config utilisateur.
+- [x] **Sémantique de `command`** : **injection** retenue. `Manager.NewWithOptions` écrit
+  `command + "\n"` dans le pty juste après le démarrage ; la discipline de ligne du pty la garde en
+  tampon jusqu'à ce que le shell la lise, donc pas besoin d'attendre le premier prompt. Le shell
+  reste sous la commande, la session ne passe pas `Exited` à la fin d'un `npm run dev`. Vérifié par
+  `TestNewWithOptionsInjectsTheCommand`, qui teste les deux moitiés : la commande tourne, *et* le
+  shell répond encore après.
+- [x] **Confiance** : modèle `direnv`. `pkg/config/trust.go` mémorise `chemin absolu → sha256 du
+  contenu` dans `trust.yml` à côté de la config utilisateur ; toute modification du fichier
+  redemande l'approbation. Le prompt a lieu dans `pkg/app` **avant** que gocui prenne le terminal.
+  `lazyshell allow [fichier]` approuve sans rien lancer, `--no-autostart` ouvre l'UI sans démarrer.
+  **stdin non-tty ⇒ refus**, jamais de blocage — et le test doit être un vrai `term.IsTerminal`
+  (ioctl), pas un `Stat`/`ModeCharDevice` : `/dev/null` est aussi un périphérique caractère, et la
+  version naïve affichait le prompt à `lazyshell < /dev/null`.
+- [x] **Validation** : `name` unique et non vide, `cwd` résolu et existant. Une entrée invalide est
+  écartée, les autres démarrent, et les erreurs sont concaténées dans la barre de statut via
+  `Gui.SetStartupError` (jamais de `panic`, jamais de sortie muette). `shell` exécutable n'est pas
+  vérifié en amont : l'échec de `pty.Start` le dit déjà, avec un meilleur message.
+- [x] **Support côté `pkg/session`** : `Manager.NewWithOptions(Options{Name, Shell, Cwd, Env,
+  Command})`. `New` et `NewInDir` en sont devenus des wrappers — aucun appelant existant touché.
+- [x] **Ordre et sélection** : sessions créées dans l'ordre du fichier. La sélection initiale a
+  demandé un raccord dans `Gui.Run` : rien n'appelait `onSelectionChanged` avant la première
+  touche, donc le panneau output serait resté vide alors que trois sessions tournaient.
+- [x] **`lazyshell init`** : `pkg/app/init.go`, ouverture en `O_EXCL` (n'écrase jamais un fichier
+  existant). Le gabarit est testé — un exemple que la validation refuserait serait pire que rien.
+- [x] Format documenté dans le README, à côté de la config utilisateur.
 
-**Critère de sortie** : dans un dossier contenant un `lazyshell.yml` de 3 sessions, `lazyshell`
-démarre les 3, chacune avec le bon cwd (`pwd` dans la session le confirme) et sa commande lancée ;
-sans fichier, le comportement actuel est strictement inchangé. Tests : merge de configs et
-validation dans `pkg/config`, autostart dans `pkg/app`, plus un test d'intégration bout-en-bout.
+**Critère de sortie — atteint.** Vérifié à la main en pilotant le binaire dans un pty : trois
+sessions déclarées démarrent dans l'ordre du fichier, la première est sélectionnée et son output
+s'affiche sans toucher une touche, `pwd` donne le bon cwd, la commande a tourné et le shell est
+toujours là après. Sans fichier, le comportement est inchangé (`TestNoProjectFileStartsNothing`).
+Tests : `pkg/config/project_test.go` et `trust_test.go`, `pkg/session/options_test.go`,
+`pkg/app/autostart_test.go` (bout-en-bout, vrais pty) et `init_test.go`.
 
-**Risque** : faible sur la mécanique (le chargement YAML et la création de session existent),
-concentré sur le modèle de confiance.
+**Risque** : confirmé faible sur la mécanique. Le seul défaut trouvé était bien dans le modèle de
+confiance, et il n'est pas sorti des tests unitaires mais du premier lancement à la main.
 
 ---
 
@@ -431,6 +446,92 @@ phase 1 l'a ramené à une phase d'intégration.
 
 ---
 
+## Phase 11 — Sessions d'agents IA — **à faire**
+
+**But** : traiter les CLI d'agents (`claude`, `codex`, `opencode`…) comme des locataires de session
+de première classe — savoir dans quel état ils sont, le montrer, et prévenir quand ils *attendent*.
+Aucun modèle, aucun prompt, aucun chat dans lazyshell : uniquement de l'observation.
+
+Analyse complète, état de l'art (`herdr`, `ccmux`, `CodeAgentSwarm`, `claude-squad`, `ccusage`) et
+justification des choix ci-dessous : `RAPPORT_ANALYSE_INTEGRATION_AGENTS_IA.md`.
+
+**Pourquoi ici et pas plus tôt** : la phase 6 apporte `SessionSpec{Command, Env}` — donc
+`command: claude` déclaratif *et* l'injection d'une variable d'environnement par session, qui est ce
+qui rend la corrélation hook → session triviale. La phase 7 apporte la gouttière de marqueurs
+enrichie, le saut par index et la barre d'aide contextuelle. Faite avant, cette phase les
+réinventerait en double.
+
+**Le manque visé, en une phrase** : tmux ne distingue pas « il y a eu de l'activité » de « il
+t'attend ». Le marqueur d'activité de la phase 7 est vrai dans les deux cas.
+
+### 11a — Détection sans configuration
+
+- [ ] `pkg/agent` : un état à quatre valeurs par session — `idle` / `working` / `blocked` / `done`
+  (le modèle de `herdr`, qui s'est révélé être le bon découpage). `pkg/session` et `pkg/gui` ne
+  connaissent qu'une interface : un agent qui casse dégrade un marqueur, il ne casse rien d'autre.
+- [ ] Identification du process au premier plan du pty (`tcgetpgrp` → `/proc/<pid>/comm` sur Linux,
+  `sysctl` sur macOS) : dit **quel** agent tourne, jamais son état. Seul morceau non portable ajouté
+  par la phase, isolé dans un fichier par OS.
+- [ ] **Manifestes de détection déclaratifs** (YAML, un par agent, fournis dans le dépôt,
+  surchargeables dans `~/.config/lazyshell/agents/`) évalués contre le snapshot d'écran de
+  `pkg/screen` et le titre OSC. Pas de code Go par agent, sinon chaque changement d'UI d'un agent
+  devient une release de lazyshell. **Jamais de mise à jour distante** (`herdr` télécharge les
+  siens : du contenu distant qui pilote l'interprétation de la sortie de terminal — refusé).
+- [ ] `blocked` **strict** : uniquement sur une UI d'approbation/permission explicitement listée,
+  sinon `working`. Un faux « il t'attend » détruit la confiance dans le marqueur plus vite qu'un
+  `blocked` manqué.
+- [ ] Marqueur d'état dans la gouttière de `sessions_panel.go`, à côté de `!` et `#` — à y **ajouter**,
+  pas à mettre à côté.
+- [ ] **Budget de rendu** : l'évaluation tourne dans la goroutine de drain, sur changement d'écran,
+  throttlée (≤ 1 fois / 500 ms / session), **jamais** dans la boucle de rendu.
+  `TestIdleSessionDoesNotRepaint` doit rester à 0 repeint au repos.
+
+*Critère de sortie de 11a : lancer `claude` dans une session, voir l'état changer sans avoir touché
+à un seul fichier de configuration.*
+
+### 11b — Canal autoritatif (hooks des agents)
+
+Le seul canal qui donne l'état exact au lieu de le deviner. lazyshell n'appelle jamais l'agent : il
+écoute.
+
+- [ ] Socket Unix par session (`0600`, dans `$XDG_RUNTIME_DIR`), exposé aux sessions via
+  `$LAZYSHELL_SOCK` + `$LAZYSHELL_SESSION_ID`. **Protocole entrant et déclaratif uniquement** : un
+  agent y déclare *son* état, il ne pilote rien (contrairement à l'API de contrôle de `herdr` — voir
+  « ce qui reste ouvert »).
+- [ ] `lazyshell hook <event>` : la commande que l'utilisateur branche dans la config de son agent.
+- [ ] Adaptateurs : **Claude Code** (hooks `settings.json` — `UserPromptSubmit`→`working`,
+  `Notification`→`blocked`, `Stop`→`done`, `SessionStart`/`SessionEnd`) ; **Codex** (clé racine
+  `notify` de `~/.codex/config.toml`, événement `agent-turn-complete` → `done` seulement) ;
+  **opencode** (abonnement SSE `/event` : `session.status`, `permission.updated` — le plus riche des
+  trois, mais un abonnement à tenir, pas un hook qui pousse).
+- [ ] Le canal hook est **autoritaire** quand il rapporte ; les manifestes de 11a restent le repli.
+- [ ] `lazyshell init --agents` : écrit le bloc de configuration à coller chez l'agent, plutôt que de
+  le faire recopier depuis le README.
+
+### 11c — Notifications et ergonomie
+
+- [ ] **Notification** sur `blocked` et sur `done`, via **OSC 9 / OSC 777 vers le terminal hôte** —
+  pas via `notify-send`. Même raison qu'OSC 52 en phase 9 : ça traverse SSH et ça ne dépend d'aucun
+  binaire installé. Commande externe configurable en repli.
+- [ ] **Saut vers la prochaine session bloquée** en une touche. C'est ce qui justifie tout le reste :
+  à 6 agents ouverts, on ne navigue plus, on répond à celui qui appelle.
+- [ ] **Stats de tour** : durée du tour en cours, et tokens/coût **best-effort**. Les transcripts
+  (`~/.claude/projects/**.jsonl`, qui portent un `message.usage` complet) et les bases
+  (`~/.codex/*.sqlite`) ne sont **pas des contrats** — schémas internes, versionnés, migrés sans
+  préavis. `ccusage` fait déjà ce travail : l'intégration est une **commande externe configurable
+  dont on affiche la ligne** (modèle `statusLine` de Claude Code), pas une réimplémentation de la
+  comptabilité des tokens.
+
+**Critère de sortie** : un `lazyshell.yml` déclarant 4 sessions d'agents ; quand l'un demande une
+permission, son marqueur passe `blocked` en moins d'une seconde et une notification part ; une
+touche saute dessus ; les autres sessions continuent ; le nombre de repeints au repos est inchangé.
+
+**Risque** : moyen, et entièrement concentré sur le **couplage à des formats non contractuels**.
+Traitement : tout derrière `pkg/agent`, dégradation propre, et aucune fonctionnalité de lazyshell
+qui dépende de la présence d'un agent.
+
+---
+
 ## Séquencement et jalons
 
 | Phase | Livrable | Jalon | État |
@@ -441,11 +542,12 @@ phase 1 l'a ramené à une phase d'intégration.
 | 3 | UI 2 panneaux, lecture seule | démo interne | fait |
 | 4 | pass-through interactif | **v0.1 — MVP dogfoodable** | fait |
 | 5 | config, thème, aide, README | **v0.2 — publiable** | en cours (GIF) |
-| 6 | `lazyshell.yml` de projet, sessions déclaratives | **v0.3** | à faire |
+| 6 | `lazyshell.yml` de projet, sessions déclaratives | **v0.3** | fait |
 | 7 | activité, relance, saut par index, zoom, aides contextuelles | **v0.4** | à faire |
 | 8 | goreleaser, `--version`, bench de redraw en CI | **v0.5 — installable par un tiers** | en cours (benchs) |
 | 9 | recherche, copy-mode, export, broadcast | v0.6 | à faire |
 | 10 | émulation terminal complète | **v1.0** | fait (en avance) |
+| 11 | états d'agents IA, notifications, saut vers la session bloquée | **v1.1** | à faire (après 6 et 7) |
 
 ## Décisions déjà actées (ne pas re-débattre)
 
@@ -462,8 +564,21 @@ phase 1 l'a ramené à une phase d'intégration.
 3. [ ] Souris (sélection dans la liste, clic pour focus) : hors périmètre tant que gocui confond les
    boutons de souris avec les Shift-flèches (ADR 0001, décision reconduite en phase 10).
 4. [ ] Portée du support Windows : hors périmètre (pas de pty Unix) — à assumer explicitement.
-5. [ ] Config de projet (phase 6) : remontée d'arborescence jusqu'à la racine du dépôt pour trouver
-   `lazyshell.yml`, ou strictement le cwd ? Et un fichier de projet peut-il surcharger les
-   keybindings et le thème, ou seulement `shell` / `sessions` ?
-6. [ ] Modèle de confiance de l'auto-démarrage (phase 6) : approbation par chemin mémorisée, ou
-   simple confirmation à chaque lancement ?
+5. [x] **Tranché (phase 6)** : **strictement le cwd**, plus `--config-file` pour désigner un fichier
+   ailleurs. Pas de remontée d'arborescence — le fichier qui s'exécute est toujours celui qu'on
+   voit. Et un fichier de projet ne surcharge que **`shell` et `sessions`** : le thème et les
+   keybindings restent la propriété de l'utilisateur. La remontée jusqu'à la racine du dépôt reste
+   ouverte si le besoin se manifeste à l'usage ; elle rendrait les `cwd` relatifs plus ambigus et
+   étendrait le modèle de confiance à des chemins qu'on n'a pas ouverts.
+6. [x] **Tranché (phase 6)** : **approbation par chemin mémorisée**, invalidée par le hash du
+   contenu (modèle `direnv`). Une confirmation à chaque lancement serait une friction quotidienne
+   sur son propre projet, et on finirait par taper « y » sans lire — c'est-à-dire exactement
+   l'inverse de ce que le garde-fou cherche à obtenir.
+7. [ ] API de contrôle par les agents (phase 11) : `herdr` expose un socket qui laisse un agent créer
+   des panneaux, lire la sortie des autres et réagir. Séduisant pour un « agent chef », mais c'est
+   une surface d'exécution offerte à un processus non fiable. Le socket de la phase 11b est décidé
+   **entrant et déclaratif** ; ouvrir un verbe de contrôle est une décision séparée, à ne pas
+   prendre par glissement.
+8. [ ] Détach / daemon (acté hors périmètre en phase 2) : c'est ce qui manque pour « mes agents
+   tournent pendant que le laptop est fermé », le cas d'usage que `herdr` vend avec son serveur. À
+   rouvrir seulement si la phase 11 le fait remonter comme demande réelle.
