@@ -69,6 +69,10 @@ var messages = map[string]map[string]string{
 		"fr": "Effacer le filtre de la liste des sessions",
 		"en": "Clear the sessions list filter",
 	},
+	"action.export_session": {
+		"fr": "Exporter le scrollback de la session sélectionnée",
+		"en": "Export the selected session's scrollback",
+	},
 
 	"help.title": {
 		"fr": " aide ",
@@ -126,6 +130,10 @@ var messages = map[string]map[string]string{
 		"fr": "nouvelle session dans...",
 		"en": "new session in...",
 	},
+	"prompt.export": {
+		"fr": "exporter vers...",
+		"en": "export to...",
+	},
 
 	"search.title": {
 		"fr": "rechercher",
@@ -144,6 +152,15 @@ var messages = map[string]map[string]string{
 	"copymode.copy_failed": {
 		"fr": "copie impossible : %s",
 		"en": "copy failed: %s",
+	},
+
+	"export.success": {
+		"fr": "scrollback exporté vers %s",
+		"en": "scrollback exported to %s",
+	},
+	"export.failed": {
+		"fr": "export impossible : %s",
+		"en": "export failed: %s",
 	},
 
 	"input.session_exited": {
@@ -186,6 +203,10 @@ var messages = map[string]map[string]string{
 	"footer.filter": {
 		"fr": "filtrer",
 		"en": "filter",
+	},
+	"footer.export": {
+		"fr": "exporter",
+		"en": "export",
 	},
 	"footer.exit_passthrough": {
 		"fr": "sortir",

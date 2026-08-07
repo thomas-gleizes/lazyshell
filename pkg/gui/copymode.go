@@ -111,6 +111,7 @@ func (gui *Gui) yankCopySelection() {
 		_ = gui.reportSessionError(fmt.Errorf("%s", gui.tr.T("copymode.copy_failed", err)))
 	} else {
 		gui.lastError = ""
+		gui.lastInfo = ""
 	}
 
 	gui.restartOutput()

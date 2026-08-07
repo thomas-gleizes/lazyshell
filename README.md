@@ -57,6 +57,7 @@ to open an in-app help popup listing every binding below.
 | `r` | Renommer la session sélectionnée |
 | `c` | Dupliquer la session sélectionnée |
 | `N` | Nouvelle session dans un dossier choisi |
+| `w` | Exporter le scrollback de la session sélectionnée vers un fichier |
 
 While the **output panel** is focused, these apply instead:
 
@@ -171,8 +172,9 @@ terminal shows as *bright* blue. lazyshell resolves the ANSI names first, so
 
 The remappable action ids are `new_session`, `new_session_in_dir`,
 `kill_session`, `rename_session`, `duplicate_session`, `restart_session`,
-`zoom`, `filter_sessions`, `select_next`, `select_prev`, `cycle_focus`, `help`
-and `quit`. An id outside that list is reported rather than ignored.
+`zoom`, `filter_sessions`, `export_session`, `select_next`, `select_prev`,
+`cycle_focus`, `help` and `quit`. An id outside that list is reported rather
+than ignored.
 
 ### Example
 
@@ -206,6 +208,7 @@ keybindings:
   restart_session: "R"
   zoom: "z"
   filter_sessions: "/"
+  export_session: "w"
   select_next: "j"
   select_prev: "k"
   cycle_focus: Tab

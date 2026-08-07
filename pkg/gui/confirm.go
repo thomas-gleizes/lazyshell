@@ -46,6 +46,7 @@ func (gui *Gui) showConfirm(message string, onConfirm func() error) error {
 			gui.lastError = err.Error()
 		} else {
 			gui.lastError = ""
+			gui.lastInfo = ""
 		}
 
 		return gui.closeConfirm()

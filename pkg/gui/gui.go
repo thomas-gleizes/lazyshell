@@ -143,6 +143,14 @@ type Gui struct {
 	// lastError, if non-empty, is shown in the status bar instead of the
 	// keybinding hint until the next successful action.
 	lastError string
+	// lastInfo is lastError's positive counterpart — a transient success
+	// message (currently just the export path) shown in its place. The two
+	// are kept as separate fields rather than one "last message" so a
+	// reader is never left guessing which kind is currently set; each
+	// setter (reportSessionError/reportSessionInfo, sessions_panel.go)
+	// clears the other, so an old message of one kind never lingers behind
+	// a new one of the other kind.
+	lastInfo string
 
 	// PauseBackgroundThreads stops the periodic tasks started by goEvery, for
 	// when the terminal is handed over to another process.
@@ -319,13 +327,13 @@ func (gui *Gui) Run() (err error) {
 }
 
 // renderStatus writes the status bar's content: the last error takes
-// priority, then pass-through, then copy-mode, then search, then the
-// sessions-list filter, then the keybinding hint. The alt-screen marker is
-// appended to whichever of those is shown. Without a clear indicator the
-// user cannot tell whether q quits the app or goes to the shell. Safe to
-// call directly (no g.Update) whenever the caller is already running on
-// gocui's main goroutine — a keybinding handler, the output Editor, or
-// initView during layout.
+// priority, then a transient success message (lastInfo), then pass-through,
+// then copy-mode, then search, then the sessions-list filter, then the
+// keybinding hint. The alt-screen marker is appended to whichever of those
+// is shown. Without a clear indicator the user cannot tell whether q quits
+// the app or goes to the shell. Safe to call directly (no g.Update) whenever
+// the caller is already running on gocui's main goroutine — a keybinding
+// handler, the output Editor, or initView during layout.
 func (gui *Gui) renderStatus(view *gocui.View) {
 	view.Clear()
 
@@ -334,6 +342,8 @@ func (gui *Gui) renderStatus(view *gocui.View) {
 	switch {
 	case gui.lastError != "":
 		text = " " + gui.lastError + " "
+	case gui.lastInfo != "":
+		text = " " + gui.lastInfo + " "
 	case gui.passThroughActive:
 		text = gui.tr.T("status.passthrough", prefixName(gui.prefixKey))
 	case gui.copyModeActive:

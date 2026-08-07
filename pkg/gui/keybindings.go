@@ -184,6 +184,14 @@ func (gui *Gui) staticBindings() []Binding {
 		},
 		{
 			ViewName:    sessionsViewName,
+			Action:      "export_session",
+			Key:         'w',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.exportSession,
+			Description: gui.tr.T("action.export_session"),
+		},
+		{
+			ViewName:    sessionsViewName,
 			Key:         gocui.KeyEsc,
 			Modifier:    gocui.ModNone,
 			Handler:     gui.clearFilterKey,

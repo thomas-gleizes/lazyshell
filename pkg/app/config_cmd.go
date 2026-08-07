@@ -87,6 +87,8 @@ keybindings:
   duplicate_session: "c"
   restart_session: "R"
   zoom: "z"
+  filter_sessions: "/"
+  export_session: "w"
   select_next: "j"
   select_prev: "k"
   cycle_focus: Tab

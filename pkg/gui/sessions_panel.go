@@ -311,6 +311,7 @@ func (gui *Gui) newSession(*gocui.Gui, *gocui.View) error {
 	}
 
 	gui.lastError = ""
+	gui.lastInfo = ""
 
 	return gui.selectNewlyCreatedSession()
 }
@@ -346,6 +347,7 @@ func (gui *Gui) restartSession(*gocui.Gui, *gocui.View) error {
 	}
 
 	gui.lastError = ""
+	gui.lastInfo = ""
 	gui.onSelectionChanged()
 
 	return gui.renderSessionsPanel()
@@ -385,6 +387,7 @@ func (gui *Gui) duplicateSession(*gocui.Gui, *gocui.View) error {
 	}
 
 	gui.lastError = ""
+	gui.lastInfo = ""
 
 	return gui.selectNewlyCreatedSession()
 }
@@ -431,9 +434,28 @@ func (gui *Gui) selectNewlyCreatedSession() error {
 }
 
 // reportSessionError shows err in the status bar in place of the keybinding
-// hint, the same way every session-creation failure is surfaced.
+// hint, the same way every session-creation failure is surfaced. Clears any
+// leftover success message — an old "exported to ..." must not keep
+// competing with a new error for the same line.
 func (gui *Gui) reportSessionError(err error) error {
 	gui.lastError = err.Error()
+	gui.lastInfo = ""
+
+	if view, verr := gui.g.View(statusViewName); verr == nil {
+		gui.renderStatus(view)
+	}
+
+	return nil
+}
+
+// reportSessionInfo is reportSessionError's positive counterpart: a
+// transient success message (currently only the export path) shown in the
+// status bar in place of the keybinding hint. Kept as a separate field and
+// function rather than folding "success" into lastError so a reader is
+// never left wondering which kind the string currently holds.
+func (gui *Gui) reportSessionInfo(msg string) error {
+	gui.lastInfo = msg
+	gui.lastError = ""
 
 	if view, verr := gui.g.View(statusViewName); verr == nil {
 		gui.renderStatus(view)

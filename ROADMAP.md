@@ -22,7 +22,7 @@ L'état est celui du code présent dans le dépôt, pas d'une intention.
 | 6.5 · Config utilisateur complète | **fait** |
 | 7 · Ergonomie multi-sessions | **fait** |
 | 8 · Distribution et budget de perf | **en cours** — release automatisée, `--version` et budget de redraw gaté en CI faits ; reste à générer le GIF de démo |
-| 9 · Recherche, copie, broadcast | **en cours** — recherche, filtre de sessions et copy-mode faits |
+| 9 · Recherche, copie, broadcast | **en cours** — recherche, filtre, copy-mode et export faits ; reste le broadcast |
 | 10 · Émulation de terminal complète | **fait** (faite en avance, voir la phase) |
 | 11 · Sessions d'agents IA | **à faire** — dépend de 6 et 7 |
 
@@ -483,7 +483,12 @@ datée.
   ne permet de savoir si le terminal a vraiment accepté la séquence OSC 52, donc vide = OSC 52
   seul, renseigné = cette commande à la place (le texte sur son stdin), jamais les deux. Désactivé
   sur l'alternate screen, comme le défilement.
-- [ ] **Export** (`w`) : vider le scrollback d'une session dans un fichier, chemin proposé par défaut.
+- [x] **Export** (`w`) : vider le scrollback d'une session dans un fichier, chemin proposé par défaut.
+  `pkg/gui/export.go` : prompt pré-rempli avec `<cwd de la session>/<nom>-<horodatage>.log`,
+  réutilise `Screen.TextRange(0, math.MaxInt)` (déjà écrit pour le copy-mode) sans nouvelle méthode
+  `Screen`. Écrasement volontaire, sans `O_EXCL` — contrairement aux gabarits de config, un export
+  est une capture jetable qu'on redemande au même endroit. Premier message de succès de l'appli :
+  `Gui.lastInfo`, pendant positif de `lastError` (chacun efface l'autre).
 - [ ] **Broadcast** : marquer plusieurs sessions et leur envoyer la même saisie en pass-through.
   Fonction de niche, mais quasi gratuite une fois le routage clavier de la phase 4 en place — la
   garder derrière un indicateur très visible dans la barre de statut, une saisie envoyée à 6
@@ -636,7 +641,7 @@ qui dépende de la présence d'un agent.
 | 6 | `lazyshell.yml` de projet, sessions déclaratives | **v0.3** | fait |
 | 7 | activité, relance, saut par index, zoom, aides contextuelles | **v0.4** | à faire |
 | 8 | goreleaser, `--version`, bench de redraw en CI | **v0.5 — installable par un tiers** | en cours (benchs) |
-| 9 | recherche, copy-mode, export, broadcast | v0.6 | en cours (recherche, filtre, copy-mode faits) |
+| 9 | recherche, copy-mode, export, broadcast | v0.6 | en cours (reste le broadcast) |
 | 10 | émulation terminal complète | **v1.0** | fait (en avance) |
 | 11 | états d'agents IA, notifications, saut vers la session bloquée | **v1.1** | à faire (après 6 et 7) |
 
