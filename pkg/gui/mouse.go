@@ -135,7 +135,7 @@ func (gui *Gui) shouldHandleMouseEvent(view *gocui.View, _ gocui.Key) bool {
 // A click past the end of the list, or on the "no sessions" placeholder line,
 // lands out of range and selectIndex ignores it.
 func (gui *Gui) clickSession(opts gocui.ViewMouseBindingOpts) error {
-	if _, err := gui.g.SetCurrentView(sessionsViewName); err != nil {
+	if err := gui.cutControlToSessions(); err != nil {
 		return err
 	}
 
@@ -159,8 +159,35 @@ func (gui *Gui) clickSession(opts gocui.ViewMouseBindingOpts) error {
 // view follows — so moving it is the only thing a wheel notch can mean here.
 func (gui *Gui) wheelSessions(delta int) func(gocui.ViewMouseBindingOpts) error {
 	return func(gocui.ViewMouseBindingOpts) error {
+		if err := gui.cutControlToSessions(); err != nil {
+			return err
+		}
+
 		return gui.selectionMoved(delta)(gui.g, nil)
 	}
+}
+
+// cutControlToSessions is the mouse's way of landing on the sessions panel:
+// gocui dispatches a mouse binding by where the pointer is on screen, not by
+// which view currently has focus (view.go's VisibleViewByPosition), so a
+// click or a wheel notch over the sessions panel fires here even while the
+// output panel is focused and pass-through is armed. Without disarming it
+// first, applySelection would swap which session is selected while
+// pass-through keeps pointing at the output panel — a keystroke typed a
+// moment later would go to a session the border and status bar no longer
+// agree on, and the pass-through-coloured border itself would keep showing
+// on a panel that no longer owns the keyboard.
+//
+// Same fix exit_watch.go's backOutOfExitedSession applies when a session
+// exits out from under pass-through: disarm, then move focus.
+func (gui *Gui) cutControlToSessions() error {
+	if gui.passThroughActive {
+		gui.exitPassThrough()
+	}
+
+	_, err := gui.g.SetCurrentView(sessionsViewName)
+
+	return err
 }
 
 // clickOutput focuses the output panel and nothing else. It deliberately does

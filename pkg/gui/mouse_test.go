@@ -121,6 +121,83 @@ func TestClickSessionDoesNotArmPassThrough(t *testing.T) {
 	}
 }
 
+// The bug this guards against: clicking the sessions panel while the output
+// panel is focused and pass-through is armed used to leave passThroughActive
+// set on a panel that no longer owns the keyboard — the border kept the
+// pass-through colour and a keystroke typed afterwards would still have gone
+// to the shell instead of navigating the list.
+func TestClickSessionCutsControlFromPassThrough(t *testing.T) {
+	gui, view := newOutputTestGui(t)
+
+	if _, err := gui.sessions.New("b", "/bin/sh"); err != nil {
+		t.Fatalf("sessions.New: %v", err)
+	}
+
+	for range 2 {
+		if err := gui.layout(gui.g); err != nil {
+			t.Fatalf("layout: %v", err)
+		}
+	}
+
+	gui.enterPassThrough()
+
+	if !gui.passThroughActive {
+		t.Fatal("enterPassThrough did not arm it")
+	}
+
+	if err := gui.clickSession(gocui.ViewMouseBindingOpts{Y: 0}); err != nil {
+		t.Fatalf("clickSession: %v", err)
+	}
+
+	if gui.passThroughActive {
+		t.Error("clicking the sessions panel left pass-through armed")
+	}
+
+	if current := gui.g.CurrentView(); current == nil || current.Name() != sessionsViewName {
+		t.Errorf("current view = %v, want %q", current, sessionsViewName)
+	}
+
+	// A keystroke typed right after must navigate the list, not reach the
+	// shell — verifying against the view the click actually landed the
+	// keyboard on, view (output) here on purpose: it must no longer be the
+	// one receiving keystrokes.
+	if claimed := gui.editOutput(view, 0, 'j', 0); claimed {
+		t.Error("the output view's Editor still claimed a keystroke after the click cut control away from it")
+	}
+}
+
+// Same bug, reached through the wheel instead of a click: gocui dispatches a
+// mouse binding by screen position, not by which view is current, so
+// scrolling over the sessions panel fires even while the output panel is
+// focused.
+func TestWheelSessionsCutsControlFromPassThrough(t *testing.T) {
+	gui, _ := newOutputTestGui(t)
+
+	if _, err := gui.sessions.New("b", "/bin/sh"); err != nil {
+		t.Fatalf("sessions.New: %v", err)
+	}
+
+	for range 2 {
+		if err := gui.layout(gui.g); err != nil {
+			t.Fatalf("layout: %v", err)
+		}
+	}
+
+	gui.enterPassThrough()
+
+	if err := gui.wheelSessions(1)(gocui.ViewMouseBindingOpts{}); err != nil {
+		t.Fatalf("wheelSessions: %v", err)
+	}
+
+	if gui.passThroughActive {
+		t.Error("scrolling the sessions panel left pass-through armed")
+	}
+
+	if current := gui.g.CurrentView(); current == nil || current.Name() != sessionsViewName {
+		t.Errorf("current view = %v, want %q", current, sessionsViewName)
+	}
+}
+
 func TestClickSessionOutOfRangeIsNoOp(t *testing.T) {
 	gui, g := newHeadlessGui(t)
 
