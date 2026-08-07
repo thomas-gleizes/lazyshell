@@ -109,8 +109,13 @@ func newApp(opts Options, approve approver, errOut io.Writer) *App {
 
 	switch {
 	case len(pcfg.Sessions) == 0:
-		// Nothing declared (or no project file at all): the pre-phase-6
-		// behaviour, an empty list waiting for "n".
+		// Nothing declared (or no project file at all): start a single
+		// default session so the user isn't dropped into an empty list —
+		// but leave focus on the sessions panel (gui.New / layout default),
+		// not inside the new shell.
+		if _, err := sessions.New("session-1", resolveShell(cfg.Shell)); err != nil {
+			startupErrs = append(startupErrs, err)
+		}
 	case opts.NoAutostart:
 		startupErrs = append(startupErrs,
 			fmt.Errorf("--no-autostart : %d session(s) déclarée(s) non démarrée(s)", len(pcfg.Sessions)))

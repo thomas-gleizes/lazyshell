@@ -125,14 +125,15 @@ func TestAutostartRunsTheDeclaredCommandAndEnv(t *testing.T) {
 	waitForScreen(t, api, "port=3000")
 }
 
-// Without a project file, nothing about the pre-phase-6 behaviour may change.
-func TestNoProjectFileStartsNothing(t *testing.T) {
+// Without a project file, the empty-list startup now gets a single default
+// session instead of dropping the user into an empty panel.
+func TestNoProjectFileStartsDefaultSession(t *testing.T) {
 	projectDir(t, "")
 
 	a := newTestApp(t, Options{}, answering("y"))
 
-	if got := len(a.sessions.List()); got != 0 {
-		t.Errorf("len(sessions) = %d, want 0", got)
+	if got := len(a.sessions.List()); got != 1 {
+		t.Errorf("len(sessions) = %d, want 1 (default session)", got)
 	}
 	if got := a.gui.StartupError(); got != "" {
 		t.Errorf("StartupError = %q, want empty", got)
@@ -277,8 +278,8 @@ func TestUnreadableProjectFileIsReported(t *testing.T) {
 
 	a := newTestApp(t, Options{ConfigFile: filepath.Join(t.TempDir(), "absent.yml")}, answering("y"))
 
-	if got := len(a.sessions.List()); got != 0 {
-		t.Errorf("len(sessions) = %d, want 0", got)
+	if got := len(a.sessions.List()); got != 1 {
+		t.Errorf("len(sessions) = %d, want 1 (default session)", got)
 	}
 	if a.gui.StartupError() == "" {
 		t.Error("StartupError is empty, want the read failure reported")

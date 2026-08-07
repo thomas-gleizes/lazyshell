@@ -243,6 +243,12 @@ func (gui *Gui) cycleFocus(g *gocui.Gui, _ *gocui.View) error {
 		}
 	}
 
+	// No session to show: the output panel is not a valid focus target, so
+	// Tab stays a no-op rather than switching to an empty view.
+	if next == outputViewName && gui.selectedSession() == nil {
+		return nil
+	}
+
 	_, err := g.SetCurrentView(next)
 
 	return err

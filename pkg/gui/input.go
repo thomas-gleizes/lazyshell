@@ -344,7 +344,8 @@ func (gui *Gui) writeToSession(sess *session.Session, b []byte) {
 // escape prefix) goes to the shell. Scroll always resets to live on entry —
 // typing a command is pointless if you can't see its output.
 func (gui *Gui) enterPassThrough() {
-	if gui.selectedSession() == nil {
+	sess := gui.selectedSession()
+	if sess == nil || sess.Status() == session.StatusExited {
 		return
 	}
 

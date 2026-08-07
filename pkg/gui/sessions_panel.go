@@ -641,7 +641,7 @@ func (gui *Gui) selectNewlyCreatedSession() error {
 // task, both idempotent) and preferable to a second way into pass-through
 // that could drift from this one.
 func (gui *Gui) focusSelectedShell() error {
-	if gui.g == nil {
+	if gui.g == nil || gui.selectedSession() == nil {
 		return nil
 	}
 
