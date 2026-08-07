@@ -67,7 +67,7 @@ func TestPerfBudgetSessionsPanelContent(t *testing.T) {
 
 	result := testing.Benchmark(func(b *testing.B) {
 		for range b.N {
-			_ = sessionsPanelContent(sessions, testMarkers, "", nil)
+			_ = sessionsPanelContent(sessions, testMarkers, "", nil, nil)
 		}
 	})
 

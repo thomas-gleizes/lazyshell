@@ -89,6 +89,7 @@ keybindings:
   zoom: "z"
   filter_sessions: "/"
   export_session: "w"
+  toggle_broadcast: "b"
   select_next: "j"
   select_prev: "k"
   cycle_focus: Tab
@@ -101,6 +102,7 @@ markers:
   bell: "!"        # la session a émis un BEL depuis la dernière fois qu'on l'a regardée
   alt_screen: "#"  # une application plein écran (vim, htop, less) a la main
   activity: "●"    # la session a produit de la sortie depuis la dernière fois qu'on l'a regardée
+  broadcast: "+"   # la session est marquée pour recevoir la diffusion de saisie
 
 # Pas de défilement du panneau de sortie.
 scroll:

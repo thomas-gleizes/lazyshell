@@ -73,6 +73,10 @@ var messages = map[string]map[string]string{
 		"fr": "Exporter le scrollback de la session sélectionnée",
 		"en": "Export the selected session's scrollback",
 	},
+	"action.toggle_broadcast": {
+		"fr": "Marquer/démarquer la session pour la diffusion",
+		"en": "Mark/unmark the session for broadcast",
+	},
 
 	"help.title": {
 		"fr": " aide ",
@@ -102,6 +106,10 @@ var messages = map[string]map[string]string{
 	"status.copymode": {
 		"fr": " -- SÉLECTION -- %d ligne(s) — y : copier, Esc : annuler ",
 		"en": " -- SELECT -- %d line(s) — y: copy, Esc: cancel ",
+	},
+	"status.broadcast": {
+		"fr": " ⚠ DIFFUSION → %d sessions ",
+		"en": " ⚠ BROADCAST → %d sessions ",
 	},
 
 	"sessions.empty": {
@@ -207,6 +215,10 @@ var messages = map[string]map[string]string{
 	"footer.export": {
 		"fr": "exporter",
 		"en": "export",
+	},
+	"footer.broadcast": {
+		"fr": "diffusion",
+		"en": "broadcast",
 	},
 	"footer.exit_passthrough": {
 		"fr": "sortir",

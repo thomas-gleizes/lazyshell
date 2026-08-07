@@ -44,11 +44,13 @@ const (
 	// defaultTerm is the TERM value sessions are started with — a value the
 	// bundled emulator actually implements (pkg/session/manager.go's buildEnv).
 	defaultTerm = "xterm-256color"
-	// defaultBellMarker/defaultAltScreenMarker/defaultActivityMarker are the
-	// sessions list's gutter markers (pkg/gui/sessions_panel.go).
+	// defaultBellMarker/defaultAltScreenMarker/defaultActivityMarker/
+	// defaultBroadcastMarker are the sessions list's gutter markers
+	// (pkg/gui/sessions_panel.go).
 	defaultBellMarker      = "!"
 	defaultAltScreenMarker = "#"
 	defaultActivityMarker  = "●"
+	defaultBroadcastMarker = "+"
 	// defaultHalfPageDivisor is what the output panel's height is divided by for
 	// a Ctrl-U/Ctrl-D scroll (pkg/gui/input.go's scrollHalfPage).
 	defaultHalfPageDivisor = 2
@@ -134,8 +136,8 @@ type Theme struct {
 	PassThroughBorderColor string `yaml:"pass_through_border_color"`
 }
 
-// Markers is the two-column gutter every session line starts with — the only
-// way to learn something about a session that is not the one on screen.
+// Markers is the four-column gutter every session line starts with — the
+// only way to learn something about a session that is not the one on screen.
 type Markers struct {
 	// Bell flags a session that emitted a BEL since it was last looked at.
 	Bell string `yaml:"bell"`
@@ -144,6 +146,8 @@ type Markers struct {
 	// Activity flags a session that produced output since it was last looked
 	// at, other than the one currently selected.
 	Activity string `yaml:"activity"`
+	// Broadcast flags a session marked to receive broadcast keystrokes.
+	Broadcast string `yaml:"broadcast"`
 }
 
 // Clipboard configures how copy-mode's yank leaves lazyshell. There is no
@@ -188,6 +192,7 @@ func Default() Config {
 			Bell:      defaultBellMarker,
 			AltScreen: defaultAltScreenMarker,
 			Activity:  defaultActivityMarker,
+			Broadcast: defaultBroadcastMarker,
 		},
 		Scroll: Scroll{
 			PageLines:       0,

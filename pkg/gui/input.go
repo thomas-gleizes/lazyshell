@@ -115,7 +115,7 @@ func (gui *Gui) editDuringPassThrough(key gocui.Key, ch rune, mod gocui.Modifier
 		gui.prefixPending = false
 
 		if key == gui.prefixKey {
-			gui.writeToSelected(gui.translate(key, ch, mod))
+			gui.dispatchKey(key, ch, mod)
 		} else {
 			gui.exitPassThrough()
 		}
@@ -129,9 +129,31 @@ func (gui *Gui) editDuringPassThrough(key gocui.Key, ch rune, mod gocui.Modifier
 		return true
 	}
 
-	gui.writeToSelected(gui.translate(key, ch, mod))
+	gui.dispatchKey(key, ch, mod)
 
 	return true
+}
+
+// dispatchKey writes a translated keystroke to the selected session, or —
+// once broadcastArmed — to every marked session at once, each translated
+// separately: application cursor key mode (DECCKM) is per-session emulator
+// state, so a session in that mode and one that isn't would need two
+// different encodings of the very same arrow key.
+func (gui *Gui) dispatchKey(key gocui.Key, ch rune, mod gocui.Modifier) {
+	sess := gui.selectedSession()
+	if sess == nil {
+		return
+	}
+
+	if !gui.broadcastArmed(sess.ID) {
+		gui.writeToSelected(gui.translate(key, ch, mod))
+
+		return
+	}
+
+	for _, target := range gui.broadcastMarkedSessions() {
+		gui.writeToSession(target, keys.TranslateWithMode(key, ch, mod, target.Screen().ApplicationCursorKeys()))
+	}
 }
 
 // translate encodes a key event for the selected session, honouring the
@@ -259,6 +281,18 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 
 // writeToSelected sends translated bytes to whichever session is currently
 // selected. No-op if the list is empty (nothing to type into).
+func (gui *Gui) writeToSelected(b []byte) {
+	sess := gui.selectedSession()
+	if sess == nil {
+		return
+	}
+
+	gui.writeToSession(sess, b)
+}
+
+// writeToSession is writeToSelected's addressable form, used directly by
+// dispatchKey while broadcasting (each marked session, not just the
+// selected one). No-op on an empty payload.
 //
 // Typing into a session whose shell has exited does nothing at all, which from
 // the user's side is indistinguishable from a frozen application — so it is
@@ -268,13 +302,8 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 // closes the pty on its SIGKILL escalation path, and writing to a pty master
 // whose slave has no process left still succeeds. Relying on the error would
 // therefore only report the case where the shell had to be killed the hard way.
-func (gui *Gui) writeToSelected(b []byte) {
+func (gui *Gui) writeToSession(sess *session.Session, b []byte) {
 	if len(b) == 0 {
-		return
-	}
-
-	sess := gui.selectedSession()
-	if sess == nil {
 		return
 	}
 

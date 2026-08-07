@@ -192,6 +192,14 @@ func (gui *Gui) staticBindings() []Binding {
 		},
 		{
 			ViewName:    sessionsViewName,
+			Action:      "toggle_broadcast",
+			Key:         'b',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.toggleBroadcastMark,
+			Description: gui.tr.T("action.toggle_broadcast"),
+		},
+		{
+			ViewName:    sessionsViewName,
 			Key:         gocui.KeyEsc,
 			Modifier:    gocui.ModNone,
 			Handler:     gui.clearFilterKey,

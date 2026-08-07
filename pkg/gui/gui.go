@@ -117,6 +117,15 @@ type Gui struct {
 	copyAnchorLine int
 	copyCursorLine int
 
+	// broadcastMarks is the set of session IDs currently marked to receive
+	// broadcast keystrokes (pkg/gui/broadcast.go) — nil/empty means no marks
+	// at all, the common case. Marking is armed (a keystroke actually gets
+	// duplicated) only once 2 or more sessions are marked; a single mark is
+	// just a "waiting to pick a second one" state, not yet broadcasting.
+	// Same concurrency rule as passThroughActive — only ever touched from
+	// gocui's own goroutine (the "b" binding on sessionsViewName).
+	broadcastMarks map[string]bool
+
 	// mu guards selectedIndex and scrollOffset: both are written from
 	// gocui's main goroutine (keybinding handlers, the output Editor) but
 	// also read from background goroutines — goEvery's ticker for
@@ -330,9 +339,13 @@ func (gui *Gui) Run() (err error) {
 // priority, then a transient success message (lastInfo), then pass-through,
 // then copy-mode, then search, then the sessions-list filter, then the
 // keybinding hint. The alt-screen marker is appended to whichever of those
-// is shown. Without a clear indicator the user cannot tell whether q quits
-// the app or goes to the shell. Safe to call directly (no g.Update) whenever
-// the caller is already running on gocui's main goroutine — a keybinding
+// is shown, and the broadcast warning — if armed — is prepended in front of
+// all of it: broadcast is the one state dangerous enough that it must stay
+// visible no matter what else the status bar is currently saying, pass-
+// through included, since pass-through is exactly when it does something.
+// Without a clear indicator the user cannot tell whether q quits the app or
+// goes to the shell. Safe to call directly (no g.Update) whenever the
+// caller is already running on gocui's main goroutine — a keybinding
 // handler, the output Editor, or initView during layout.
 func (gui *Gui) renderStatus(view *gocui.View) {
 	view.Clear()
@@ -357,6 +370,10 @@ func (gui *Gui) renderStatus(view *gocui.View) {
 
 	if gui.selectedIsAltScreen() {
 		text += altScreenIndicator + " "
+	}
+
+	if sess := gui.selectedSession(); sess != nil && gui.broadcastArmed(sess.ID) {
+		text = gui.tr.T("status.broadcast", len(gui.broadcastMarks)) + text
 	}
 
 	fmt.Fprint(view, text)

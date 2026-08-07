@@ -14,7 +14,7 @@ import (
 var testMarkers = markerSet{bell: bellMarker, altScreen: altScreenMarker, activity: activityMarker}
 
 func TestSessionsPanelContentEmpty(t *testing.T) {
-	got := sessionsPanelContent(nil, testMarkers, "", nil)
+	got := sessionsPanelContent(nil, testMarkers, "", nil, nil)
 
 	if !strings.Contains(got, "n pour en créer une") {
 		t.Errorf("empty content = %q, want a hint about the n keybinding", got)
@@ -35,7 +35,7 @@ func TestSessionsPanelContentListsSessions(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	got := sessionsPanelContent([]*session.Session{a, b}, testMarkers, "", nil)
+	got := sessionsPanelContent([]*session.Session{a, b}, testMarkers, "", nil, nil)
 
 	for _, want := range []string{a.Name(), b.Name(), a.Cwd} {
 		if !strings.Contains(got, want) {

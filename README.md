@@ -58,6 +58,7 @@ to open an in-app help popup listing every binding below.
 | `c` | Dupliquer la session sélectionnée |
 | `N` | Nouvelle session dans un dossier choisi |
 | `w` | Exporter le scrollback de la session sélectionnée vers un fichier |
+| `b` | Marquer/démarquer la session pour la diffusion (broadcast) |
 
 While the **output panel** is focused, these apply instead:
 
@@ -80,14 +81,27 @@ scrolling hint while a full-screen application has the session.
 
 ### Reading the sessions list
 
-Each session is one line: a two-column gutter, then its name, status, PID, and
-either the terminal title the shell set (usually the running command) or its
-working directory.
+Each session is one line: a four-column gutter, then its name, status, PID,
+and either the terminal title the shell set (usually the running command) or
+its working directory.
 
 | Marker | Meaning |
 | --- | --- |
 | `!` | The session rang the bell while you were looking elsewhere. Cleared when you select it. |
 | `#` | A full-screen application (`vim`, `htop`, `less`) has the session. Shown as `[ALT]` in the status bar for the selected one. |
+| `●` | The session produced output while it wasn't the one on screen. Cleared when you select it. |
+| `+` | The session is marked for broadcast — see below. |
+
+### Broadcast
+
+Mark two or more sessions with `b`, then attach to any one of them (`i` /
+`Enter`): every keystroke now goes to all of them at once, not just the one
+you're looking at. The status bar carries a `⚠ BROADCAST → N sessions`
+warning the whole time it is armed, in front of whatever else it would
+otherwise say — this is the one state where a keystroke you don't expect to
+matter can reach several shells behind your back, so it stays visible no
+matter what. Unmark a session (`b` again) to drop it out; broadcasting stops
+on its own once fewer than two remain marked.
 
 While a full-screen application is in control, scrolling back through history
 — and copy-mode, which selects out of that same history — is disabled: the
@@ -144,6 +158,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `markers.bell` | 0–1 char | `!` | Gutter marker for a session that rang while hidden. `""` turns it off. |
 | `markers.alt_screen` | 0–1 char | `#` | Gutter marker for a session running a full-screen application. `""` turns it off. |
 | `markers.activity` | 0–1 char | `●` | Gutter marker for a session that produced output while hidden. `""` turns it off. |
+| `markers.broadcast` | 0–1 char | `+` | Gutter marker for a session marked to receive broadcast keystrokes. `""` turns it off. |
 | `scroll.page_lines` | int ≥ 0 | `0` | Lines `PgUp`/`PgDn` move by. `0` means one full panel height. |
 | `scroll.half_page_divisor` | int ≥ 1 | `2` | `Ctrl-U`/`Ctrl-D` move by the panel height divided by this. |
 | `theme.active_border_color` | color | `green` | Focused panel's border. |
@@ -172,9 +187,9 @@ terminal shows as *bright* blue. lazyshell resolves the ANSI names first, so
 
 The remappable action ids are `new_session`, `new_session_in_dir`,
 `kill_session`, `rename_session`, `duplicate_session`, `restart_session`,
-`zoom`, `filter_sessions`, `export_session`, `select_next`, `select_prev`,
-`cycle_focus`, `help` and `quit`. An id outside that list is reported rather
-than ignored.
+`zoom`, `filter_sessions`, `export_session`, `toggle_broadcast`,
+`select_next`, `select_prev`, `cycle_focus`, `help` and `quit`. An id outside
+that list is reported rather than ignored.
 
 ### Example
 
@@ -209,6 +224,7 @@ keybindings:
   zoom: "z"
   filter_sessions: "/"
   export_session: "w"
+  toggle_broadcast: "b"
   select_next: "j"
   select_prev: "k"
   cycle_focus: Tab
@@ -219,6 +235,7 @@ markers:
   bell: "!"
   alt_screen: "#"
   activity: "●"
+  broadcast: "+"
 
 scroll:
   page_lines: 0

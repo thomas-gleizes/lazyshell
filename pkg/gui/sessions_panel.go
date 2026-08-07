@@ -12,11 +12,12 @@ import (
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
-// Default gutter markers, in the three columns every session line starts
+// Default gutter markers, in the four columns every session line starts
 // with. They are the only way to learn something about a session that is not
 // the one on screen: what it is running, whether it asked for attention while
-// hidden, and whether it produced output while hidden. All three are
-// overridden by pkg/config's Markers; an empty override turns that marker off.
+// hidden, whether it produced output while hidden, and whether it is marked
+// for broadcast. All four are overridden by pkg/config's Markers; an empty
+// override turns that marker off.
 const (
 	// bellMarker flags a session that emitted a BEL since it was last looked
 	// at — a finished build, a shell asking a question.
@@ -27,36 +28,46 @@ const (
 	// activityMarker flags a session, other than the one currently selected,
 	// that produced output since it was last looked at.
 	activityMarker = "●"
+	// broadcastMarker flags a session marked to receive broadcast keystrokes
+	// (pkg/gui/broadcast.go) — set on 2 or more sessions at once, it is what
+	// arms the actual diffusion.
+	broadcastMarker = "+"
 )
 
-// markerSet is the resolved triple of gutter characters, so
+// markerSet is the resolved quadruple of gutter characters, so
 // sessionsPanelContent stays a pure function of its inputs rather than
 // reaching into a Gui.
 type markerSet struct {
 	bell      string
 	altScreen string
 	activity  string
+	broadcast string
 }
 
 // markerSet resolves the configured markers against the built-in defaults. A
 // marker the user explicitly set to "" stays empty — that is how you turn one
 // off — which is why this cannot be a plain "empty means default" merge on the
-// already-merged config: pkg/config's Default() has already filled all three, so
+// already-merged config: pkg/config's Default() has already filled all four, so
 // anything empty at this point was asked for.
 func (gui *Gui) markerSet() markerSet {
-	set := markerSet{bell: gui.markers.Bell, altScreen: gui.markers.AltScreen, activity: gui.markers.Activity}
+	set := markerSet{
+		bell:      gui.markers.Bell,
+		altScreen: gui.markers.AltScreen,
+		activity:  gui.markers.Activity,
+		broadcast: gui.markers.Broadcast,
+	}
 
 	// The zero-value Gui case only: a bare struct literal (tests) never went
-	// through config.Default, so all three fields are empty at once and mean
+	// through config.Default, so all four fields are empty at once and mean
 	// "nothing was configured" rather than "all were turned off".
 	if gui.markers == (config.Markers{}) {
-		set.bell, set.altScreen, set.activity = bellMarker, altScreenMarker, activityMarker
+		set.bell, set.altScreen, set.activity, set.broadcast = bellMarker, altScreenMarker, activityMarker, broadcastMarker
 	}
 
 	return set
 }
 
-// sessionsPanelContent renders one line per session: a three-column gutter of
+// sessionsPanelContent renders one line per session: a four-column gutter of
 // markers, then name, status (or exit result), PID, and either the terminal
 // title the shell set (usually the running command, which is what you
 // actually want to read in a session list) or the working directory when it
@@ -66,9 +77,12 @@ func (gui *Gui) markerSet() markerSet {
 // renderSessionsPanel's view.SetCursor(0, selected) and the view's Highlight
 // both address sessions by line number.
 //
+// broadcastMarks is which session IDs are currently marked for broadcast —
+// nil (no marks at all) is a valid, common value, not a special case.
+//
 // A pure function, kept separate from the gocui-writing side so it can be
 // tested directly, the same way keys.Translate and spike.edit are.
-func sessionsPanelContent(sessions []*session.Session, markers markerSet, selectedID string, tr *i18n.Catalog) string {
+func sessionsPanelContent(sessions []*session.Session, markers markerSet, selectedID string, broadcastMarks map[string]bool, tr *i18n.Catalog) string {
 	if len(sessions) == 0 {
 		return tr.T("sessions.empty")
 	}
@@ -85,20 +99,20 @@ func sessionsPanelContent(sessions []*session.Session, markers markerSet, select
 			detail = sess.Cwd
 		}
 
-		gutter := sessionMarkers(sess, markers, sess.ID == selectedID)
+		gutter := sessionMarkers(sess, markers, sess.ID == selectedID, broadcastMarks[sess.ID])
 		status := statusColumn(sess)
 
-		fmt.Fprintf(&b, "%-3s%-12s %-8s %6d  %s\n", gutter, sess.Name(), status, pid, detail)
+		fmt.Fprintf(&b, "%-4s%-12s %-8s %6d  %s\n", gutter, sess.Name(), status, pid, detail)
 	}
 
 	return b.String()
 }
 
-// sessionMarkers builds a session's gutter, at most three characters wide.
+// sessionMarkers builds a session's gutter, at most four characters wide.
 // The activity marker never applies to the currently selected session: it
 // would otherwise stay lit permanently on the one the user is looking at,
 // since every byte of its output re-arms the underlying latch.
-func sessionMarkers(sess *session.Session, markers markerSet, isSelected bool) string {
+func sessionMarkers(sess *session.Session, markers markerSet, isSelected, isBroadcastMarked bool) string {
 	gutter := ""
 
 	if sess.Screen().BellPending() {
@@ -111,6 +125,10 @@ func sessionMarkers(sess *session.Session, markers markerSet, isSelected bool) s
 
 	if !isSelected && sess.Screen().ActivityPending() {
 		gutter += markers.activity
+	}
+
+	if isBroadcastMarked {
+		gutter += markers.broadcast
 	}
 
 	return gutter
@@ -184,7 +202,7 @@ func (gui *Gui) renderSessionsPanel() error {
 		sess.Screen().ClearActivity()
 	}
 
-	content := sessionsPanelContent(gui.filteredSessions(), gui.markerSet(), selectedID, gui.tr)
+	content := sessionsPanelContent(gui.filteredSessions(), gui.markerSet(), selectedID, gui.broadcastMarks, gui.tr)
 	selected := gui.getSelectedIndex()
 
 	if !gui.sessionsPanelChanged(content, selected) {
