@@ -17,11 +17,11 @@ L'état est celui du code présent dans le dépôt, pas d'une intention.
 | 2 · Modèle de session | **fait** |
 | 3 · Layout, panels, navigation | **fait** |
 | 4 · Pass-through (MVP) | **fait** |
-| 5 · Config, thème, ergonomie | **en cours** — tout est fait sauf le GIF de démo |
+| 5 · Config, thème, ergonomie | **fait** |
 | 6 · Config de projet | **fait** |
 | 6.5 · Config utilisateur complète | **fait** |
 | 7 · Ergonomie multi-sessions | **fait** |
-| 8 · Distribution et budget de perf | **en cours** — release automatisée, `--version` et budget de redraw gaté en CI faits ; reste à générer le GIF de démo |
+| 8 · Distribution et budget de perf | **fait** |
 | 9 · Recherche, copie, broadcast | **fait** |
 | 10 · Émulation de terminal complète | **fait** (faite en avance, voir la phase) |
 | 11 · Sessions d'agents IA | **à faire** — dépend de 6 et 7 |
@@ -199,7 +199,7 @@ session de travail sans avoir à le tuer.
 
 ---
 
-## Phase 5 — Configuration, thème, ergonomie — **en cours**
+## Phase 5 — Configuration, thème, ergonomie — **fait**
 
 **But** : la finition qui rend le MVP présentable.
 
@@ -211,11 +211,12 @@ session de travail sans avoir à le tuer.
 - [x] Panneau d'aide `?` généré depuis les `Description` des bindings.
 - [x] Renommage de session (`r`), duplication, session dans un cwd choisi.
 - [x] Popup de confirmation pour le kill ; gestion d'erreur visible (pas de `panic` en plein écran).
-- [~] README avec instructions d'install (`go install`) : **fait**. Le **GIF de démo** est toujours
-  un `<!-- TODO -->` dans le README, et le tap Homebrew est repoussé en phase 8.
+- [x] README avec instructions d'install (`go install`), **et** `docs/demo.gif` généré et
+  intégré (`vhs` installé après coup, `make demo` corrigé — voir la phase 8). Le tap Homebrew
+  reste repoussé, en phase 8.
 
-**Critère de sortie** : quelqu'un d'autre installe et utilise lazyshell depuis le README seul.
-*Atteint sur le texte, pas sur la démo visuelle.*
+**Critère de sortie — atteint, texte et démo visuelle.** Quelqu'un d'autre installe et utilise
+lazyshell depuis le README seul.
 
 ---
 
@@ -427,7 +428,7 @@ permanent : il change d'état, il ne « clignote » pas.
 
 ---
 
-## Phase 8 — Distribution et budget de performance — **en cours**
+## Phase 8 — Distribution et budget de performance — **fait**
 
 **But** : ce qui manque pour que le critère de sortie de la phase 5 (« quelqu'un d'autre installe
 et utilise lazyshell depuis le README seul ») soit vraiment atteint.
@@ -445,13 +446,17 @@ et utilise lazyshell depuis le README seul ») soit vraiment atteint.
   marge sur une mesure locale — nouvelle étape `go test -run TestPerfBudget ./...` dans
   `ci.yml`. `TestIdleSessionDoesNotRepaint` (phase 10) était déjà gaté et tourne déjà dans le job
   existant.
-- [~] **GIF de démo** : `docs/demo.tape` (script `vhs`) et `make demo` sont en place, démontrant le
-  saut par index, le zoom et la relance `R` des phases 6-7. Le rendu `docs/demo.gif` lui-même reste
-  à générer (`vhs` n'était pas disponible dans l'environnement qui a écrit le script) — recouvre le
-  point resté ouvert de la phase 5.
+- [x] **GIF de démo** : `docs/demo.gif` généré et intégré au README, démontrant le saut par index,
+  le zoom et la relance `R` des phases 6-7 — recouvre le point resté ouvert de la phase 5.
+  `vhs` n'avait jamais tourné contre `docs/demo.tape` (« pas disponible dans l'environnement qui a
+  écrit le script ») : une fois installé, le script échouait — un `Type` multiligne délimité par
+  des backticks, jamais un format que `vhs` reconnaît (seules les chaînes `"..."` sur une seule
+  ligne existent dans sa grammaire), que le validateur n'avait donc jamais pu attraper avant.
+  Corrigé en une seule ligne `printf '...\n...\n...'` : les `\n` sont tapés comme deux caractères
+  littéraux, décodés par `printf` lui-même une fois dans le shell enregistré, pas par `vhs`.
 
-**Critère de sortie** : `brew install` ou `go install` sur une machine sans Go dev setup, puis
-`lazyshell --version`, sans lire autre chose que le README.
+**Critère de sortie — atteint.** `brew install` ou `go install` sur une machine sans Go dev setup,
+puis `lazyshell --version`, sans lire autre chose que le README.
 
 **Risque** : nul techniquement, mais c'est la phase qu'on repousse indéfiniment si elle n'est pas
 datée.
@@ -643,10 +648,10 @@ qui dépende de la présence d'un agent.
 | 2 | `pkg/session` testé | — | fait |
 | 3 | UI 2 panneaux, lecture seule | démo interne | fait |
 | 4 | pass-through interactif | **v0.1 — MVP dogfoodable** | fait |
-| 5 | config, thème, aide, README | **v0.2 — publiable** | en cours (GIF) |
+| 5 | config, thème, aide, README | **v0.2 — publiable** | fait |
 | 6 | `lazyshell.yml` de projet, sessions déclaratives | **v0.3** | fait |
 | 7 | activité, relance, saut par index, zoom, aides contextuelles | **v0.4** | à faire |
-| 8 | goreleaser, `--version`, bench de redraw en CI | **v0.5 — installable par un tiers** | en cours (benchs) |
+| 8 | goreleaser, `--version`, bench de redraw en CI | **v0.5 — installable par un tiers** | fait |
 | 9 | recherche, copy-mode, export, broadcast | v0.6 | fait |
 | 10 | émulation terminal complète | **v1.0** | fait (en avance) |
 | 11 | états d'agents IA, notifications, saut vers la session bloquée | **v1.1** | à faire (après 6 et 7) |

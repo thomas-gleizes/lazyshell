@@ -18,14 +18,11 @@ Type "cd $(mktemp -d)"
 Enter
 Sleep 500ms
 
-Type@10ms `cat > lazyshell.yml <<'EOF'
-sessions:
-  - name: api
-    command: npm run dev
-  - name: build
-    command: 'echo build done && sleep 1 && exit 0'
-  - name: shell
-EOF`
+# A single-line printf rather than a heredoc: vhs's Type only takes one
+# double-quoted string, and does not support a multi-line literal spanning
+# several physical lines of the tape file — \n here is a literal two-character
+# escape typed into the shell, decoded by printf itself, not by vhs.
+Type@5ms "printf 'sessions:\n  - name: api\n    command: npm run dev\n  - name: build\n    command: echo build done && sleep 1 && exit 0\n  - name: shell\n' > lazyshell.yml"
 Enter
 Sleep 500ms
 

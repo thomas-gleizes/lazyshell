@@ -12,8 +12,12 @@ build:
 
 # Regenerates docs/demo.gif from docs/demo.tape. Requires vhs
 # (https://github.com/charmbracelet/vhs) installed locally; not run in CI.
-demo:
-	vhs docs/demo.tape
+# The tape types a bare "lazyshell" — depends on build and prepends bin/ to
+# PATH so the recording exercises what was just compiled, not whatever
+# (possibly stale, possibly absent) lazyshell happens to already be on the
+# machine's PATH.
+demo: build
+	PATH="$(CURDIR)/bin:$$PATH" vhs docs/demo.tape
 
 run:
 	go run $(PKG)
