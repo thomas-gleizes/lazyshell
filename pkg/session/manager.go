@@ -11,6 +11,7 @@ import (
 
 	"github.com/creack/pty"
 
+	"github.com/thomas-gleizes/lazyshell/pkg/agent"
 	"github.com/thomas-gleizes/lazyshell/pkg/screen"
 )
 
@@ -55,6 +56,13 @@ type Manager struct {
 	// Term is the TERM value sessions are started with (pkg/config's Term).
 	// Empty means DefaultTerm.
 	Term string
+
+	// Detector classifies a session's foreground process into an AI agent
+	// state (pkg/agent), consulted from each session's drain goroutine. Nil
+	// means "no manifests loaded" — every session then reports
+	// agent.StateNone, the same as a session running no known agent; this is
+	// NewManager's zero value so every existing test keeps working unchanged.
+	Detector *agent.Detector
 }
 
 // NewManager returns an empty Manager, ready to create sessions.
@@ -180,6 +188,7 @@ func (m *Manager) newSession(id string, opts Options) (*Session, error) {
 		opts:      opts,
 		ptmx:      ptmx,
 		screen:    m.newScreen(defaultCols, defaultRows),
+		detector:  m.Detector,
 		cols:      defaultCols,
 		rows:      defaultRows,
 		done:      make(chan struct{}),

@@ -24,7 +24,7 @@ L'état est celui du code présent dans le dépôt, pas d'une intention.
 | 8 · Distribution et budget de perf | **fait** |
 | 9 · Recherche, copie, broadcast | **fait** |
 | 10 · Émulation de terminal complète | **fait** (faite en avance, voir la phase) |
-| 11 · Sessions d'agents IA | **à faire** — dépend de 6 et 7 |
+| 11 · Sessions d'agents IA | **partielle** — 11a fait, 11b/11c à faire |
 
 ---
 
@@ -553,7 +553,7 @@ phase 1 l'a ramené à une phase d'intégration.
 
 ---
 
-## Phase 11 — Sessions d'agents IA — **à faire**
+## Phase 11 — Sessions d'agents IA — **partielle (11a fait)**
 
 **But** : traiter les CLI d'agents (`claude`, `codex`, `opencode`…) comme des locataires de session
 de première classe — savoir dans quel état ils sont, le montrer, et prévenir quand ils *attendent*.
@@ -571,30 +571,42 @@ réinventerait en double.
 **Le manque visé, en une phrase** : tmux ne distingue pas « il y a eu de l'activité » de « il
 t'attend ». Le marqueur d'activité de la phase 7 est vrai dans les deux cas.
 
-### 11a — Détection sans configuration
+### 11a — Détection sans configuration — **fait**
 
-- [ ] `pkg/agent` : un état à quatre valeurs par session — `idle` / `working` / `blocked` / `done`
-  (le modèle de `herdr`, qui s'est révélé être le bon découpage). `pkg/session` et `pkg/gui` ne
-  connaissent qu'une interface : un agent qui casse dégrade un marqueur, il ne casse rien d'autre.
-- [ ] Identification du process au premier plan du pty (`tcgetpgrp` → `/proc/<pid>/comm` sur Linux,
-  `sysctl` sur macOS) : dit **quel** agent tourne, jamais son état. Seul morceau non portable ajouté
-  par la phase, isolé dans un fichier par OS.
-- [ ] **Manifestes de détection déclaratifs** (YAML, un par agent, fournis dans le dépôt,
-  surchargeables dans `~/.config/lazyshell/agents/`) évalués contre le snapshot d'écran de
-  `pkg/screen` et le titre OSC. Pas de code Go par agent, sinon chaque changement d'UI d'un agent
-  devient une release de lazyshell. **Jamais de mise à jour distante** (`herdr` télécharge les
-  siens : du contenu distant qui pilote l'interprétation de la sortie de terminal — refusé).
-- [ ] `blocked` **strict** : uniquement sur une UI d'approbation/permission explicitement listée,
-  sinon `working`. Un faux « il t'attend » détruit la confiance dans le marqueur plus vite qu'un
-  `blocked` manqué.
-- [ ] Marqueur d'état dans la gouttière de `sessions_panel.go`, à côté de `!` et `#` — à y **ajouter**,
-  pas à mettre à côté.
-- [ ] **Budget de rendu** : l'évaluation tourne dans la goroutine de drain, sur changement d'écran,
-  throttlée (≤ 1 fois / 500 ms / session), **jamais** dans la boucle de rendu.
-  `TestIdleSessionDoesNotRepaint` doit rester à 0 repeint au repos.
+- [x] `pkg/agent` : un état à quatre valeurs par session — `idle` / `working` / `blocked` / `done`
+  (le modèle de `herdr`, qui s'est révélé être le bon découpage), plus `StateNone` pour « ce n'est
+  pas une session d'agent » (une session non reconnue ne doit montrer aucun marqueur, distinct
+  d'« idle »). `pkg/session` et `pkg/gui` ne connaissent qu'une interface : un agent qui casse
+  dégrade un marqueur, il ne casse rien d'autre.
+- [x] Identification du process au premier plan du pty (`tcgetpgrp` → `/proc/<pid>/comm` sur Linux,
+  `sysctl kern.proc.pid` sur macOS via `golang.org/x/sys/unix`) : dit **quel** agent tourne, jamais
+  son état. Seul morceau non portable ajouté par la phase, isolé dans
+  `pkg/session/foreground_{linux,darwin}.go` — premiers fichiers à build tag OS du dépôt.
+- [x] **Manifestes de détection déclaratifs** (YAML, un par agent, embarqués dans le binaire via
+  `//go:embed` pour `claude`/`codex`/`opencode`, surchargeables ou complétables dans
+  `~/.config/lazyshell/agents/` — `config.AgentsDir()`, même racine XDG que `config.Path()`) évalués
+  contre `pkg/screen.PlainTail` (nouveau : texte brut des lignes jusqu'au curseur, pas le SGR de
+  `Render`) et le titre OSC. Pas de code Go par agent. **Jamais de mise à jour distante.**
+- [x] `blocked` **strict**, vérifié à l'écriture du manifeste : `parseManifest` refuse une règle
+  `blocked` qui suivrait une règle non-`blocked`, pour qu'un motif `working` trop large ne puisse
+  jamais masquer un vrai prompt de permission. Défaut sans règle qui matche : `idle`.
+- [x] Marqueur d'état dans la gouttière de `sessions_panel.go`, ajouté après `!`/`#`/`●`/`+` — en
+  **couleur** (SGR brut vert/jaune/rouge/bleu, gocui étant déjà en `OutputTrue` depuis la phase 10).
+  Détail non anticipé par ce plan : une couleur intégrée au texte de la gouttière rend la largeur en
+  octets différente de la largeur visible, ce que le `%-4s` existant ne pouvait pas gérer — remplacé
+  par un padding manuel sur la longueur visible (`gutterColumns`, passé à 5).
+- [x] **Budget de rendu** : l'évaluation tourne dans la goroutine de drain (via un petit `io.Writer`
+  intercalé devant `s.screen`, pour ne pas perturber le fast-path `io.Copy`/`WriteTo` dont dépendait
+  un test existant), throttlée (≤ 1 fois / 500 ms / session), **jamais** dans la boucle de rendu.
+  Affiné en cours de route : une vérification simplement « sautée » pendant la fenêtre de throttle
+  pouvait perdre pour de bon l'état d'une salve de sortie qui se termine par un silence (exactement
+  le cas d'un prompt de permission juste avant que l'agent n'attende) — un rattrapage différé unique
+  est désormais armé pour la fin de la fenêtre. `TestIdleSessionDoesNotRepaint` reste à 0 repeint au
+  repos.
 
-*Critère de sortie de 11a : lancer `claude` dans une session, voir l'état changer sans avoir touché
-à un seul fichier de configuration.*
+*Critère de sortie de 11a — atteint : un manifeste de test (le mécanisme est vérifié de bout en
+bout avec de vrais pty dans `pkg/session` et `pkg/gui`) fait passer l'état d'une session de `idle` à
+`working` sans qu'aucun fichier de configuration n'existe.*
 
 ### 11b — Canal autoritatif (hooks des agents)
 
@@ -654,7 +666,7 @@ qui dépende de la présence d'un agent.
 | 8 | goreleaser, `--version`, bench de redraw en CI | **v0.5 — installable par un tiers** | fait |
 | 9 | recherche, copy-mode, export, broadcast | v0.6 | fait |
 | 10 | émulation terminal complète | **v1.0** | fait (en avance) |
-| 11 | états d'agents IA, notifications, saut vers la session bloquée | **v1.1** | à faire (après 6 et 7) |
+| 11 | états d'agents IA, notifications, saut vers la session bloquée | **v1.1** | 11a fait, 11b/11c à faire |
 
 ## Décisions déjà actées (ne pas re-débattre)
 

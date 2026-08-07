@@ -1,0 +1,15 @@
+# Detection manifest for Claude Code (claude). Evaluated against the plain
+# text of the visible screen and the terminal title — no code change needed
+# in lazyshell when Claude's UI changes, only this file.
+#
+# Rule order matters: the first matching rule wins, and every "blocked" rule
+# must come before any other state (enforced at load time) so a broad
+# "working" pattern never shadows a precise permission prompt.
+process: claude
+rules:
+  - state: blocked
+    screen_pattern: '(?i)(do you want to proceed|do you want to make this edit|allow.*(this|claude) to)'
+  - state: working
+    screen_pattern: '(?i)(esc to interrupt|thinking…|generating…)'
+  - state: done
+    title_pattern: '(?i)^\s*✳?\s*claude\s*$'

@@ -159,6 +159,10 @@ used instead — never a silent no-op, never a refusal to run.
 | `markers.alt_screen` | 0–1 char | `#` | Gutter marker for a session running a full-screen application. `""` turns it off. |
 | `markers.activity` | 0–1 char | `●` | Gutter marker for a session that produced output while hidden. `""` turns it off. |
 | `markers.broadcast` | 0–1 char | `+` | Gutter marker for a session marked to receive broadcast keystrokes. `""` turns it off. |
+| `markers.agent_idle` | 0–1 char | `·` | Gutter marker for a detected AI agent session that is idle. `""` turns it off. |
+| `markers.agent_working` | 0–1 char | `…` | Gutter marker for a detected AI agent session that is working. `""` turns it off. |
+| `markers.agent_blocked` | 0–1 char | `‼` | Gutter marker for a detected AI agent session waiting on you. `""` turns it off. |
+| `markers.agent_done` | 0–1 char | `✓` | Gutter marker for a detected AI agent session that finished its turn. `""` turns it off. |
 | `scroll.page_lines` | int ≥ 0 | `0` | Lines `PgUp`/`PgDn` move by. `0` means one full panel height. |
 | `scroll.half_page_divisor` | int ≥ 1 | `2` | `Ctrl-U`/`Ctrl-D` move by the panel height divided by this. |
 | `theme.active_border_color` | color | `green` | Focused panel's border. |
@@ -236,6 +240,10 @@ markers:
   alt_screen: "#"
   activity: "●"
   broadcast: "+"
+  agent_idle: "·"
+  agent_working: "…"
+  agent_blocked: "‼"
+  agent_done: "✓"
 
 scroll:
   page_lines: 0
@@ -250,6 +258,22 @@ theme:
 clipboard:
   fallback_command: ""
 ```
+
+### AI agent sessions
+
+A session whose foreground process is a known AI coding agent CLI (`claude`,
+`codex`, `opencode`) gets a gutter marker showing its detected state — `idle`,
+`working`, `blocked` (waiting on you) or `done` — instead of only the generic
+activity marker, which cannot tell "it produced output" from "it wants an
+answer". Detection needs no configuration: it reads the built-in manifests
+under `pkg/agent/manifests` against the session's visible screen and terminal
+title.
+
+Drop a `<process-name>.yml` file in `~/.config/lazyshell/agents/` (or your
+`$XDG_CONFIG_HOME` equivalent) to override a built-in manifest or add one for
+another agent — same file name as a built-in replaces it outright, a
+different name adds to the set. See the built-in manifests for the format.
+Manifests are local only; lazyshell never fetches one over the network.
 
 ## Project configuration
 

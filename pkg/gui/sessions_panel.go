@@ -7,6 +7,7 @@ import (
 
 	"github.com/jesseduffield/gocui"
 
+	"github.com/thomas-gleizes/lazyshell/pkg/agent"
 	"github.com/thomas-gleizes/lazyshell/pkg/config"
 	"github.com/thomas-gleizes/lazyshell/pkg/i18n"
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
@@ -32,39 +33,104 @@ const (
 	// (pkg/gui/broadcast.go) — set on 2 or more sessions at once, it is what
 	// arms the actual diffusion.
 	broadcastMarker = "+"
+	// agentIdleMarker/agentWorkingMarker/agentBlockedMarker/agentDoneMarker
+	// flag a detected AI agent session's state (pkg/agent) — distinct from
+	// activityMarker, which only means "produced output": these mean "is it
+	// waiting on you". Rendered in color (see agentStateColor) on top of the
+	// glyph, so the four states stay visually distinct even at a glance.
+	agentIdleMarker    = "·"
+	agentWorkingMarker = "…"
+	agentBlockedMarker = "‼"
+	agentDoneMarker    = "✓"
 )
 
-// markerSet is the resolved quadruple of gutter characters, so
-// sessionsPanelContent stays a pure function of its inputs rather than
-// reaching into a Gui.
+// gutterColumns is the gutter's width, in characters: one per marker kind.
+// sessionsPanelContent pads to this manually rather than through a Printf
+// width spec, because the agent marker's color escape codes are part of the
+// string's byte length but must not count towards its visible width.
+const gutterColumns = 5
+
+// markerSet is the resolved set of gutter characters, so sessionsPanelContent
+// stays a pure function of its inputs rather than reaching into a Gui.
 type markerSet struct {
 	bell      string
 	altScreen string
 	activity  string
 	broadcast string
+
+	agentIdle    string
+	agentWorking string
+	agentBlocked string
+	agentDone    string
 }
 
 // markerSet resolves the configured markers against the built-in defaults. A
 // marker the user explicitly set to "" stays empty — that is how you turn one
 // off — which is why this cannot be a plain "empty means default" merge on the
-// already-merged config: pkg/config's Default() has already filled all four, so
+// already-merged config: pkg/config's Default() has already filled all eight, so
 // anything empty at this point was asked for.
 func (gui *Gui) markerSet() markerSet {
 	set := markerSet{
-		bell:      gui.markers.Bell,
-		altScreen: gui.markers.AltScreen,
-		activity:  gui.markers.Activity,
-		broadcast: gui.markers.Broadcast,
+		bell:         gui.markers.Bell,
+		altScreen:    gui.markers.AltScreen,
+		activity:     gui.markers.Activity,
+		broadcast:    gui.markers.Broadcast,
+		agentIdle:    gui.markers.AgentIdle,
+		agentWorking: gui.markers.AgentWorking,
+		agentBlocked: gui.markers.AgentBlocked,
+		agentDone:    gui.markers.AgentDone,
 	}
 
 	// The zero-value Gui case only: a bare struct literal (tests) never went
-	// through config.Default, so all four fields are empty at once and mean
+	// through config.Default, so every field is empty at once and means
 	// "nothing was configured" rather than "all were turned off".
 	if gui.markers == (config.Markers{}) {
 		set.bell, set.altScreen, set.activity, set.broadcast = bellMarker, altScreenMarker, activityMarker, broadcastMarker
+		set.agentIdle, set.agentWorking, set.agentBlocked, set.agentDone =
+			agentIdleMarker, agentWorkingMarker, agentBlockedMarker, agentDoneMarker
 	}
 
 	return set
+}
+
+// agentMarker returns the configured glyph for state and the raw ANSI SGR
+// foreground code to wrap it in — "" for agent.StateNone, which draws
+// nothing, and for a state whose marker was explicitly turned off. Fixed,
+// non-theme colors on purpose: they mirror herdr's idle/working/blocked/done
+// convention (green/yellow/red/blue) rather than adding a themeable surface
+// this phase's design report never asked for.
+func (set markerSet) agentMarker(state agent.State) (glyph, sgrCode string) {
+	switch state {
+	case agent.StateIdle:
+		glyph, sgrCode = set.agentIdle, "32"
+	case agent.StateWorking:
+		glyph, sgrCode = set.agentWorking, "33"
+	case agent.StateBlocked:
+		glyph, sgrCode = set.agentBlocked, "31"
+	case agent.StateDone:
+		glyph, sgrCode = set.agentDone, "34"
+	default:
+		return "", ""
+	}
+
+	if glyph == "" {
+		return "", ""
+	}
+
+	return glyph, sgrCode
+}
+
+// colorizeMarker wraps ch in a raw ANSI SGR foreground code, reset
+// immediately after — gocui has rendered in OutputTrue (truecolor) mode
+// since phase 10, so an 8-color SGR sequence embedded directly in view
+// content renders as intended. Returns ch unchanged if code is empty (marker
+// turned off) or ch is empty (nothing to color).
+func colorizeMarker(ch, sgrCode string) string {
+	if ch == "" || sgrCode == "" {
+		return ch
+	}
+
+	return "\x1b[" + sgrCode + "m" + ch + "\x1b[0m"
 }
 
 // sessionsPanelContent renders one line per session: a four-column gutter of
@@ -102,16 +168,24 @@ func sessionsPanelContent(sessions []*session.Session, markers markerSet, select
 		gutter := sessionMarkers(sess, markers, sess.ID == selectedID, broadcastMarks[sess.ID])
 		status := statusColumn(sess)
 
-		fmt.Fprintf(&b, "%-4s%-12s %-8s %6d  %s\n", gutter, sess.Name(), status, pid, detail)
+		// gutter is already padded to gutterColumns visible characters by
+		// sessionMarkers (its raw byte length can run longer than that once
+		// it carries a colorized marker) — %s here, not a width spec.
+		fmt.Fprintf(&b, "%s%-12s %-8s %6d  %s\n", gutter, sess.Name(), status, pid, detail)
 	}
 
 	return b.String()
 }
 
-// sessionMarkers builds a session's gutter, at most four characters wide.
-// The activity marker never applies to the currently selected session: it
-// would otherwise stay lit permanently on the one the user is looking at,
-// since every byte of its output re-arms the underlying latch.
+// sessionMarkers builds a session's gutter, padded to gutterColumns visible
+// characters. The activity marker never applies to the currently selected
+// session: it would otherwise stay lit permanently on the one the user is
+// looking at, since every byte of its output re-arms the underlying latch.
+//
+// The agent marker is appended last and, unlike the other four, may be
+// wrapped in color — which is why padding happens here, on the plain-text
+// length, rather than through a Printf width spec in the caller: an SGR
+// sequence's bytes must not count towards the column it visually occupies.
 func sessionMarkers(sess *session.Session, markers markerSet, isSelected, isBroadcastMarked bool) string {
 	gutter := ""
 
@@ -129,6 +203,17 @@ func sessionMarkers(sess *session.Session, markers markerSet, isSelected, isBroa
 
 	if isBroadcastMarked {
 		gutter += markers.broadcast
+	}
+
+	visibleLen := len([]rune(gutter))
+
+	if glyph, sgrCode := markers.agentMarker(sess.AgentState()); glyph != "" {
+		gutter += colorizeMarker(glyph, sgrCode)
+		visibleLen++
+	}
+
+	if pad := gutterColumns - visibleLen; pad > 0 {
+		gutter += strings.Repeat(" ", pad)
 	}
 
 	return gutter

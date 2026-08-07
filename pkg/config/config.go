@@ -51,6 +51,15 @@ const (
 	defaultAltScreenMarker = "#"
 	defaultActivityMarker  = "●"
 	defaultBroadcastMarker = "+"
+	// defaultAgentIdleMarker/defaultAgentWorkingMarker/defaultAgentBlockedMarker/
+	// defaultAgentDoneMarker are the gutter markers for an AI agent session's
+	// detected state (pkg/agent, pkg/gui/sessions_panel.go). Distinct from
+	// activityMarker on purpose: activity only means "produced output", these
+	// mean "is it waiting on you".
+	defaultAgentIdleMarker    = "·"
+	defaultAgentWorkingMarker = "…"
+	defaultAgentBlockedMarker = "‼"
+	defaultAgentDoneMarker    = "✓"
 	// defaultHalfPageDivisor is what the output panel's height is divided by for
 	// a Ctrl-U/Ctrl-D scroll (pkg/gui/input.go's scrollHalfPage).
 	defaultHalfPageDivisor = 2
@@ -148,6 +157,13 @@ type Markers struct {
 	Activity string `yaml:"activity"`
 	// Broadcast flags a session marked to receive broadcast keystrokes.
 	Broadcast string `yaml:"broadcast"`
+	// AgentIdle/AgentWorking/AgentBlocked/AgentDone flag a detected AI agent
+	// session's state (pkg/agent) — idle, working, waiting on you, or done
+	// with its turn. Empty for a session that is not running a known agent.
+	AgentIdle    string `yaml:"agent_idle"`
+	AgentWorking string `yaml:"agent_working"`
+	AgentBlocked string `yaml:"agent_blocked"`
+	AgentDone    string `yaml:"agent_done"`
 }
 
 // Clipboard configures how copy-mode's yank leaves lazyshell. There is no
@@ -189,10 +205,14 @@ func Default() Config {
 		PrefixKey:           defaultPrefixKey,
 		Keybindings:         map[string]string{},
 		Markers: Markers{
-			Bell:      defaultBellMarker,
-			AltScreen: defaultAltScreenMarker,
-			Activity:  defaultActivityMarker,
-			Broadcast: defaultBroadcastMarker,
+			Bell:         defaultBellMarker,
+			AltScreen:    defaultAltScreenMarker,
+			Activity:     defaultActivityMarker,
+			Broadcast:    defaultBroadcastMarker,
+			AgentIdle:    defaultAgentIdleMarker,
+			AgentWorking: defaultAgentWorkingMarker,
+			AgentBlocked: defaultAgentBlockedMarker,
+			AgentDone:    defaultAgentDoneMarker,
 		},
 		Scroll: Scroll{
 			PageLines:       0,
@@ -210,6 +230,31 @@ func Path() string {
 		return p
 	}
 
+	dir := configDir()
+	if dir == "" {
+		return ""
+	}
+
+	return filepath.Join(dir, "config.yml")
+}
+
+// AgentsDir resolves the directory pkg/agent scans for user-supplied AI
+// agent detection manifests that override or extend the built-in ones —
+// $XDG_CONFIG_HOME/lazyshell/agents, else ~/.config/lazyshell/agents. Shares
+// Path's XDG resolution rather than $LAZYSHELL_CONFIG, which names a single
+// file, not a directory to derive one from.
+func AgentsDir() string {
+	dir := configDir()
+	if dir == "" {
+		return ""
+	}
+
+	return filepath.Join(dir, "agents")
+}
+
+// configDir is lazyshell's config directory, shared by Path and AgentsDir:
+// $XDG_CONFIG_HOME/lazyshell, else ~/.config/lazyshell.
+func configDir() string {
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
 		home, err := os.UserHomeDir()
@@ -220,7 +265,7 @@ func Path() string {
 		base = filepath.Join(home, ".config")
 	}
 
-	return filepath.Join(base, "lazyshell", "config.yml")
+	return filepath.Join(base, "lazyshell")
 }
 
 // Load reads the YAML file at path and merges it onto Default(). A missing

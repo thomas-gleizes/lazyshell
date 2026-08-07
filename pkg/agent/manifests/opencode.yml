@@ -1,0 +1,12 @@
+# Detection manifest for opencode. See claude.yml for the format and the
+# rule-ordering constraint. opencode's richest signal (SSE session.status,
+# permission.updated) is only available over the hook channel (phase 11b);
+# this screen-only manifest is the zero-configuration fallback.
+process: opencode
+rules:
+  - state: blocked
+    screen_pattern: '(?i)(grant permission|allow this|approve this)'
+  - state: working
+    screen_pattern: '(?i)(working…|esc to interrupt)'
+  - state: done
+    title_pattern: '(?i)^\s*opencode\s*$'

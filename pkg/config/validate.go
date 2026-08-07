@@ -72,6 +72,22 @@ func (c *Config) Validate() []error {
 		errs = append(errs, err)
 	}
 
+	if err := singleColumn("markers.agent_idle", &c.Markers.AgentIdle, def.Markers.AgentIdle); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := singleColumn("markers.agent_working", &c.Markers.AgentWorking, def.Markers.AgentWorking); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := singleColumn("markers.agent_blocked", &c.Markers.AgentBlocked, def.Markers.AgentBlocked); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := singleColumn("markers.agent_done", &c.Markers.AgentDone, def.Markers.AgentDone); err != nil {
+		errs = append(errs, err)
+	}
+
 	return errs
 }
 

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/thomas-gleizes/lazyshell/pkg/agent"
 	"github.com/thomas-gleizes/lazyshell/pkg/config"
 	"github.com/thomas-gleizes/lazyshell/pkg/gui"
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
@@ -91,6 +92,13 @@ func newApp(opts Options, approve approver, errOut io.Writer) *App {
 
 	if cfg.KillTimeoutMs > 0 {
 		sessions.KillTimeout = time.Duration(cfg.KillTimeoutMs) * time.Millisecond
+	}
+
+	detector, warnings := agent.LoadManifests(config.AgentsDir())
+	sessions.Detector = detector
+
+	for _, w := range warnings {
+		fmt.Fprintf(errOut, "lazyshell: %v\n", w)
 	}
 
 	switch {

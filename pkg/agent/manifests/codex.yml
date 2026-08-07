@@ -1,0 +1,10 @@
+# Detection manifest for OpenAI Codex CLI (codex). See claude.yml for the
+# format and the rule-ordering constraint.
+process: codex
+rules:
+  - state: blocked
+    screen_pattern: '(?i)(allow command|approve|press y to|\[y/n\])'
+  - state: working
+    screen_pattern: '(?i)(running…|thinking…|esc to interrupt)'
+  - state: done
+    title_pattern: '(?i)^\s*codex\s*$'

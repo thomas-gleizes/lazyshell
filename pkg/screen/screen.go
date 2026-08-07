@@ -223,6 +223,54 @@ func (s *Screen) liveLine(y, cols int) uv.Line {
 	return line
 }
 
+// PlainTail returns the plain text (no SGR) of the n lines ending at the
+// cursor's current row, oldest first, joined by "\n" — pkg/agent's manifest
+// evaluator reads this instead of Render/RenderAt because a regex has no
+// business seeing color codes. Bounded by the cursor rather than by the
+// bottom of the fixed-size screen buffer: on a screen that has not filled
+// yet (the common case — a shell prompt a few lines in), the rows below the
+// cursor are simply unwritten, and a literal "last n rows of the screen"
+// would return blank lines instead of what was actually just printed. n is
+// clamped to what is available; n <= 0 returns "".
+func (s *Screen) PlainTail(n int) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if n <= 0 {
+		return ""
+	}
+
+	scrollback := s.term.Scrollback()
+	scrollbackLen := scrollback.Len()
+	cols := s.term.Width()
+
+	cursorAbs := scrollbackLen + s.term.CursorPosition().Y
+
+	fromAbs := cursorAbs - n + 1
+	if fromAbs < 0 {
+		fromAbs = 0
+	}
+
+	var b strings.Builder
+	for i := fromAbs; i <= cursorAbs; i++ {
+		var line uv.Line
+		if i < scrollbackLen {
+			line = scrollback.Line(i)
+		} else {
+			line = s.liveLine(i-scrollbackLen, cols)
+		}
+
+		text, _ := cellText(line)
+
+		if i > fromAbs {
+			b.WriteByte('\n')
+		}
+		b.WriteString(strings.TrimRight(text, " "))
+	}
+
+	return b.String()
+}
+
 // Resize changes the emulated geometry. The caller is responsible for calling
 // pty.Setsize as well, so the shell learns about it too.
 func (s *Screen) Resize(cols, rows int) {
