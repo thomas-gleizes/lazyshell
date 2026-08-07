@@ -52,13 +52,18 @@ func (gui *Gui) showOutput(sess *session.Session) {
 	passThrough := gui.passThroughActive
 	pattern := gui.searchPattern
 
+	selFrom, selTo := -1, -1
+	if gui.copyModeActive {
+		selFrom, selTo = gui.copySelectionRange()
+	}
+
 	var (
 		previous outputFrame
 		drawn    bool
 	)
 
 	gui.outputTasks.NewTickerTask(gui.tick(), func(context.Context) {
-		frame := buildOutputFrame(sess, offset, passThrough, pattern)
+		frame := buildOutputFrame(sess, offset, passThrough, pattern, selFrom, selTo)
 
 		if drawn && frame == previous {
 			return
@@ -87,11 +92,23 @@ func (gui *Gui) showOutput(sess *session.Session) {
 
 // buildOutputFrame reads everything this tick needs from the session's
 // emulator. Runs on the task's own goroutine, so it touches no Gui state:
-// offset, passThrough and pattern were captured by showOutput on gocui's.
-func buildOutputFrame(sess *session.Session, offset int, passThrough bool, pattern string) outputFrame {
+// offset, passThrough, pattern and the selFrom/selTo copy-mode range were
+// captured by showOutput on gocui's. selFrom < 0 means "no selection" — the
+// pattern is what the panel highlights instead in that case, the same
+// tradeoff RenderAt already makes; the two never both apply, since entering
+// copy-mode and starting a search are mutually exclusive (see
+// editDuringScroll).
+func buildOutputFrame(sess *session.Session, offset int, passThrough bool, pattern string, selFrom, selTo int) outputFrame {
 	scr := sess.Screen()
 
-	frame := outputFrame{content: scr.RenderAt(offset, pattern)}
+	var content string
+	if selFrom >= 0 {
+		content = scr.RenderAtSelection(offset, selFrom, selTo)
+	} else {
+		content = scr.RenderAt(offset, pattern)
+	}
+
+	frame := outputFrame{content: content}
 
 	// The cursor is only meaningful on the live screen: scrolled back, the
 	// user is looking at history the cursor is not in. And it is only drawn

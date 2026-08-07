@@ -132,9 +132,11 @@ func statusColumn(sess *session.Session) string {
 
 // selectedSession returns the session at the current selection, clamped to
 // the current list bounds (the list can shrink under us — a session can exit
-// or be killed while it is selected), or nil if there is none.
+// or be killed while it is selected, or a filter can hide it), or nil if
+// there is none. Addresses gui.filteredSessions(), not the manager's raw
+// list, so this always agrees with what is actually on screen.
 func (gui *Gui) selectedSession() *session.Session {
-	sessions := gui.sessions.List()
+	sessions := gui.filteredSessions()
 	if len(sessions) == 0 {
 		return nil
 	}
@@ -182,7 +184,7 @@ func (gui *Gui) renderSessionsPanel() error {
 		sess.Screen().ClearActivity()
 	}
 
-	content := sessionsPanelContent(gui.sessions.List(), gui.markerSet(), selectedID, gui.tr)
+	content := sessionsPanelContent(gui.filteredSessions(), gui.markerSet(), selectedID, gui.tr)
 	selected := gui.getSelectedIndex()
 
 	if !gui.sessionsPanelChanged(content, selected) {
@@ -239,7 +241,7 @@ func (gui *Gui) invalidateSessionsPanel() {
 // list bounds, and shows the newly selected session's output.
 func (gui *Gui) selectionMoved(delta int) func(*gocui.Gui, *gocui.View) error {
 	return func(*gocui.Gui, *gocui.View) error {
-		sessions := gui.sessions.List()
+		sessions := gui.filteredSessions()
 		if len(sessions) == 0 {
 			return nil
 		}
@@ -262,7 +264,7 @@ func (gui *Gui) selectionMoved(delta int) func(*gocui.Gui, *gocui.View) error {
 // with 5 sessions open is not a mistake worth interrupting the user over.
 func (gui *Gui) selectIndex(i int) func(*gocui.Gui, *gocui.View) error {
 	return func(*gocui.Gui, *gocui.View) error {
-		if i >= len(gui.sessions.List()) {
+		if i >= len(gui.filteredSessions()) {
 			return nil
 		}
 
@@ -413,9 +415,15 @@ func (gui *Gui) newSessionInDir(*gocui.Gui, *gocui.View) error {
 }
 
 // selectNewlyCreatedSession moves the selection to the last session in the
-// list (creation always appends) and starts rendering its output — the
-// common tail of newSession, duplicateSession and newSessionInDir.
+// manager's list (creation always appends) and starts rendering its output —
+// the common tail of newSession, duplicateSession and newSessionInDir.
+//
+// Clears any active filter first: a filter that does not happen to match the
+// name of a session just created would otherwise hide the very thing the
+// user just asked for, with setSelectedIndex pointing at an index in a
+// filtered list the new session was never added to.
 func (gui *Gui) selectNewlyCreatedSession() error {
+	gui.filterPattern = ""
 	gui.setSelectedIndex(len(gui.sessions.List()) - 1)
 	gui.onSelectionChanged()
 

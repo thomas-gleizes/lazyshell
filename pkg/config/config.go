@@ -115,6 +115,8 @@ type Config struct {
 	// Theme overrides the UI's colors. An empty field keeps its built-in
 	// default (see pkg/gui's Theme/defaultTheme).
 	Theme Theme `yaml:"theme"`
+	// Clipboard configures copy-mode's yank.
+	Clipboard Clipboard `yaml:"clipboard"`
 
 	// Warnings lists the keys the file contained but this struct has no field
 	// for, so that a typo says why it does nothing instead of being silently
@@ -142,6 +144,17 @@ type Markers struct {
 	// Activity flags a session that produced output since it was last looked
 	// at, other than the one currently selected.
 	Activity string `yaml:"activity"`
+}
+
+// Clipboard configures how copy-mode's yank leaves lazyshell. There is no
+// reliable way to detect whether the host terminal actually accepted an OSC
+// 52 sequence, so this is a manual switch rather than a fallback the code
+// decides on its own: empty means "OSC 52 only", the choice that works
+// through SSH and needs no binary installed; set means "run this command
+// instead, with the yanked text on its stdin" — for a terminal that does not
+// support OSC 52.
+type Clipboard struct {
+	FallbackCommand string `yaml:"fallback_command"`
 }
 
 // Scroll is how far the output panel moves per scrolling keystroke.
@@ -180,6 +193,7 @@ func Default() Config {
 			PageLines:       0,
 			HalfPageDivisor: defaultHalfPageDivisor,
 		},
+		Clipboard: Clipboard{FallbackCommand: ""},
 	}
 }
 

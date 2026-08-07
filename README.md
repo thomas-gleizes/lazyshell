@@ -66,6 +66,10 @@ While the **output panel** is focused, these apply instead:
 | `Ctrl+B` (configurable) | Reprendre le clavier, depuis le mode pass-through |
 | `PgUp` / `PgDn` | Défiler d'un écran dans l'historique |
 | `Ctrl+U` / `Ctrl+D` | Défiler d'un demi-écran |
+| `/` | Rechercher dans l'historique ; `n` / `N` pour l'occurrence suivante/précédente |
+| `v` | Démarrer (ou étendre) une sélection de lignes — mode copie |
+| `y` ou un second `v` | Copier la sélection (OSC 52, ou la commande de repli configurée) |
+| `Esc` | Quitter la recherche ou annuler la sélection en cours |
 
 Each panel also carries its own most-used keys on the bottom line of its
 frame, so the common ones are readable without opening `?`. The list shortens
@@ -85,8 +89,9 @@ working directory.
 | `#` | A full-screen application (`vim`, `htop`, `less`) has the session. Shown as `[ALT]` in the status bar for the selected one. |
 
 While a full-screen application is in control, scrolling back through history
-is disabled — the alternate screen does not feed the scrollback, and those keys
-belong to the application. `lazyshell` never switches mode on its own: use `i`
+— and copy-mode, which selects out of that same history — is disabled: the
+alternate screen does not feed the scrollback, and those keys belong to the
+application. `lazyshell` never switches mode on its own: use `i`
 or `Enter` to give the keyboard to the shell, and the prefix key to take it
 back.
 
@@ -144,6 +149,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `theme.inactive_border_color` | color | `default` | Every other panel's border. |
 | `theme.selected_bg_color` | color | `blue` | Selected line's background in the sessions list. |
 | `theme.pass_through_border_color` | color | `red` | Focused panel's border while in pass-through mode. |
+| `clipboard.fallback_command` | string | `""` | Command run with the yanked text on its stdin, instead of OSC 52, for a terminal that does not support it. There is no way to detect support, so this is a manual switch: empty means OSC 52 only. |
 
 Key specs use `gocui.Parse` syntax: a bare character (`n`), or `Ctrl+N`,
 `Alt+Space`, `Tab`, `Esc`.
@@ -165,8 +171,8 @@ terminal shows as *bright* blue. lazyshell resolves the ANSI names first, so
 
 The remappable action ids are `new_session`, `new_session_in_dir`,
 `kill_session`, `rename_session`, `duplicate_session`, `restart_session`,
-`zoom`, `select_next`, `select_prev`, `cycle_focus`, `help` and `quit`. An id
-outside that list is reported rather than ignored.
+`zoom`, `filter_sessions`, `select_next`, `select_prev`, `cycle_focus`, `help`
+and `quit`. An id outside that list is reported rather than ignored.
 
 ### Example
 
@@ -199,6 +205,7 @@ keybindings:
   duplicate_session: "c"
   restart_session: "R"
   zoom: "z"
+  filter_sessions: "/"
   select_next: "j"
   select_prev: "k"
   cycle_focus: Tab
@@ -219,6 +226,9 @@ theme:
   inactive_border_color: default
   selected_bg_color: blue
   pass_through_border_color: red
+
+clipboard:
+  fallback_command: ""
 ```
 
 ## Project configuration

@@ -154,30 +154,57 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 	_, rows := view.Size()
 
 	switch {
-	case ch == 'i' || key == gocui.KeyEnter:
+	// Copy-mode's own keys come first and win over everything below: while
+	// selecting, j/k/arrows extend the selection instead of doing nothing,
+	// and Esc cancels the selection rather than falling through to search's
+	// Esc handler (searchActive() and copyModeActive are not expected to
+	// overlap, but the order settles it either way).
+	case gui.copyModeActive && key == gocui.KeyEsc && ch == 0:
+		gui.cancelCopyMode()
+
+		return true
+	case gui.copyModeActive && (ch == 'y' || ch == 'v'):
+		gui.yankCopySelection()
+
+		return true
+	case gui.copyModeActive && (ch == 'j' || key == gocui.KeyArrowDown):
+		gui.moveCopyCursor(1, rows)
+
+		return true
+	case gui.copyModeActive && (ch == 'k' || key == gocui.KeyArrowUp):
+		gui.moveCopyCursor(-1, rows)
+
+		return true
+
+	case (ch == 'i' || key == gocui.KeyEnter) && !gui.copyModeActive:
 		gui.enterPassThrough()
 
 		return true
 
-	case key == gocui.KeyPgup:
+	case ch == 'v' && !gui.copyModeActive:
+		gui.enterCopyMode()
+
+		return true
+
+	case key == gocui.KeyPgup && !gui.copyModeActive:
 		gui.scrollBy(gui.pageStep(rows))
 
 		return true
-	case key == gocui.KeyCtrlU:
+	case key == gocui.KeyCtrlU && !gui.copyModeActive:
 		gui.scrollBy(gui.halfPageStep(rows))
 
 		return true
 
-	case key == gocui.KeyPgdn:
+	case key == gocui.KeyPgdn && !gui.copyModeActive:
 		gui.scrollBy(-gui.pageStep(rows))
 
 		return true
-	case key == gocui.KeyCtrlD:
+	case key == gocui.KeyCtrlD && !gui.copyModeActive:
 		gui.scrollBy(-gui.halfPageStep(rows))
 
 		return true
 
-	case ch == '/':
+	case ch == '/' && !gui.copyModeActive:
 		_ = gui.showSearch(gui.g, view)
 
 		return true

@@ -61,6 +61,14 @@ var messages = map[string]map[string]string{
 		"fr": "Aller directement à la session %d",
 		"en": "Jump directly to session %d",
 	},
+	"action.filter_sessions": {
+		"fr": "Filtrer la liste des sessions",
+		"en": "Filter the sessions list",
+	},
+	"action.clear_filter": {
+		"fr": "Effacer le filtre de la liste des sessions",
+		"en": "Clear the sessions list filter",
+	},
 
 	"help.title": {
 		"fr": " aide ",
@@ -82,6 +90,14 @@ var messages = map[string]map[string]string{
 	"status.search": {
 		"fr": " /%s : %d/%d occurrence(s) ",
 		"en": " /%s: %d/%d match(es) ",
+	},
+	"status.filter": {
+		"fr": " filtre : %q — %d session(s) ",
+		"en": " filter: %q — %d session(s) ",
+	},
+	"status.copymode": {
+		"fr": " -- SÉLECTION -- %d ligne(s) — y : copier, Esc : annuler ",
+		"en": " -- SELECT -- %d line(s) — y: copy, Esc: cancel ",
 	},
 
 	"sessions.empty": {
@@ -118,6 +134,16 @@ var messages = map[string]map[string]string{
 	"search.no_matches": {
 		"fr": "aucune occurrence pour %q",
 		"en": "no matches for %q",
+	},
+
+	"filter.title": {
+		"fr": "filtrer les sessions",
+		"en": "filter sessions",
+	},
+
+	"copymode.copy_failed": {
+		"fr": "copie impossible : %s",
+		"en": "copy failed: %s",
 	},
 
 	"input.session_exited": {
@@ -157,6 +183,10 @@ var messages = map[string]map[string]string{
 		"fr": "zoom",
 		"en": "zoom",
 	},
+	"footer.filter": {
+		"fr": "filtrer",
+		"en": "filter",
+	},
 	"footer.exit_passthrough": {
 		"fr": "sortir",
 		"en": "exit",
@@ -184,5 +214,21 @@ var messages = map[string]map[string]string{
 	"footer.search_clear": {
 		"fr": "quitter la recherche",
 		"en": "exit search",
+	},
+	"footer.copymode_enter": {
+		"fr": "sélectionner",
+		"en": "select",
+	},
+	"footer.copymode_move": {
+		"fr": "étendre la sélection",
+		"en": "extend selection",
+	},
+	"footer.copymode_yank": {
+		"fr": "copier",
+		"en": "copy",
+	},
+	"footer.copymode_cancel": {
+		"fr": "annuler",
+		"en": "cancel",
 	},
 }

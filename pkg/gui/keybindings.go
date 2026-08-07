@@ -174,6 +174,21 @@ func (gui *Gui) staticBindings() []Binding {
 			Handler:     gui.toggleZoom,
 			Description: gui.tr.T("action.zoom"),
 		},
+		{
+			ViewName:    sessionsViewName,
+			Action:      "filter_sessions",
+			Key:         '/',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.showFilter,
+			Description: gui.tr.T("action.filter_sessions"),
+		},
+		{
+			ViewName:    sessionsViewName,
+			Key:         gocui.KeyEsc,
+			Modifier:    gocui.ModNone,
+			Handler:     gui.clearFilterKey,
+			Description: gui.tr.T("action.clear_filter"),
+		},
 	}
 }
 

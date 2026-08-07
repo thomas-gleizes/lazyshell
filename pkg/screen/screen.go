@@ -165,13 +165,14 @@ func (s *Screen) RenderAt(offset int, highlight string) string {
 	return lines.Render()
 }
 
-// linesAt builds the raw uv.Lines window offset lines back from the live
-// bottom, offset <= 0 meaning "all rows live" — the same window RenderAt's
-// fast path renders directly via the emulator when there is no highlight to
-// apply. Callers must hold s.mu.
-func (s *Screen) linesAt(offset int) uv.Lines {
-	scrollback := s.term.Scrollback()
-	scrollbackLen := scrollback.Len()
+// windowStart returns the absolute index (Find's contract: the index i such
+// that offset = ScrollbackLen() - i puts line i at the top of the window) of
+// the first row offset lines back from the live bottom, and ScrollbackLen()
+// alongside it since every caller needs both. offset is clamped to
+// [0, ScrollbackLen()], the same clamp RenderAt documents. Callers must hold
+// s.mu.
+func (s *Screen) windowStart(offset int) (start, scrollbackLen int) {
+	scrollbackLen = s.term.Scrollback().Len()
 
 	if offset < 0 {
 		offset = 0
@@ -179,9 +180,19 @@ func (s *Screen) linesAt(offset int) uv.Lines {
 		offset = scrollbackLen
 	}
 
+	return scrollbackLen - offset, scrollbackLen
+}
+
+// linesAt builds the raw uv.Lines window offset lines back from the live
+// bottom, offset <= 0 meaning "all rows live" — the same window RenderAt's
+// fast path renders directly via the emulator when there is no highlight to
+// apply. Callers must hold s.mu.
+func (s *Screen) linesAt(offset int) uv.Lines {
+	scrollback := s.term.Scrollback()
+	start, scrollbackLen := s.windowStart(offset)
+
 	rows := s.term.Height()
 	cols := s.term.Width()
-	start := scrollbackLen - offset
 
 	lines := make(uv.Lines, 0, rows)
 	for i := range rows {

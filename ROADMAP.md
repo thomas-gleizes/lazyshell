@@ -22,7 +22,7 @@ L'état est celui du code présent dans le dépôt, pas d'une intention.
 | 6.5 · Config utilisateur complète | **fait** |
 | 7 · Ergonomie multi-sessions | **fait** |
 | 8 · Distribution et budget de perf | **en cours** — release automatisée, `--version` et budget de redraw gaté en CI faits ; reste à générer le GIF de démo |
-| 9 · Recherche, copie, broadcast | **à faire** |
+| 9 · Recherche, copie, broadcast | **en cours** — recherche, filtre de sessions et copy-mode faits |
 | 10 · Émulation de terminal complète | **fait** (faite en avance, voir la phase) |
 | 11 · Sessions d'agents IA | **à faire** — dépend de 6 et 7 |
 
@@ -465,11 +465,24 @@ datée.
 - [x] **Recherche dans le scrollback** : `/` pour saisir un motif, `n`/`N` pour circuler, surlignage
   des occurrences, `Esc` pour sortir. Se fait sur le modèle de `pkg/screen` (les lignes, pas le
   flux d'octets).
-- [ ] **Filtre de la liste de sessions** quand elle dépasse la hauteur du panneau — même champ de
-  saisie, filtrage sur le nom et le cwd.
-- [ ] **Copy-mode** : sélection de lignes au clavier, copie vers le presse-papier via OSC 52 (marche à
+- [x] **Filtre de la liste de sessions** quand elle dépasse la hauteur du panneau — même champ de
+  saisie, filtrage sur le nom et le cwd. `pkg/gui/filter.go` : `/` sur le panneau sessions ouvre le
+  même popup que la recherche (`showPrompt`), `Esc` l'efface. `filteredSessions()` est la seule
+  source que `selectedSession`, `selectionMoved`, `selectIndex` et le rendu de la liste consultent
+  désormais — jamais `gui.sessions.List()` directement — pour que `1`-`9` adresse toujours ce qui
+  est réellement affiché. La sélection change de repère (index → ID) au moment où le filtre change
+  pour ne pas sauter sur une autre session à chaque caractère tapé ; la création d'une session
+  efface un filtre actif, sinon elle naîtrait cachée.
+- [x] **Copy-mode** : sélection de lignes au clavier, copie vers le presse-papier via OSC 52 (marche à
   travers SSH, contrairement à un appel à `xclip`/`pbcopy`), avec repli sur une commande externe
-  configurable si le terminal ne supporte pas OSC 52.
+  configurable si le terminal ne supporte pas OSC 52. `v` démarre une sélection d'une ligne (le
+  haut de la fenêtre visible), `j`/`k`/flèches l'étendent, un second `v` ou `y` copie et sort, `Esc`
+  annule. `pkg/screen` gagne `RenderAtSelection` (surlignage par plage de lignes, pendant du
+  surlignage par motif de la recherche) et `TextRange` (texte brut sur une plage — réutilisé tel
+  quel par l'export). `pkg/config`'s `clipboard.fallback_command` est un interrupteur manuel : rien
+  ne permet de savoir si le terminal a vraiment accepté la séquence OSC 52, donc vide = OSC 52
+  seul, renseigné = cette commande à la place (le texte sur son stdin), jamais les deux. Désactivé
+  sur l'alternate screen, comme le défilement.
 - [ ] **Export** (`w`) : vider le scrollback d'une session dans un fichier, chemin proposé par défaut.
 - [ ] **Broadcast** : marquer plusieurs sessions et leur envoyer la même saisie en pass-through.
   Fonction de niche, mais quasi gratuite une fois le routage clavier de la phase 4 en place — la
@@ -623,7 +636,7 @@ qui dépende de la présence d'un agent.
 | 6 | `lazyshell.yml` de projet, sessions déclaratives | **v0.3** | fait |
 | 7 | activité, relance, saut par index, zoom, aides contextuelles | **v0.4** | à faire |
 | 8 | goreleaser, `--version`, bench de redraw en CI | **v0.5 — installable par un tiers** | en cours (benchs) |
-| 9 | recherche, copy-mode, export, broadcast | v0.6 | en cours (recherche faite) |
+| 9 | recherche, copy-mode, export, broadcast | v0.6 | en cours (recherche, filtre, copy-mode faits) |
 | 10 | émulation terminal complète | **v1.0** | fait (en avance) |
 | 11 | états d'agents IA, notifications, saut vers la session bloquée | **v1.1** | à faire (après 6 et 7) |
 

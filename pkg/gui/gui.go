@@ -66,6 +66,9 @@ type Gui struct {
 	// panel's scrolling steps — both straight from pkg/config.
 	markers config.Markers
 	scroll  config.Scroll
+	// clipboardFallback is pkg/config's Clipboard.FallbackCommand — see
+	// pkg/gui/clipboard.go's copyToClipboard.
+	clipboardFallback string
 	// keymap is pkg/config's Keybindings: action id -> gocui.Parse key spec,
 	// consulted by resolveBinding for every Binding with a non-empty Action.
 	keymap map[string]string
@@ -97,6 +100,22 @@ type Gui struct {
 	searchPattern string
 	searchMatches []int
 	searchIndex   int
+
+	// filterPattern is the sessions-list filter (pkg/gui/filter.go): "" means
+	// no filter, every session is shown. Same concurrency rule as
+	// searchPattern — only ever touched from gocui's own goroutine (the "/"
+	// binding on sessionsViewName and the prompt it opens).
+	filterPattern string
+
+	// copyModeActive, copyAnchorLine and copyCursorLine are copy-mode's state
+	// (pkg/gui/copymode.go): a whole-line selection in the output panel,
+	// addressed in the same absolute-line coordinates as searchMatches
+	// (Screen.Find's contract). Same concurrency rule as passThroughActive —
+	// only ever touched from gocui's own goroutine (editDuringScroll's 'v'/
+	// 'y'/Esc/movement handlers).
+	copyModeActive bool
+	copyAnchorLine int
+	copyCursorLine int
 
 	// mu guards selectedIndex and scrollOffset: both are written from
 	// gocui's main goroutine (keybinding handlers, the output Editor) but
@@ -149,6 +168,7 @@ func New(sessions *session.Manager, cfg config.Config) *Gui {
 		refreshInterval:     refreshIntervalFrom(cfg.RefreshIntervalMs),
 		markers:             cfg.Markers,
 		scroll:              cfg.Scroll,
+		clipboardFallback:   cfg.Clipboard.FallbackCommand,
 		keymap:              cfg.Keybindings,
 	}
 }
@@ -299,12 +319,13 @@ func (gui *Gui) Run() (err error) {
 }
 
 // renderStatus writes the status bar's content: the last error takes
-// priority, then the pass-through indicator, then the keybinding hint. The
-// alt-screen marker is appended to whichever of those is shown. Without a
-// clear indicator the user cannot tell whether q quits the app or goes to the
-// shell. Safe to call directly (no g.Update) whenever the caller is already
-// running on gocui's main goroutine — a keybinding handler, the output
-// Editor, or initView during layout.
+// priority, then pass-through, then copy-mode, then search, then the
+// sessions-list filter, then the keybinding hint. The alt-screen marker is
+// appended to whichever of those is shown. Without a clear indicator the
+// user cannot tell whether q quits the app or goes to the shell. Safe to
+// call directly (no g.Update) whenever the caller is already running on
+// gocui's main goroutine — a keybinding handler, the output Editor, or
+// initView during layout.
 func (gui *Gui) renderStatus(view *gocui.View) {
 	view.Clear()
 
@@ -315,8 +336,13 @@ func (gui *Gui) renderStatus(view *gocui.View) {
 		text = " " + gui.lastError + " "
 	case gui.passThroughActive:
 		text = gui.tr.T("status.passthrough", prefixName(gui.prefixKey))
+	case gui.copyModeActive:
+		from, to := gui.copySelectionRange()
+		text = gui.tr.T("status.copymode", to-from+1)
 	case gui.searchActive():
 		text = gui.tr.T("status.search", gui.searchPattern, gui.searchIndex+1, len(gui.searchMatches))
+	case gui.filterActive():
+		text = gui.tr.T("status.filter", gui.filterPattern, len(gui.filteredSessions()))
 	}
 
 	if gui.selectedIsAltScreen() {

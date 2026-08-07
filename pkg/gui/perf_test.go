@@ -47,7 +47,7 @@ func TestPerfBudgetBuildOutputFrame(t *testing.T) {
 
 	result := testing.Benchmark(func(b *testing.B) {
 		for range b.N {
-			_ = buildOutputFrame(sessions[0], 0, true, "")
+			_ = buildOutputFrame(sessions[0], 0, true, "", -1, -1)
 		}
 	})
 

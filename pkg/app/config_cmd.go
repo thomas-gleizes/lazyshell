@@ -118,6 +118,13 @@ theme:
   inactive_border_color: default
   selected_bg_color: blue
   pass_through_border_color: red
+
+# Copie en mode copy-mode : vide = OSC 52 uniquement (traverse SSH, aucun
+# binaire requis). Aucun moyen de détecter si le terminal l'accepte : si ce
+# n'est pas le cas, indiquez ici une commande qui lira le texte sur son stdin
+# (ex. "pbcopy" ou "xclip -selection clipboard").
+clipboard:
+  fallback_command: ""
 `
 
 // InitUserConfig implements `lazyshell config init`.

@@ -44,6 +44,7 @@ func (gui *Gui) sessionsFooterHints() []footerHint {
 		{actions: []string{"rename_session"}, label: gui.tr.T("footer.rename")},
 		{actions: []string{"restart_session"}, label: gui.tr.T("footer.restart")},
 		{actions: []string{"zoom"}, label: gui.tr.T("footer.zoom")},
+		{actions: []string{"filter_sessions"}, label: gui.tr.T("footer.filter")},
 		{actions: []string{"duplicate_session"}, label: gui.tr.T("footer.duplicate")},
 		{actions: []string{"new_session_in_dir"}, label: gui.tr.T("footer.new_in_dir")},
 	}
@@ -71,6 +72,17 @@ func (gui *Gui) outputFooterHints() []footerHint {
 		return []footerHint{{key: prefixName(gui.prefixKey), label: gui.tr.T("footer.exit_passthrough")}}
 	}
 
+	// Copy-mode's keys are its own thing too: j/k/arrows there extend the
+	// selection instead of doing nothing, and everything else about the
+	// panel (scrolling, search) is suspended until it ends.
+	if gui.copyModeActive {
+		return []footerHint{
+			{key: "j/k", label: gui.tr.T("footer.copymode_move")},
+			{key: "y", label: gui.tr.T("footer.copymode_yank")},
+			{key: "Esc", label: gui.tr.T("footer.copymode_cancel")},
+		}
+	}
+
 	hints := []footerHint{{key: "i", label: gui.tr.T("footer.type")}}
 
 	// A full-screen application does not feed the scrollback, so scrolling does
@@ -79,6 +91,7 @@ func (gui *Gui) outputFooterHints() []footerHint {
 		hints = append(hints,
 			footerHint{key: "PgUp/PgDn", label: gui.tr.T("footer.scroll")},
 			footerHint{key: "Ctrl-U/D", label: gui.tr.T("footer.half_page")},
+			footerHint{key: "v", label: gui.tr.T("footer.copymode_enter")},
 		)
 	}
 
