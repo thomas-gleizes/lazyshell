@@ -29,6 +29,49 @@ func TestLayoutCreatesSessionsOutputAndStatusViews(t *testing.T) {
 	}
 }
 
+// The bug this guards against: propagateResize used to size every session's
+// pty and terminal emulator to the output view's Size(), which counts its two
+// frame border rows. The shell then believed it had two more rows to draw
+// into than the panel could actually show, so the bottom of anything that
+// used the full height — a multi-line prompt, vim, htop — was silently
+// clipped by the frame: on screen it looked exactly like content "hidden by
+// the interface", indistinguishable from a rendering bug.
+func TestPropagateResizeUsesInnerHeightNotFrameHeight(t *testing.T) {
+	gui, g := newHeadlessGuiSized(t, 80, 24)
+
+	sess, err := gui.sessions.New("s", "/bin/sh")
+	if err != nil {
+		t.Fatalf("sessions.New: %v", err)
+	}
+
+	for range 2 {
+		if err := gui.layout(g); err != nil {
+			t.Fatalf("layout: %v", err)
+		}
+	}
+
+	view, err := g.View(outputViewName)
+	if err != nil {
+		t.Fatalf("output view not found: %v", err)
+	}
+
+	_, innerHeight := view.InnerSize()
+	_, frameHeight := view.Size()
+	if innerHeight == frameHeight {
+		t.Fatalf("test terminal does not exercise the bug: InnerSize equals Size (%d)", innerHeight)
+	}
+
+	gotCols, gotRows := sess.Screen().Size()
+	if gotRows != innerHeight {
+		t.Errorf("session sized to %d rows, want %d (the view's InnerHeight — Size() would give %d, two rows too many for the panel's own frame)",
+			gotRows, innerHeight, frameHeight)
+	}
+
+	if innerWidth, _ := view.InnerSize(); gotCols != innerWidth {
+		t.Errorf("session sized to %d columns, want %d", gotCols, innerWidth)
+	}
+}
+
 // A terminal too small to hold a bordered view must not make the layout fail.
 func TestLayoutTinyTerminal(t *testing.T) {
 	gui, g := newHeadlessGuiSized(t, 1, 1)

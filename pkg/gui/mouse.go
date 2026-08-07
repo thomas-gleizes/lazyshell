@@ -226,7 +226,8 @@ func (gui *Gui) dragOutput(opts gocui.ViewMouseBindingOpts) error {
 		return nil
 	}
 
-	_, rows := view.Size()
+	// InnerHeight, not Size: see propagateResize's comment in layout.go.
+	_, rows := view.InnerSize()
 
 	if !gui.copyModeActive {
 		gui.enterCopyMode()

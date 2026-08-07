@@ -227,8 +227,10 @@ func TestPassThroughDogfoodingFlow(t *testing.T) {
 	}, "Tab after leaving pass-through did not return focus to sessions")
 
 	// Resize propagation: stty size in the shell must reflect the output
-	// panel's actual geometry, not the 80x24 pty default.
-	cols, rows := outputView.Size()
+	// panel's actual visible geometry, not the 80x24 pty default — and not
+	// Size() either, which counts the two frame border rows/columns that are
+	// not actually drawn (see propagateResize's comment in layout.go).
+	cols, rows := outputView.InnerSize()
 
 	sess := gui.selectedSession()
 	if sess == nil {

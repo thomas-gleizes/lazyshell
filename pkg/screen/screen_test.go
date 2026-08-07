@@ -114,6 +114,23 @@ func TestResizeChangesGeometry(t *testing.T) {
 	}
 }
 
+// Render trims trailing blank lines, so it cannot stand in for "what size did
+// Resize actually set" — Size is the getter callers sizing a pty or a view
+// against the emulator need instead.
+func TestSizeReportsResizedGeometry(t *testing.T) {
+	s := New(80, 24)
+
+	if cols, rows := s.Size(); cols != 80 || rows != 24 {
+		t.Fatalf("Size() = (%d, %d), want (80, 24) from New", cols, rows)
+	}
+
+	s.Resize(40, 10)
+
+	if cols, rows := s.Size(); cols != 40 || rows != 10 {
+		t.Errorf("Size() = (%d, %d) after Resize(40, 10), want (40, 10)", cols, rows)
+	}
+}
+
 // Read must never hold the lock: a session's drain goroutine calls it in a
 // loop (nothing ever writes an answer in this test, since none was queried),
 // and a Write happening concurrently must not be blocked by it.

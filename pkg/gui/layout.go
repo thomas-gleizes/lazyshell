@@ -197,7 +197,16 @@ func (gui *Gui) propagateResize(g *gocui.Gui) {
 		return
 	}
 
-	cols, rows := view.Size()
+	// InnerSize, not Size: Size counts the frame's two border rows/columns,
+	// which are not part of what actually gets drawn — showOutput writes the
+	// emulator's rendered frame into the view wholesale, unwrapped, at
+	// origin (0,0), with no scrolling of its own (see output.go's
+	// drawCursor). Sizing the pty to Size() told the shell it had two more
+	// rows than the panel can show: harmless for a single-line prompt, but
+	// the bottom of anything that actually uses the full height — a
+	// multi-line prompt, vim, htop — landed past the frame and never got
+	// drawn, indistinguishable from being hidden by the interface.
+	cols, rows := view.InnerSize()
 	if cols <= 0 || rows <= 0 {
 		return
 	}

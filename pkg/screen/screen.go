@@ -338,6 +338,17 @@ func (s *Screen) Resize(cols, rows int) {
 	s.term.Resize(cols, rows)
 }
 
+// Size reports the emulated geometry last set by Resize (or New's initial
+// size). Render trims trailing blank lines, so it cannot answer "how many
+// rows does the emulator think it has" — this can, which is what callers
+// actually sizing a pty or a view against it need.
+func (s *Screen) Size() (cols, rows int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.term.Width(), s.term.Height()
+}
+
 // IsAltScreen reports whether a full-screen application (vim, htop, less) is
 // currently in control.
 func (s *Screen) IsAltScreen() bool {

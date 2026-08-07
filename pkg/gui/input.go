@@ -189,7 +189,13 @@ func (gui *Gui) translate(key gocui.Key, ch rune, mod gocui.Modifier) []byte {
 // keys are meaningful here, everything else falls through to gocui's normal
 // keybinding dispatch (global Tab, global Ctrl-C...).
 func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool {
-	_, rows := view.Size()
+	// InnerHeight, not Size: Size counts the frame's two border rows, which
+	// is not how many lines of the emulator are actually on screen — see
+	// propagateResize's comment in layout.go for the same distinction on the
+	// pty side. Using Size() here overshoots every PgUp/PgDn by two lines,
+	// and lets copy-mode's auto-scroll window (moveCopyCursor) believe two
+	// more lines are visible than really are.
+	_, rows := view.InnerSize()
 
 	switch {
 	// Copy-mode's own keys come first and win over everything below: while
