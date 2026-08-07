@@ -90,6 +90,12 @@ type Gui struct {
 	// help popup, so closeHelp can restore focus to it rather than always
 	// landing back on the sessions panel.
 	helpReturnView string
+	// helpSelectedIndex is the currently highlighted row in the help popup's
+	// list of selectable bindings (helpLines' selectable rows only, headers
+	// and separators excluded). Same concurrency rule as passThroughActive
+	// below — help popup interaction only ever happens on gocui's own
+	// goroutine — so unlike selectedIndex it needs no mutex.
+	helpSelectedIndex int
 	// promptReturnView is helpReturnView's equivalent for showPrompt's popup.
 	promptReturnView string
 	// promptOnSubmit is the callback showPrompt is currently waiting on,

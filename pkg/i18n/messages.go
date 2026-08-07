@@ -91,8 +91,16 @@ var messages = map[string]map[string]string{
 		"en": " help ",
 	},
 	"help.header": {
-		"fr": "Aide — une touche quelconque pour fermer",
-		"en": "Help — any key to close",
+		"fr": "Aide — j/k pour naviguer, Entrée pour exécuter, Échap pour fermer",
+		"en": "Help — j/k to navigate, Enter to run, Esc to close",
+	},
+	"help.actions_available": {
+		"fr": "Actions disponibles",
+		"en": "Available actions",
+	},
+	"help.actions_unavailable": {
+		"fr": "Actions indisponibles (aucune session sélectionnée ou concernée)",
+		"en": "Unavailable actions (no relevant session selected)",
 	},
 	"help.mouse_header": {
 		"fr": "Souris",

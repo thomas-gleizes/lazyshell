@@ -17,7 +17,22 @@ type Binding struct {
 	Modifier    gocui.Modifier
 	Handler     func(*gocui.Gui, *gocui.View) error
 	Description string
+	// Enabled reports whether Handler can meaningfully act right now, given
+	// the current session/filter state. nil means always enabled. Only
+	// consulted by the help popup (pkg/gui/help.go), which uses it to
+	// separate actionable bindings from ones that would currently no-op —
+	// setKeybindings itself registers every binding unconditionally, since a
+	// key that momentarily does nothing is normal behaviour, not an error.
+	Enabled func(*Gui) bool
 }
+
+// hasSelectedSession, hasSessions, hasAnySessions and hasActiveFilter are
+// Binding.Enabled predicates for the sessionsViewName bindings whose
+// Handler no-ops without the state they check — see staticBindings.
+func hasSelectedSession(gui *Gui) bool { return gui.selectedSession() != nil }
+func hasSessions(gui *Gui) bool        { return len(gui.filteredSessions()) > 0 }
+func hasAnySessions(gui *Gui) bool     { return len(gui.sessions.List()) > 0 }
+func hasActiveFilter(gui *Gui) bool    { return gui.filterActive() }
 
 // bindings returns every keybinding of the application, in the order
 // setKeybindings registers them and the help panel (pkg/gui/help.go) lists
@@ -126,6 +141,7 @@ func (gui *Gui) staticBindings() []Binding {
 			Modifier:    gocui.ModNone,
 			Handler:     gui.killSession,
 			Description: gui.tr.T("action.kill_session"),
+			Enabled:     hasSelectedSession,
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -133,6 +149,7 @@ func (gui *Gui) staticBindings() []Binding {
 			Modifier:    gocui.ModNone,
 			Handler:     gui.killSession,
 			Description: gui.tr.T("action.kill_session"),
+			Enabled:     hasSelectedSession,
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -141,6 +158,7 @@ func (gui *Gui) staticBindings() []Binding {
 			Modifier:    gocui.ModNone,
 			Handler:     gui.deleteSession,
 			Description: gui.tr.T("action.delete_session"),
+			Enabled:     hasSelectedSession,
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -149,6 +167,7 @@ func (gui *Gui) staticBindings() []Binding {
 			Modifier:    gocui.ModNone,
 			Handler:     gui.renameSession,
 			Description: gui.tr.T("action.rename_session"),
+			Enabled:     hasSelectedSession,
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -157,6 +176,7 @@ func (gui *Gui) staticBindings() []Binding {
 			Modifier:    gocui.ModNone,
 			Handler:     gui.duplicateSession,
 			Description: gui.tr.T("action.duplicate_session"),
+			Enabled:     hasSelectedSession,
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -173,6 +193,7 @@ func (gui *Gui) staticBindings() []Binding {
 			Modifier:    gocui.ModNone,
 			Handler:     gui.restartSession,
 			Description: gui.tr.T("action.restart_session"),
+			Enabled:     hasSelectedSession,
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -181,6 +202,7 @@ func (gui *Gui) staticBindings() []Binding {
 			Modifier:    gocui.ModNone,
 			Handler:     gui.toggleZoom,
 			Description: gui.tr.T("action.zoom"),
+			Enabled:     hasSelectedSession,
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -189,6 +211,7 @@ func (gui *Gui) staticBindings() []Binding {
 			Modifier:    gocui.ModNone,
 			Handler:     gui.showFilter,
 			Description: gui.tr.T("action.filter_sessions"),
+			Enabled:     hasAnySessions,
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -197,6 +220,7 @@ func (gui *Gui) staticBindings() []Binding {
 			Modifier:    gocui.ModNone,
 			Handler:     gui.exportSession,
 			Description: gui.tr.T("action.export_session"),
+			Enabled:     hasSelectedSession,
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -205,6 +229,7 @@ func (gui *Gui) staticBindings() []Binding {
 			Modifier:    gocui.ModNone,
 			Handler:     gui.toggleBroadcastMark,
 			Description: gui.tr.T("action.toggle_broadcast"),
+			Enabled:     hasSelectedSession,
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -212,6 +237,7 @@ func (gui *Gui) staticBindings() []Binding {
 			Modifier:    gocui.ModNone,
 			Handler:     gui.clearFilterKey,
 			Description: gui.tr.T("action.clear_filter"),
+			Enabled:     hasActiveFilter,
 		},
 		{
 			ViewName:    sessionsViewName,
@@ -220,6 +246,7 @@ func (gui *Gui) staticBindings() []Binding {
 			Modifier:    gocui.ModNone,
 			Handler:     gui.jumpToNextBlockedSession,
 			Description: gui.tr.T("action.jump_next_blocked"),
+			Enabled:     hasSessions,
 		},
 	}
 }

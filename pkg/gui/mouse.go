@@ -68,6 +68,11 @@ func (gui *Gui) mouseBindings() []*gocui.ViewMouseBinding {
 			Handler:  gui.clickOutput,
 		},
 		{
+			ViewName: helpViewName,
+			Key:      gocui.MouseLeft,
+			Handler:  gui.clickHelp,
+		},
+		{
 			// The drag: gocui reports a moved-with-the-button-down event as
 			// MouseLeft carrying ModMotion, so it needs its own entry — a
 			// binding with Modifier ModNone does not match it.
@@ -152,6 +157,38 @@ func (gui *Gui) clickSession(opts gocui.ViewMouseBindingOpts) error {
 	}
 
 	return nil
+}
+
+// clickHelp is the help popup's click gesture: it is the mouse's equivalent
+// of j/k *and* Enter combined, not just navigation — a single click selects
+// the row under the pointer and, when that row is actionable, immediately
+// runs it. Deliberately not select-then-second-click: unlike a session in
+// the list, a help row is a one-shot command rather than something you
+// linger on, and the row's dimmed/lit rendering already tells the user in
+// advance whether a click will do anything.
+//
+// opts.Y is a row within the popup's own content coordinates (gocui's
+// content-relative Y, same as clickSession's), which is also a helpLine
+// index outright — helpLines emits exactly one text line per entry.
+func (gui *Gui) clickHelp(opts gocui.ViewMouseBindingOpts) error {
+	lines := gui.helpLines()
+	if opts.Y < 0 || opts.Y >= len(lines) || !lines[opts.Y].selectable {
+		return nil
+	}
+
+	for i, lineNum := range selectableHelpLines(lines) {
+		if lineNum == opts.Y {
+			gui.helpSelectedIndex = i
+
+			break
+		}
+	}
+
+	if !lines[opts.Y].actionable {
+		return gui.renderHelp(gui.g)
+	}
+
+	return gui.triggerHelpSelection(gui.g, nil)
 }
 
 // wheelSessions moves the selection rather than scrolling the view. The
