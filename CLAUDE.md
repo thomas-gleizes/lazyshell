@@ -4,72 +4,74 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-`lazyshell` is pre-implementation. This repository currently contains **only a design/research
-document** (`RAPPORT_ANALYSE_LAZYGIT_LAZYDOCKER.md`, in French) — there is no source code, no Go
-module, no build tooling yet. When asked to "build the project" or similar, start from the
-architecture proposal in that document rather than assuming any existing scaffolding.
+`lazyshell` is implemented and functional, past v1.1 (see `ROADMAP.md` for the full phase-by-phase
+history). All phases through 11c ("sessions d'agents IA — notifications et ergonomie") are done.
+This is an active Go codebase with a real `go.mod`, CI, goreleaser packaging, and a test suite —
+do not treat this as a design-stage repo. `RAPPORT_ANALYSE_LAZYGIT_LAZYDOCKER.md` and
+`RAPPORT_ANALYSE_INTEGRATION_AGENTS_IA.md` are historical design docs (the first drove phases 0–10,
+the second drove phase 11); consult `ROADMAP.md` for what's actually built versus still open.
 
 ## Project goal
 
-`lazyshell` is meant to be a **TUI shell session manager** (a tmux/screen-like multiplexer), built
-in Go on top of `gocui`. It should let a user manage multiple persistent shell sessions from a
-`lazygit`/`lazydocker`-style two-pane interface: a session list on the left, live session output on
-the right.
+`lazyshell` is a **TUI shell session manager** (a tmux/screen-like multiplexer), built in Go on top
+of `gocui`. It gives a `lazygit`/`lazydocker`-style two-pane interface — a session list on the left,
+live session output on the right — for managing multiple persistent shell sessions, including
+long-running AI coding agent sessions (Claude Code, etc.) whose blocked/working/done state is
+surfaced in the sessions panel.
 
-## Key architectural decisions already made (see the report for full rationale)
+## Key architectural decisions (implemented, see ROADMAP.md "Décisions déjà actées")
 
-The report analyzed `lazygit` and `lazydocker` (both built on `jesseduffield/gocui`) to extract
-reusable patterns. Conclusions to follow when implementing:
+- **Base library**: `github.com/jesseduffield/gocui`.
+- **Layout engine**: `github.com/jesseduffield/lazycore/pkg/boxlayout` for the sessions-list /
+  output-panel split, with portrait-mode stacking on narrow terminals.
+- **Keybindings**: flat `Binding{ViewName, Key, Modifier, Handler}` + `g.SetKeybinding`
+  (lazydocker-style) — no lazygit-style controller/context-stack pattern.
+- **Async task management**: `pkg/tasks` (`TaskManager`) owns only *display/reading* goroutines —
+  never the underlying shell process. Switching session selection cancels the reader/renderer for
+  the previous session, not the pty/shell itself, which keeps running regardless of what's on screen.
+- **PTY handling**: `github.com/creack/pty`, one pty per session, `pty.Setsize` propagated from the
+  panel's computed layout size on resize, a full terminal emulator (not just ANSI stripping — see
+  `docs/adr/0002-rendu-multi-panneaux.md`) so full-screen apps (`vim`, `htop`, `less`) work inside a
+  session.
+- **Process lifecycle**: `pkg/session.Manager` owns the `map[sessionID]*Session` and keeps shells
+  alive across selection changes, decoupled from `pkg/tasks`.
+- **AI agent sessions** (`pkg/agent`, `pkg/hook`): agent state (`working`/`blocked`/`done`) is
+  detected either config-free (phase 11a) or via an authoritative hooks channel (phase 11b, e.g.
+  Claude Code hooks) that overrides heuristic detection when present. Notifications on
+  blocked/done go out via OSC 9 / OSC 777 to the host terminal (not `notify-send`), with an
+  optional external fallback command. Nothing in `pkg/session` or `pkg/gui` outside
+  `notify.go`/`stats.go` knows about agent-specific formats — the coupling is fully contained in
+  `pkg/agent`/`pkg/hook`.
 
-- **Base library**: `github.com/jesseduffield/gocui`. A `gocui.View` is an `io.Writer` and is
-  thread-safe to write to from any goroutine (internal `writeMutex`), but any other gocui state
-  mutation (current view, dimensions) must go through `g.Update(...)` to stay on the main loop
-  goroutine.
-- **Layout engine**: reuse `github.com/jesseduffield/lazycore/pkg/boxlayout` (weighted row/column
-  tree) for the sessions-list / output-panel split, including automatic portrait-mode stacking on
-  narrow terminals.
-- **Keybindings**: start with lazydocker's flat `Binding{ViewName, Key, Modifier, Handler}` +
-  `g.SetKeybinding` model. Do **not** adopt lazygit's heavier "controller" pattern
-  (`GetKeybindings()` per domain, context stack) unless the action set grows large enough to need
-  it — it's overkill for an MVP.
-- **Async task management**: port lazydocker's `TaskManager` (`pkg/tasks/tasks.go`) pattern —
-  one task = one goroutine + cancelable `context.Context`; starting a new task auto-stops the
-  previous one. Important deviation from lazydocker: this must only cancel the *reader/renderer*
-  goroutine when switching session selection, never the underlying shell process — shells must
-  keep running in the background even when not the currently displayed session (unlike Docker
-  container logs, which can be re-streamed on demand).
-- **PTY handling (new — absent from both lazygit and lazydocker)**: use `github.com/creack/pty`.
-  Neither reference project needs a real pty (Docker logs are output-only; interactive commands
-  just get `Suspend()`/`Resume()` of the whole terminal). A session manager needs one pty per
-  session, `pty.Setsize` propagated from the panel's computed layout size on resize, keystrokes
-  routed to `ptmx.Write()` in "pass-through" mode when the output panel has focus, and an
-  explicit scrollback buffer per session (a pty does not replay history the way `docker logs
-  --since` does).
-- **Process lifecycle**: unlike Docker (daemon owns container lifecycle independently of
-  lazydocker), `lazyshell` itself is the parent process that must keep shells alive across
-  selection changes — plan on a `map[sessionID]*Session{cmd, ptmx, scrollback, cancel}` held in
-  app state, decoupled from the `TaskManager` (which should only own display/reading goroutines).
-
-## Proposed package layout (from the report, not yet created)
+## Package layout (as built)
 
 ```
+cmd/
+  lazyshell/      main entrypoint
+  spike-pty/      phase-1 pty spike (kept for reference, not part of the shipped binary)
 pkg/
   app/            bootstrap: load config, build SessionManager, run gui.Run()
   session/        SessionManager: CRUD (New, Kill, List); Session{cmd, ptmx, scrollback, status}
-  gui/
-    gui.go        gocui init, MainLoop, goEvery(reRenderOutput), keybindings
-    layout.go     boxlayout: "sessions" panel (left, fixed width) + "output" panel (right)
-    sessions_panel.go  session list, OnSelect -> QueueTask(stream)
-    output.go     QueueTask doing io.Copy(outputView, session.PtyReader) via TaskManager
-    input.go      keystroke capture when output panel focused -> ptmx.Write(bytes)
-    keybindings.go  n: new session, x/d: kill session, tab: cycle focus
-    theme.go / config/  YAML config + theme, modeled on lazydocker's approach
-  tasks/          near-verbatim port of lazydocker's pkg/tasks (TaskManager, NewTickerTask)
+  screen/         terminal emulator backing the output panel (vim/htop/less support)
+  gui/            gocui init, layout, keybindings, panels, help, theme, notify, stats
+  tasks/          TaskManager (display/reading goroutines only)
+  agent/          AI agent state detection (config-free + hooks-driven)
+  hook/           authoritative hooks channel for agent sessions
+  config/         user config + project config (`lazyshell.yml`) loading
+  keys/           keybinding definitions
+  i18n/           strings/translations
+  version/        --version metadata (goreleaser-injected)
+docs/
+  adr/            architecture decision records (0001: rendu ANSI et clavier, 0002: rendu multi-panneaux)
+  repports/       (sic) historical analysis reports
 ```
 
-Typical flow: selecting a session in the list triggers `OnSelect`, which queues a task that
-`io.Copy`s from the session's live reader into the output view (the TaskManager auto-kills the
-previous stream); keystrokes while the output panel is focused write directly to `session.ptmx`;
-a separate goroutine — independent of the TaskManager, started at session creation and living for
-the life of the process — continuously drains the pty into the session's scrollback buffer, so no
-output is lost while a session is not on screen.
+## Open items (see ROADMAP.md "Ce qui reste ouvert" for full rationale)
+
+- Mouse support: out of scope (gocui conflates mouse buttons with Shift-arrows).
+- Windows support: explicitly out of scope (no Unix pty).
+- Agent control API (agents creating panels / reading other sessions' output via a socket): decided
+  against for now — the phase 11b hooks socket is inbound/declarative only; an outbound control verb
+  is a deliberately separate, not-yet-taken decision (untrusted process, execution surface risk).
+- Detach/daemon mode ("agents keep running with the laptop closed"): out of scope unless real demand
+  surfaces.
