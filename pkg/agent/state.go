@@ -41,9 +41,14 @@ func (s State) String() string {
 	}
 }
 
-// parseState is manifest.go's counterpart to String, used when decoding a
-// rule's "state:" key.
-func parseState(s string) (State, bool) {
+// ParseState is String's inverse: manifest.go uses it to decode a rule's
+// "state:" key, and pkg/hook uses it to validate a line received over an
+// agent's hook socket — the exact same four names in both places, since a
+// hook event and a manifest rule express the same four-value state.
+// StateNone has no valid spelling: neither a manifest rule nor a hook event
+// can declare "this is not an agent session" — that is the zero value for
+// "nothing said otherwise", never something to say out loud.
+func ParseState(s string) (State, bool) {
 	switch s {
 	case "idle":
 		return StateIdle, true

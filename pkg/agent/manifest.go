@@ -64,7 +64,7 @@ func parseManifest(data []byte) (Manifest, error) {
 	m := Manifest{Process: raw.Process}
 
 	for i, rr := range raw.Rules {
-		state, ok := parseState(rr.State)
+		state, ok := ParseState(rr.State)
 		if !ok {
 			return Manifest{}, fmt.Errorf("agent: %s: rule %d: unknown state %q", raw.Process, i, rr.State)
 		}

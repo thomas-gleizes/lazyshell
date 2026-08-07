@@ -24,7 +24,7 @@ L'état est celui du code présent dans le dépôt, pas d'une intention.
 | 8 · Distribution et budget de perf | **fait** |
 | 9 · Recherche, copie, broadcast | **fait** |
 | 10 · Émulation de terminal complète | **fait** (faite en avance, voir la phase) |
-| 11 · Sessions d'agents IA | **partielle** — 11a fait, 11b/11c à faire |
+| 11 · Sessions d'agents IA | **partielle** — 11a et 11b faits (11b hors opencode), 11c à faire |
 
 ---
 
@@ -553,7 +553,7 @@ phase 1 l'a ramené à une phase d'intégration.
 
 ---
 
-## Phase 11 — Sessions d'agents IA — **partielle (11a fait)**
+## Phase 11 — Sessions d'agents IA — **partielle (11a et 11b faits)**
 
 **But** : traiter les CLI d'agents (`claude`, `codex`, `opencode`…) comme des locataires de session
 de première classe — savoir dans quel état ils sont, le montrer, et prévenir quand ils *attendent*.
@@ -608,24 +608,38 @@ t'attend ». Le marqueur d'activité de la phase 7 est vrai dans les deux cas.
 bout avec de vrais pty dans `pkg/session` et `pkg/gui`) fait passer l'état d'une session de `idle` à
 `working` sans qu'aucun fichier de configuration n'existe.*
 
-### 11b — Canal autoritatif (hooks des agents)
+### 11b — Canal autoritatif (hooks des agents) — **fait, hors opencode**
 
 Le seul canal qui donne l'état exact au lieu de le deviner. lazyshell n'appelle jamais l'agent : il
 écoute.
 
-- [ ] Socket Unix par session (`0600`, dans `$XDG_RUNTIME_DIR`), exposé aux sessions via
-  `$LAZYSHELL_SOCK` + `$LAZYSHELL_SESSION_ID`. **Protocole entrant et déclaratif uniquement** : un
-  agent y déclare *son* état, il ne pilote rien (contrairement à l'API de contrôle de `herdr` — voir
-  « ce qui reste ouvert »).
-- [ ] `lazyshell hook <event>` : la commande que l'utilisateur branche dans la config de son agent.
-- [ ] Adaptateurs : **Claude Code** (hooks `settings.json` — `UserPromptSubmit`→`working`,
-  `Notification`→`blocked`, `Stop`→`done`, `SessionStart`/`SessionEnd`) ; **Codex** (clé racine
-  `notify` de `~/.codex/config.toml`, événement `agent-turn-complete` → `done` seulement) ;
-  **opencode** (abonnement SSE `/event` : `session.status`, `permission.updated` — le plus riche des
-  trois, mais un abonnement à tenir, pas un hook qui pousse).
-- [ ] Le canal hook est **autoritaire** quand il rapporte ; les manifestes de 11a restent le repli.
-- [ ] `lazyshell init --agents` : écrit le bloc de configuration à coller chez l'agent, plutôt que de
-  le faire recopier depuis le README.
+- [x] Socket Unix par session (`0600`, dans `$XDG_RUNTIME_DIR/lazyshell/<pid>/`, repli sur
+  `os.TempDir()` — `pkg/hook`), exposé aux sessions via `$LAZYSHELL_SOCK` + `$LAZYSHELL_SESSION_ID`
+  (forcés dans l'environnement du process, avant les surcharges `env:` d'un projet, pour qu'un
+  `lazyshell.yml` cloné ne puisse pas les réécrire). **Protocole entrant et déclaratif uniquement** :
+  une ligne = un état (`idle`/`working`/`blocked`/`done`), pas de JSON, pas de verbe — un agent y
+  déclare *son* état, il ne pilote rien (contrairement à l'API de contrôle de `herdr` — voir « ce qui
+  reste ouvert »).
+- [x] `lazyshell hook <event>` : la commande que l'utilisateur branche dans la config de son agent.
+  Ne retourne jamais d'erreur — `$LAZYSHELL_SOCK` absent, état inconnu, socket disparu dégradent tous
+  en diagnostic sur stderr, jamais en code de sortie non nul : un hook qui casserait la commande de
+  l'agent serait pire que l'absence de marqueur.
+- [x] Adaptateurs : **Claude Code** (hooks `settings.json` — `UserPromptSubmit`→`working`,
+  `Notification`→`blocked`, `Stop`→`done`) ; **Codex** (clé racine `notify` de `~/.codex/config.toml`,
+  événement `agent-turn-complete` → `done` seulement). **opencode reporté** : son signal le plus riche
+  est un abonnement SSE `/event` (`session.status`, `permission.updated`) — tiré, pas poussé, une
+  brique différente (client HTTP/SSE, découverte de l'URL du serveur) qui mérite son propre
+  incrément plutôt que d'alourdir celui-ci ; décision prise avec l'utilisateur pendant le
+  développement. Une session `opencode` reste sur le repli manifeste de 11a en attendant.
+- [x] Le canal hook est **autoritaire** quand il rapporte ; les manifestes de 11a restent le repli.
+  Tranché en implémentant : une fois un événement hook reçu, `evaluateAgentState` (11a) s'arrête
+  *complètement* pour le reste de la vie de la session (`Session.hookDriven`), pas seulement le
+  temps d'un arbitrage rejoué à chaque cycle — gain de lecture du code et de budget de rendu au
+  passage. Une garde supplémentaire (`setAgentStateUnlessHookDriven`) évite qu'une évaluation manifeste
+  déjà en vol au moment où le hook arrive n'écrase la valeur qu'il vient de poser.
+- [x] `lazyshell init --agents` : affiche (sur stdout, jamais un fichier — `.claude/settings.json` et
+  `~/.codex/config.toml` existent déjà et doivent être fusionnés à la main, pas écrasés) le bloc de
+  configuration à coller chez l'agent, plutôt que de le faire recopier depuis le README.
 
 ### 11c — Notifications et ergonomie
 
@@ -666,7 +680,7 @@ qui dépende de la présence d'un agent.
 | 8 | goreleaser, `--version`, bench de redraw en CI | **v0.5 — installable par un tiers** | fait |
 | 9 | recherche, copy-mode, export, broadcast | v0.6 | fait |
 | 10 | émulation terminal complète | **v1.0** | fait (en avance) |
-| 11 | états d'agents IA, notifications, saut vers la session bloquée | **v1.1** | 11a fait, 11b/11c à faire |
+| 11 | états d'agents IA, notifications, saut vers la session bloquée | **v1.1** | 11a/11b faits, 11c à faire |
 
 ## Décisions déjà actées (ne pas re-débattre)
 

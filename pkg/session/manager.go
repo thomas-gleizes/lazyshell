@@ -12,6 +12,7 @@ import (
 	"github.com/creack/pty"
 
 	"github.com/thomas-gleizes/lazyshell/pkg/agent"
+	"github.com/thomas-gleizes/lazyshell/pkg/hook"
 	"github.com/thomas-gleizes/lazyshell/pkg/screen"
 )
 
@@ -171,8 +172,10 @@ func (m *Manager) newSession(id string, opts Options) (*Session, error) {
 		}
 	}
 
+	sockPath := hook.SocketPath(id)
+
 	cmd := exec.Command(opts.Shell)
-	cmd.Env = buildEnv(m.term(), opts.Env)
+	cmd.Env = buildEnv(m.term(), id, sockPath, opts.Env)
 	cmd.Dir = cwd
 
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: defaultRows, Cols: defaultCols})
@@ -194,6 +197,16 @@ func (m *Manager) newSession(id string, opts Options) (*Session, error) {
 		done:      make(chan struct{}),
 	}
 	sess.SetName(opts.Name)
+
+	// A hook listener that fails to start (permission issue on
+	// $XDG_RUNTIME_DIR, an exotic sandbox with no writable temp dir) leaves
+	// hookServer nil rather than failing session creation: the authoritative
+	// channel is one more source of a gutter hint, never something the rest
+	// of lazyshell depends on. The 11a manifest-based fallback keeps working
+	// either way.
+	if srv, err := hook.Listen(sockPath, sess.SetAgentState); err == nil {
+		sess.hookServer = srv
+	}
 
 	go sess.drain()
 
@@ -218,11 +231,14 @@ func (m *Manager) term() string {
 	return DefaultTerm
 }
 
-// buildEnv is the child's environment: the process's own, TERM forced to term,
-// then the session's own overrides. Sorted so two runs of the same config
-// produce the same environment, which is what makes it testable.
-func buildEnv(term string, extra map[string]string) []string {
-	env := append(os.Environ(), "TERM="+term)
+// buildEnv is the child's environment: the process's own, TERM/LAZYSHELL_SESSION_ID/
+// LAZYSHELL_SOCK forced, then the session's own overrides. The three forced
+// entries come before extra: a session's identity and its hook channel are
+// not something a project's declarative `env:` should be able to redefine.
+// Sorted so two runs of the same config produce the same environment, which
+// is what makes it testable.
+func buildEnv(term, sessionID, sockPath string, extra map[string]string) []string {
+	env := append(os.Environ(), "TERM="+term, "LAZYSHELL_SESSION_ID="+sessionID, "LAZYSHELL_SOCK="+sockPath)
 
 	keys := make([]string, 0, len(extra))
 	for k := range extra {

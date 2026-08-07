@@ -13,6 +13,7 @@ import (
 	"github.com/creack/pty"
 
 	"github.com/thomas-gleizes/lazyshell/pkg/agent"
+	"github.com/thomas-gleizes/lazyshell/pkg/hook"
 	"github.com/thomas-gleizes/lazyshell/pkg/screen"
 )
 
@@ -81,16 +82,24 @@ type Session struct {
 	// literal) gets "not an agent session" rather than a crash.
 	detector *agent.Detector
 
-	// mu guards name, status, exitCode, cols, rows, agentState and the
-	// agent-recheck bookkeeping below: name is written by SetName (the
-	// "renommage de session" ergonomics feature, phase 5) from gocui's main
-	// goroutine and read from sessionsPanelContent on goEvery's background
-	// goroutine; status/exitCode are written by the drain goroutine and read
-	// from whichever goroutine owns the GUI; cols/rows are written by
-	// Resize, which the roadmap expects to be called from the layout pass,
-	// again a different goroutine than drain's; agentState and
+	// hookServer is this session's authoritative agent-state channel
+	// (pkg/hook) — nil if none was started (bare struct literals in tests,
+	// or a Manager that never went through newSession). Closed in drain, so
+	// the socket file never outlives the session.
+	hookServer *hook.Server
+
+	// mu guards name, status, exitCode, cols, rows, agentState, hookDriven
+	// and the agent-recheck bookkeeping below: name is written by SetName
+	// (the "renommage de session" ergonomics feature, phase 5) from gocui's
+	// main goroutine and read from sessionsPanelContent on goEvery's
+	// background goroutine; status/exitCode are written by the drain
+	// goroutine and read from whichever goroutine owns the GUI; cols/rows
+	// are written by Resize, which the roadmap expects to be called from the
+	// layout pass, again a different goroutine than drain's; agentState and
 	// lastAgentCheck/agentRecheckPending are touched from both the drain
-	// goroutine and the deferred timer evaluateAgentState arms below.
+	// goroutine and the deferred timer evaluateAgentState arms below;
+	// hookDriven and agentState are also written from SetAgentState, called
+	// from pkg/hook's own connection-handling goroutine.
 	mu         sync.Mutex
 	name       string
 	status     Status
@@ -98,6 +107,13 @@ type Session struct {
 	cols       int
 	rows       int
 	agentState agent.State
+
+	// hookDriven is set once SetAgentState is ever called for this session:
+	// from that point on, evaluateAgentState's manifest-based guesswork
+	// stops running entirely for the rest of the session's life — the
+	// authoritative channel has spoken, and 11a's screen-scraping detector is
+	// exactly that, a fallback for when nothing better is available.
+	hookDriven bool
 
 	// lastAgentCheck/agentRecheckPending implement evaluateAgentState's
 	// trailing-edge throttle: a check arriving inside agentCheckInterval of
@@ -168,6 +184,23 @@ func (s *Session) AgentState() agent.State {
 	defer s.mu.Unlock()
 
 	return s.agentState
+}
+
+// SetAgentState pushes an authoritative agent state — the pkg/hook socket's
+// only capability, called once per received event from its own
+// connection-handling goroutine. Declarative only: this is the one place
+// something outside lazyshell can affect a Session, and all it can affect is
+// this one value.
+//
+// Once called, evaluateAgentState's manifest-based guesswork stops running
+// for the rest of this session's life (see hookDriven's field comment) —
+// "autoritaire quand il rapporte" is read here as irreversible for the
+// session, not an arbitration replayed on every event.
+func (s *Session) SetAgentState(state agent.State) {
+	s.mu.Lock()
+	s.agentState = state
+	s.hookDriven = true
+	s.mu.Unlock()
 }
 
 // Done is closed once the session has fully terminated: process reaped, both
@@ -267,6 +300,13 @@ func (s *Session) drain() {
 	_ = s.screen.Close()
 	<-answersDone
 
+	// Same reasoning for the hook socket: nothing will ever connect to it
+	// again once the session is gone, and its file must not outlive the
+	// session under $XDG_RUNTIME_DIR.
+	if s.hookServer != nil {
+		_ = s.hookServer.Close()
+	}
+
 	exitCode := 0
 	if err := s.Cmd.Wait(); err != nil {
 		var exitErr *exec.ExitError
@@ -296,12 +336,22 @@ func (s *Session) drain() {
 // failure (process already gone, unsupported platform) both degrade to
 // agent.StateNone rather than erroring: an agent state is a gutter hint, not
 // something anything else in lazyshell depends on.
+//
+// Does nothing once hookDriven — see SetAgentState's doc comment: an
+// authoritative event has already been received, and the manifest-based
+// guesswork below has nothing left to add.
 func (s *Session) evaluateAgentState() {
 	if s.detector == nil {
 		return
 	}
 
 	s.mu.Lock()
+	if s.hookDriven {
+		s.mu.Unlock()
+
+		return
+	}
+
 	if elapsed := time.Since(s.lastAgentCheck); elapsed < agentCheckInterval {
 		remaining := agentCheckInterval - elapsed
 		pending := s.agentRecheckPending
@@ -325,9 +375,7 @@ func (s *Session) evaluateAgentState() {
 
 	name, err := foregroundProcessName(s.ptmx)
 	if err != nil {
-		s.mu.Lock()
-		s.agentState = agent.StateNone
-		s.mu.Unlock()
+		s.setAgentStateUnlessHookDriven(agent.StateNone)
 
 		return
 	}
@@ -336,8 +384,20 @@ func (s *Session) evaluateAgentState() {
 	title := s.screen.Title()
 	state := s.detector.Evaluate(name, tail, title)
 
+	s.setAgentStateUnlessHookDriven(state)
+}
+
+// setAgentStateUnlessHookDriven writes the manifest-derived state, unless a
+// hook event arrived while this evaluation was running (foregroundProcessName
+// and Detector.Evaluate above are not instantaneous) — otherwise a
+// just-received authoritative state could be clobbered by a guess that
+// started before it, a narrow race but the exact kind SetAgentState's
+// "irreversible for the session" contract exists to prevent.
+func (s *Session) setAgentStateUnlessHookDriven(state agent.State) {
 	s.mu.Lock()
-	s.agentState = state
+	if !s.hookDriven {
+		s.agentState = state
+	}
 	s.mu.Unlock()
 }
 

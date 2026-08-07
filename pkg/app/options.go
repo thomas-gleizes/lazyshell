@@ -20,6 +20,10 @@ const (
 	// CommandConfig writes or inspects the user configuration. Its verb is in
 	// Invocation.Arg.
 	CommandConfig = "config"
+	// CommandHook pushes an authoritative AI agent state (Invocation.Arg) for
+	// the calling session — the command an agent's own hook config runs, over
+	// $LAZYSHELL_SOCK. See pkg/hook and pkg/app/hook.go.
+	CommandHook = "hook"
 )
 
 // Verbs of `lazyshell config`. A bare `lazyshell config` means ConfigShow:
@@ -42,6 +46,10 @@ type Options struct {
 	// the terminal or the config. Not a sub-command, since it must also work as
 	// a trailing flag (`lazyshell --version`) the way most CLIs accept it.
 	Version bool
+	// Agents is `init --agents`: print the AI agent hook config blocks
+	// instead of writing lazyshell.yml. Meaningless outside CommandInit, so
+	// checked only there — see PrintAgentHookConfig.
+	Agents bool
 }
 
 // Invocation is a fully parsed command line.
@@ -60,13 +68,17 @@ const usage = `lazyshell — gestionnaire de sessions shell en TUI
 Usage :
   lazyshell [options]           ouvre l'interface
   lazyshell init                écrit un lazyshell.yml commenté dans le dossier courant
+  lazyshell init --agents       affiche la config de hooks à coller chez ses agents IA
   lazyshell allow [fichier]     approuve un fichier de projet sans rien lancer
   lazyshell config show         affiche la configuration réellement appliquée
   lazyshell config init         écrit une config utilisateur commentée
+  lazyshell hook <état>         signale l'état d'un agent IA (idle/working/blocked/done) —
+                                 appelée par la config de hook de l'agent, pas à la main
 
 Options :
   -f, --config-file <fichier>   fichier de projet à utiliser
       --no-autostart            n'ouvre que l'interface, ne démarre aucune session déclarée
+      --agents                  avec init : affiche la config de hooks au lieu du fichier de projet
       --version                 affiche la version et quitte
 `
 
@@ -80,7 +92,7 @@ func ParseArgs(args []string) (Invocation, error) {
 	// to the sub-command or to a preceding flag.
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		switch args[0] {
-		case CommandInit, CommandAllow, CommandConfig:
+		case CommandInit, CommandAllow, CommandConfig, CommandHook:
 			inv.Command = args[0]
 			args = args[1:]
 		default:
@@ -96,6 +108,7 @@ func ParseArgs(args []string) (Invocation, error) {
 	fs.StringVar(&inv.ConfigFile, "f", "", "fichier de projet à utiliser (raccourci)")
 	fs.BoolVar(&inv.NoAutostart, "no-autostart", false, "ne démarre aucune session déclarée")
 	fs.BoolVar(&inv.Version, "version", false, "affiche la version et quitte")
+	fs.BoolVar(&inv.Agents, "agents", false, "avec init : affiche la config de hooks des agents IA")
 
 	if err := fs.Parse(args); err != nil {
 		return inv, fmt.Errorf("%w\n\n%s", err, usage)
@@ -105,6 +118,19 @@ func ParseArgs(args []string) (Invocation, error) {
 
 	switch {
 	case inv.Command == CommandAllow && len(rest) > 0:
+		inv.Arg = rest[0]
+		rest = rest[1:]
+
+	case inv.Command == CommandHook:
+		// Required, unlike allow's optional file: a hook config an agent
+		// runs on its own always supplies one ("lazyshell hook working"), so
+		// a missing argument here is a human typo, worth the usual usage
+		// message — RunHook's own graceful degradation is for an event name
+		// that parses as a flag but is not one of the four valid states.
+		if len(rest) == 0 {
+			return inv, fmt.Errorf("lazyshell hook attend un état (idle, working, blocked ou done)\n\n%s", usage)
+		}
+
 		inv.Arg = rest[0]
 		rest = rest[1:]
 

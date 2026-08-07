@@ -15,6 +15,7 @@ linters:
       # l'anglais et signale les mots français homographes d'une faute anglaise.
       ignore-rules:
         - commandes
+        - existant
   exclusions:
     presets:
       - comments

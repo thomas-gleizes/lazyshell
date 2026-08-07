@@ -136,9 +136,8 @@ func TestPositionalConstructorsStillWork(t *testing.T) {
 	}
 }
 
-// TERM is the one environment variable lazyshell sets on its own, and the one a
-// user might need to lower: some programs behave better when told the terminal
-// can do less than it actually can.
+// TERM is the environment variable a user might need to lower: some programs
+// behave better when told the terminal can do less than it actually can.
 func TestManagerTermReachesTheChildEnvironment(t *testing.T) {
 	m := NewManager()
 
@@ -148,7 +147,7 @@ func TestManagerTermReachesTheChildEnvironment(t *testing.T) {
 
 	m.Term = "xterm"
 
-	env := buildEnv(m.term(), nil)
+	env := buildEnv(m.term(), "session-id", "/tmp/session-id.sock", nil)
 
 	var found string
 	for _, entry := range env {

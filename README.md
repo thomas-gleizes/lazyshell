@@ -275,6 +275,33 @@ another agent — same file name as a built-in replaces it outright, a
 different name adds to the set. See the built-in manifests for the format.
 Manifests are local only; lazyshell never fetches one over the network.
 
+#### Authoritative state via hooks
+
+Manifest detection is a guess from what is on screen — a second channel lets
+the agent say its state outright instead. Every session gets its own Unix
+socket, exposed to the process running inside it as `$LAZYSHELL_SOCK`
+(alongside `$LAZYSHELL_SESSION_ID`), and `lazyshell hook <state>` — one of
+`idle`, `working`, `blocked` or `done` — writes to it. It is meant to be
+wired into the agent's own hook mechanism, not typed by hand:
+
+```sh
+lazyshell init --agents   # prints the config to paste into Claude Code / Codex
+```
+
+**Claude Code** — a `settings.json` hooks block: `UserPromptSubmit` →
+`lazyshell hook working`, `Notification` → `lazyshell hook blocked`, `Stop` →
+`lazyshell hook done`. **Codex** — a `notify` line in `config.toml`; Codex has
+only one event (`agent-turn-complete`), so it can only ever report `done`.
+**opencode** is not wired up yet — its richest signal is an SSE subscription
+rather than something it pushes on its own, a different shape of integration
+left for later.
+
+Once a session has received a single hook event, the manifest-based guessing
+stops for that session for good: the hook is authoritative from then on, not
+just until the next screen change. lazyshell never calls the agent through
+this socket — it only ever listens, and the only thing a hook event can do is
+set that one state.
+
 ## Project configuration
 
 Run `lazyshell` in a directory holding a `lazyshell.yml` and it starts the

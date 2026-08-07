@@ -81,10 +81,31 @@ func TestParseArgsRejectsGarbage(t *testing.T) {
 		{"--unknown-flag"},
 		{"init", "extra"},
 		{"stray-positional"},
+		{"hook"},
 	} {
 		if _, err := ParseArgs(args); err == nil {
 			t.Errorf("ParseArgs(%v): want error, got nil", args)
 		}
+	}
+}
+
+func TestParseArgsHook(t *testing.T) {
+	inv, err := ParseArgs([]string{"hook", "working"})
+	if err != nil {
+		t.Fatalf("ParseArgs hook: %v", err)
+	}
+	if inv.Command != CommandHook || inv.Arg != "working" {
+		t.Errorf("ParseArgs hook working = %+v, want the hook command with its event", inv)
+	}
+}
+
+func TestParseArgsInitAgents(t *testing.T) {
+	inv, err := ParseArgs([]string{"init", "--agents"})
+	if err != nil {
+		t.Fatalf("ParseArgs init --agents: %v", err)
+	}
+	if inv.Command != CommandInit || !inv.Agents {
+		t.Errorf("ParseArgs init --agents = %+v, want CommandInit with Agents=true", inv)
 	}
 }
 

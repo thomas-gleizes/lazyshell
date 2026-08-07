@@ -99,3 +99,28 @@ func TestAllowProjectWithNoFile(t *testing.T) {
 		t.Fatal("AllowProject with no project file: want error, got nil")
 	}
 }
+
+// PrintAgentHookConfig writes to stdout, never to disk — see its doc
+// comment for why (no single right path to merge JSON/TOML into).
+func TestPrintAgentHookConfigWritesNoFile(t *testing.T) {
+	dir := t.TempDir()
+
+	var out bytes.Buffer
+	if err := PrintAgentHookConfig(&out); err != nil {
+		t.Fatalf("PrintAgentHookConfig: %v", err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("PrintAgentHookConfig left files behind: %v", entries)
+	}
+
+	for _, want := range []string{"lazyshell hook working", "lazyshell hook blocked", "lazyshell hook done", "LAZYSHELL_SOCK"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output missing %q:\n%s", want, out.String())
+		}
+	}
+}

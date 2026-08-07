@@ -65,3 +65,38 @@ func InitProject(dir string, out io.Writer) error {
 
 	return nil
 }
+
+// agentHookConfig is `init --agents`'s output: two copy-pasteable config
+// fragments, one per adaptateur this phase ships. Not a file lazyshell
+// writes itself — unlike lazyshell.yml, there is no single right path
+// (settings.json/config.toml may already exist with content of their own to
+// merge into), so printing to stdout for the user to paste is the only
+// choice that cannot clobber something.
+const agentHookConfig = `# À coller dans .claude/settings.json (fusionner avec un bloc "hooks"
+# existant s'il y en a un déjà) :
+{
+  "hooks": {
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "lazyshell hook working"}]}],
+    "Notification":     [{"hooks": [{"type": "command", "command": "lazyshell hook blocked"}]}],
+    "Stop":             [{"hooks": [{"type": "command", "command": "lazyshell hook done"}]}]
+  }
+}
+
+# À coller dans ~/.codex/config.toml (Codex n'a qu'un seul événement,
+# agent-turn-complete — pas de distinction working/blocked) :
+notify = ["lazyshell", "hook", "done"]
+`
+
+// PrintAgentHookConfig implements `lazyshell init --agents`: prints the hook
+// config for every adaptateur this phase ships (Claude Code, Codex — see
+// RAPPORT_ANALYSE_INTEGRATION_AGENTS_IA.md for why opencode is not among
+// them yet) instead of writing lazyshell.yml.
+func PrintAgentHookConfig(out io.Writer) error {
+	fmt.Fprintln(out, "Ces hooks ne font rien si la session ne tourne pas sous lazyshell")
+	fmt.Fprintln(out, "(il leur faut $LAZYSHELL_SOCK, que lazyshell seul définit) :")
+	fmt.Fprintln(out)
+
+	_, err := io.WriteString(out, agentHookConfig)
+
+	return err
+}

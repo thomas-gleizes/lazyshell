@@ -47,6 +47,10 @@ func Main(args []string, out io.Writer) error {
 
 	switch inv.Command {
 	case CommandInit:
+		if inv.Agents {
+			return PrintAgentHookConfig(out)
+		}
+
 		return InitProject(".", out)
 	case CommandAllow:
 		return AllowProject(inv.Arg, out)
@@ -56,6 +60,8 @@ func Main(args []string, out io.Writer) error {
 		}
 
 		return ShowConfig(inv.Options, out, os.Stderr)
+	case CommandHook:
+		return RunHook(inv.Arg, os.Stderr)
 	}
 
 	return New(inv.Options).Run()
