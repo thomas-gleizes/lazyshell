@@ -25,6 +25,7 @@ L'état est celui du code présent dans le dépôt, pas d'une intention.
 | 9 · Recherche, copie, broadcast | **fait** |
 | 10 · Émulation de terminal complète | **fait** (faite en avance, voir la phase) |
 | 11 · Sessions d'agents IA | **faite** — hors adaptateur opencode (SSE, incrément séparé) |
+| 12 · Souris | **faite** |
 
 ---
 
@@ -680,6 +681,51 @@ qui dépende de la présence d'un agent. Confirmé à l'implémentation : rien d
 
 ---
 
+## Phase 12 — Souris — **faite**
+
+**But** : lever le point ouvert n° 3, tenu hors périmètre depuis l'ADR 0001. Le déclencheur n'était
+pas « pouvoir cliquer » mais la molette : sur un CLI d'agent IA, faire défiler rappelait
+l'historique des commandes au lieu de remonter dans la sortie.
+
+Décisions, justification et limites assumées : `docs/adr/0003-souris.md`.
+
+**Pourquoi c'était bloqué, et pourquoi ça ne l'était plus.** L'ADR 0001 disait « gocui confond les
+boutons de souris avec les Shift-flèches ». Relu dans le source, c'est exact mais ne porte que sur
+**deux valeurs** — `MouseLeft` ≡ `KeyShiftArrowDown` et `MouseRight` ≡ `KeyShiftArrowUp`. La
+molette, le clic milieu et le relâchement occupent des touches de fonction libres. Le vrai risque,
+lui, n'était pas documenté : gocui fait retomber un événement souris non réclamé sur l'`Editor` de
+la vue courante, et le panneau de sortie est `Editable` — un clic aurait donc tapé `\x1b[1;2B` dans
+le shell.
+
+- [x] `mouse.enabled` (défaut `true`), `mouse.wheel_lines`, `mouse.forward_to_app` dans
+  `pkg/config`, documentés au README et présents dans le modèle de `lazyshell config init`.
+- [x] Garde unique dans `editOutput` : les touches de valeur souris sont écartées avant
+  `keys.Translate`. Seconde garde par `g.ShouldHandleMouseEvent`. C'est ce qui rend `g.Mouse = true`
+  sûr, et c'est le seul endroit où l'arbitrage est fait.
+- [x] `pkg/gui/mouse.go` : bindings via `SetViewClickBinding` (la seule API qui livre les
+  coordonnées). Clic = sélection sans armer le pass-through ; double-clic = prise en main du shell ;
+  molette = défilement du contenu ; glissé = sélection copy-mode, `y` pour copier.
+- [x] **La molette n'est jamais encodée en flèches**, dans aucun état. Elle ne quitte lazyshell que
+  si le programme de la session a armé un mode de suivi souris.
+- [x] `pkg/screen` mémorise les DECSET 9/1000/1002/1003 et 1006 ; `pkg/keys.EncodeMouse` ré-encode
+  en SGR ou en X10. `vim` avec `set mouse=a` et `htop` reçoivent la souris ; un shell et un CLI
+  d'agent, jamais — ils ne la demandent pas.
+- [x] Gestes listés dans le panneau d'aide, en clair, et masqués quand la souris est coupée.
+
+**Critère de sortie — atteint.** Molette sur un shell et sur un CLI d'agent : la sortie défile,
+aucune commande n'est rappelée. Clic sur une session : sélectionnée, sans passer en INSERT.
+`vim` avec `set mouse=a` : le clic déplace son curseur. `mouse.enabled: false` : plus aucun geste,
+et `Maj-Haut`/`Maj-Bas` transmises comme avant.
+
+**Reste hors périmètre, assumé** (ADR 0003) : les modificateurs avec un clic (gocui ne les livre pas
+de façon fiable), le bouton porté par un relâchement, la sélection par colonnes (`pkg/screen` ne
+sélectionne que des lignes entières), les encodages 1005/1015/1016, le survol.
+
+**Risque** : faible en surface, élevé en un seul point — l'écriture accidentelle dans un pty. Traité
+par le test `TestEditOutputDropsMouseKeys`, qui échoue précisément sur ce scénario.
+
+---
+
 ## Séquencement et jalons
 
 | Phase | Livrable | Jalon | État |
@@ -696,6 +742,7 @@ qui dépende de la présence d'un agent. Confirmé à l'implémentation : rien d
 | 9 | recherche, copy-mode, export, broadcast | v0.6 | fait |
 | 10 | émulation terminal complète | **v1.0** | fait (en avance) |
 | 11 | états d'agents IA, notifications, saut vers la session bloquée | **v1.1 — atteint** | faite (hors opencode) |
+| 12 | souris : clic, molette, glissé, transfert à l'application invitée | v1.2 | faite |
 
 ## Décisions déjà actées (ne pas re-débattre)
 
@@ -709,8 +756,11 @@ qui dépende de la présence d'un agent. Confirmé à l'implémentation : rien d
 
 1. [x] Stratégie de rendu ANSI (tranchée en phase 1, revisitée et close en phase 10 — ADR 0002).
 2. [x] Préfixe d'échappement du mode pass-through (`Ctrl-B`, remappable — ADR 0001).
-3. [ ] Souris (sélection dans la liste, clic pour focus) : hors périmètre tant que gocui confond les
-   boutons de souris avec les Shift-flèches (ADR 0001, décision reconduite en phase 10).
+3. [x] **Tranché (phase 12)** : souris **activée par défaut**, coupable par `mouse.enabled: false`.
+   La collision annoncée était réelle mais ne portait que sur deux valeurs (`MouseLeft` ≡
+   `Maj-Bas`, `MouseRight` ≡ `Maj-Haut`) ; la molette et le clic milieu ne collisionnaient avec
+   rien. Le prix assumé est de ne plus transmettre ces deux Shift-flèches à la session tant que la
+   souris est active. ADR 0003.
 4. [ ] Portée du support Windows : hors périmètre (pas de pty Unix) — à assumer explicitement.
 5. [x] **Tranché (phase 6)** : **strictement le cwd**, plus `--config-file` pour désigner un fichier
    ailleurs. Pas de remontée d'arborescence — le fichier qui s'exécute est toujours celui qu'on

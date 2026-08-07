@@ -63,6 +63,10 @@ const (
 	// defaultHalfPageDivisor is what the output panel's height is divided by for
 	// a Ctrl-U/Ctrl-D scroll (pkg/gui/input.go's scrollHalfPage).
 	defaultHalfPageDivisor = 2
+	// defaultMouseWheelLines is how many lines one wheel notch scrolls the
+	// output panel by (pkg/gui/mouse.go). Three is what terminals themselves
+	// use for their own scrollback.
+	defaultMouseWheelLines = 3
 )
 
 // Config is lazyshell's user-facing configuration. Every field has a
@@ -134,6 +138,8 @@ type Config struct {
 	// WindowTitle configures whether the host terminal's window/tab title
 	// tracks the focused session's name and live OSC title.
 	WindowTitle WindowTitle `yaml:"window_title"`
+	// Mouse configures clicking, wheel scrolling and drag selection.
+	Mouse Mouse `yaml:"mouse"`
 	// AgentStatsCommand, when set, is run for the selected session — with
 	// $LAZYSHELL_SESSION_ID in its environment — and its first line of
 	// stdout is shown alongside the turn duration. Best-effort: lazyshell
@@ -212,6 +218,28 @@ type WindowTitle struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+// Mouse configures the mouse support. It is on by default, and the switch
+// exists because enabling it is not free: gocui gives mouse buttons and the
+// Shift-Up/Shift-Down keys the very same values (MouseLeft is KeyShiftArrowDown,
+// MouseRight is KeyShiftArrowUp), so the two cannot be told apart. lazyshell
+// resolves the ambiguity in favour of the mouse and stops forwarding those two
+// keys to the session — see docs/adr/0003-souris.md. Setting Enabled to false
+// gives them back.
+type Mouse struct {
+	// Enabled turns the whole feature on or off, including gocui's own mouse
+	// reporting, which hands wheel and selection back to the host terminal.
+	Enabled bool `yaml:"enabled"`
+	// WheelLines is how many lines one wheel notch scrolls the output panel
+	// by. Zero falls back to the built-in default.
+	WheelLines int `yaml:"wheel_lines"`
+	// ForwardToApp lets a full-screen program running inside a session (vim
+	// with `set mouse=a`, htop) receive the mouse events itself, but only once
+	// it has explicitly asked for them with a DECSET 9/1000/1002/1003. A
+	// program that never asks — a shell, an AI agent CLI — never sees them,
+	// and the wheel keeps scrolling lazyshell's own scrollback.
+	ForwardToApp bool `yaml:"forward_to_app"`
+}
+
 // Scroll is how far the output panel moves per scrolling keystroke.
 type Scroll struct {
 	// PageLines is how many lines PgUp/PgDn move by. Zero means "one full
@@ -253,9 +281,14 @@ func Default() Config {
 			PageLines:       0,
 			HalfPageDivisor: defaultHalfPageDivisor,
 		},
-		Clipboard:         Clipboard{FallbackCommand: ""},
-		Notify:            Notify{FallbackCommand: ""},
-		WindowTitle:       WindowTitle{Enabled: true},
+		Clipboard:   Clipboard{FallbackCommand: ""},
+		Notify:      Notify{FallbackCommand: ""},
+		WindowTitle: WindowTitle{Enabled: true},
+		Mouse: Mouse{
+			Enabled:      true,
+			WheelLines:   defaultMouseWheelLines,
+			ForwardToApp: true,
+		},
 		AgentStatsCommand: "",
 	}
 }

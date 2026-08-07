@@ -109,6 +109,21 @@ scroll:
   page_lines: 0        # PgUp/PgDn : 0 = une page entière
   half_page_divisor: 2 # Ctrl-U/Ctrl-D : hauteur du panneau divisée par cette valeur
 
+# Souris. Activée par défaut, et le seul intérêt de pouvoir la couper est
+# qu'elle n'est pas gratuite : gocui donne la même valeur aux boutons de la
+# souris et à Maj-Haut/Maj-Bas, donc tant qu'elle est active ces deux touches
+# ne sont plus transmises à la session (voir docs/adr/0003-souris.md).
+#
+# La molette fait toujours défiler le contenu du panneau, jamais l'historique
+# des commandes : elle n'est jamais encodée en flèches. Elle n'est transmise à
+# l'application de la session que si celle-ci l'a explicitement réclamée
+# (vim avec « set mouse=a », htop) — un shell ou un CLI d'agent ne le fait
+# jamais.
+mouse:
+  enabled: true
+  wheel_lines: 3      # lignes défilées par cran de molette
+  forward_to_app: true
+
 # Couleurs : un nom ANSI de terminal (black, red, green, yellow, blue, magenta,
 # cyan, white, chacun préfixable par "bright"), un nom W3C/CSS ("navy", "teal",
 # "#rrggbb"...), ou "default" pour la couleur propre du terminal.

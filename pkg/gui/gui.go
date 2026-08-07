@@ -67,6 +67,10 @@ type Gui struct {
 	// panel's scrolling steps — both straight from pkg/config.
 	markers config.Markers
 	scroll  config.Scroll
+	// mouse is pkg/config's Mouse: whether the mouse is handled at all, how
+	// far a wheel notch scrolls, and whether a session's program may claim the
+	// events for itself — see pkg/gui/mouse.go.
+	mouse config.Mouse
 	// clipboardFallback is pkg/config's Clipboard.FallbackCommand — see
 	// pkg/gui/clipboard.go's copyToClipboard.
 	clipboardFallback string
@@ -223,6 +227,7 @@ func New(sessions *session.Manager, cfg config.Config) *Gui {
 		refreshInterval:     refreshIntervalFrom(cfg.RefreshIntervalMs),
 		markers:             cfg.Markers,
 		scroll:              cfg.Scroll,
+		mouse:               cfg.Mouse,
 		clipboardFallback:   cfg.Clipboard.FallbackCommand,
 		notifyFallback:      cfg.Notify.FallbackCommand,
 		windowTitleEnabled:  cfg.WindowTitle.Enabled,
@@ -333,7 +338,13 @@ func (gui *Gui) Run() (err error) {
 	// The cursor is off by default and turned on by the output render task
 	// only while a session is actually being typed into — see showOutput.
 	g.Cursor = false
-	g.Mouse = false
+	// Mouse reporting, off until phase 12 because gocui gives mouse buttons and
+	// the Shift-arrows the same values. What makes it safe now is the
+	// gocui.IsMouseKey guard at the top of editOutput plus ShouldHandleMouseEvent
+	// below — without them a click reaches keys.Translate as KeyShiftArrowDown
+	// and gets typed into the shell. See docs/adr/0003-souris.md.
+	g.Mouse = gui.mouse.Enabled
+	g.ShouldHandleMouseEvent = gui.shouldHandleMouseEvent
 	// Without InputEsc, a lone Esc is held back while the input parser waits to
 	// see whether an escape sequence follows. Esc is vim's central key, so it
 	// has to be delivered as itself; same setting as cmd/spike-pty.

@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project status
 
 `lazyshell` is implemented and functional, past v1.1 (see `ROADMAP.md` for the full phase-by-phase
-history). All phases through 11c ("sessions d'agents IA — notifications et ergonomie") are done.
+history). All phases through 12 ("souris") are done.
 This is an active Go codebase with a real `go.mod`, CI, goreleaser packaging, and a test suite —
 do not treat this as a design-stage repo. `RAPPORT_ANALYSE_LAZYGIT_LAZYDOCKER.md` and
 `RAPPORT_ANALYSE_INTEGRATION_AGENTS_IA.md` are historical design docs (the first drove phases 0–10,
@@ -53,7 +53,7 @@ pkg/
   app/            bootstrap: load config, build SessionManager, run gui.Run()
   session/        SessionManager: CRUD (New, Kill, List); Session{cmd, ptmx, scrollback, status}
   screen/         terminal emulator backing the output panel (vim/htop/less support)
-  gui/            gocui init, layout, keybindings, panels, help, theme, notify, stats
+  gui/            gocui init, layout, keybindings, mouse, panels, help, theme, notify, stats
   tasks/          TaskManager (display/reading goroutines only)
   agent/          AI agent state detection (config-free + hooks-driven)
   hook/           authoritative hooks channel for agent sessions
@@ -62,13 +62,19 @@ pkg/
   i18n/           strings/translations
   version/        --version metadata (goreleaser-injected)
 docs/
-  adr/            architecture decision records (0001: rendu ANSI et clavier, 0002: rendu multi-panneaux)
+  adr/            architecture decision records (0001: rendu ANSI et clavier, 0002: rendu
+                  multi-panneaux, 0003: souris)
   repports/       (sic) historical analysis reports
 ```
 
 ## Open items (see ROADMAP.md "Ce qui reste ouvert" for full rationale)
 
-- Mouse support: out of scope (gocui conflates mouse buttons with Shift-arrows).
+- Mouse support: **done (phase 12, ADR 0003)**, on by default. gocui's mouse/Shift-arrow collision
+  turned out to cover only two values, and the cost paid is that `Shift-Up`/`Shift-Down` are no
+  longer forwarded to a session while `mouse.enabled` is true. The load-bearing rule: mouse events
+  are dropped at the top of `editOutput` before `keys.Translate`, or a click gets typed into the
+  shell as `\x1b[1;2B`. The wheel scrolls the panel's content and is *never* encoded as an arrow
+  key; it only reaches the session's program once that program arms a DECSET 9/1000/1002/1003.
 - Windows support: explicitly out of scope (no Unix pty).
 - Agent control API (agents creating panels / reading other sessions' output via a socket): decided
   against for now — the phase 11b hooks socket is inbound/declarative only; an outbound control verb

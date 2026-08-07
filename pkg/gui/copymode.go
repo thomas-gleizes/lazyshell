@@ -52,6 +52,16 @@ func (gui *Gui) copySelectionRange() (from, to int) {
 // the same "just enough" a real pager scrolls by, rather than always
 // recentering.
 func (gui *Gui) moveCopyCursor(delta, rows int) {
+	gui.setCopyCursor(gui.copyCursorLine+delta, rows)
+}
+
+// setCopyCursor is moveCopyCursor's absolute form: it puts the selection's
+// live end on that scrollback line rather than delta lines from where it was.
+// Split out for the mouse (pkg/gui/mouse.go), which knows the line it is
+// pointing at and not a distance — the clamping and the "scroll just enough"
+// adjustment below are exactly the same either way, and duplicating them is
+// how the two would drift apart.
+func (gui *Gui) setCopyCursor(line, rows int) {
 	sess := gui.selectedSession()
 	if sess == nil || rows <= 0 {
 		return
@@ -60,7 +70,7 @@ func (gui *Gui) moveCopyCursor(delta, rows int) {
 	scrollbackLen := sess.Screen().ScrollbackLen()
 	maxLine := scrollbackLen + rows - 1
 
-	cursor := gui.copyCursorLine + delta
+	cursor := line
 	if cursor < 0 {
 		cursor = 0
 	} else if cursor > maxLine {

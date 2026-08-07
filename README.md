@@ -115,6 +115,27 @@ matter can reach several shells behind your back, so it stays visible no
 matter what. Unmark a session (`b` again) to drop it out; broadcasting stops
 on its own once fewer than two remain marked.
 
+### Mouse
+
+On by default. Click a session to select it — that's navigation, so it does
+*not* hand the keyboard to the shell; double-click does. The wheel scrolls the
+output panel's content, and never the shell's command history: `lazyshell`
+handles the wheel itself instead of letting the terminal turn it into arrow
+keys, which at a prompt would recall the previous command instead of scrolling.
+Click and drag to select lines, then `y` to copy — releasing the button copies
+nothing on its own.
+
+A program inside a session gets the mouse only once it asks for it (`vim` with
+`set mouse=a`, `htop`); a shell or an AI agent CLI never asks, so the wheel
+keeps scrolling the scrollback. Set `mouse.forward_to_app: false` to keep the
+mouse for `lazyshell` regardless.
+
+The one thing turning the mouse on costs: `Shift-Up` and `Shift-Down` are no
+longer forwarded to a session. `gocui` gives those keys and the mouse buttons
+the same values, so they cannot both work — see
+[ADR 0003](docs/adr/0003-souris.md). Set `mouse.enabled: false` to get them
+back, at the price of the gestures above.
+
 While a full-screen application is in control, scrolling back through history
 — and copy-mode, which selects out of that same history — is disabled: the
 alternate screen does not feed the scrollback, and those keys belong to the
@@ -184,6 +205,9 @@ used instead — never a silent no-op, never a refusal to run.
 | `clipboard.fallback_command` | string | `""` | Command run with the yanked text on its stdin, instead of OSC 52, for a terminal that does not support it. There is no way to detect support, so this is a manual switch: empty means OSC 52 only. |
 | `notify.fallback_command` | string | `""` | Command run with the notification text on its stdin, instead of OSC 9/777, when a detected AI agent session goes blocked or done. Empty means OSC only. |
 | `window_title.enabled` | bool | `true` | Whether the host terminal's window/tab title tracks the focused session (its name, plus its live OSC 0/2 title when one is set) via OSC 0. |
+| `mouse.enabled` | bool | `true` | Click, wheel and drag support. Turning it on costs `Shift-Up`/`Shift-Down` pass-through — gocui gives those keys and the mouse buttons the same values, so they cannot both work. Set to `false` to get them back. |
+| `mouse.wheel_lines` | int ≥ 1 | `3` | Lines one wheel notch scrolls the output panel by. |
+| `mouse.forward_to_app` | bool | `true` | Whether a program inside a session may receive the mouse itself, and only once it has asked for it with a DECSET 9/1000/1002/1003 (`vim` with `set mouse=a`, `htop`). A shell or an AI agent CLI never asks, so the wheel keeps scrolling lazyshell's scrollback. |
 | `agent_stats_command` | string | `""` | Run for the selected AI agent session, with `$LAZYSHELL_SESSION_ID` in its environment; its first line of stdout is shown next to the turn duration. Empty disables it. |
 
 Key specs use `gocui.Parse` syntax: a bare character (`n`), or `Ctrl+N`,
@@ -281,6 +305,11 @@ notify:
 
 window_title:
   enabled: true
+
+mouse:
+  enabled: true
+  wheel_lines: 3
+  forward_to_app: true
 
 agent_stats_command: ""
 ```

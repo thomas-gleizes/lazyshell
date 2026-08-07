@@ -94,6 +94,26 @@ var messages = map[string]map[string]string{
 		"fr": "Aide — une touche quelconque pour fermer",
 		"en": "Help — any key to close",
 	},
+	"help.mouse_header": {
+		"fr": "Souris",
+		"en": "Mouse",
+	},
+	"help.mouse_click": {
+		"fr": "clic : sélectionner une session (sans passer en INSERT)",
+		"en": "click: select a session (without entering INSERT)",
+	},
+	"help.mouse_double_click": {
+		"fr": "double-clic : sélectionner et prendre la main sur le shell",
+		"en": "double click: select and hand the keyboard to the shell",
+	},
+	"help.mouse_wheel": {
+		"fr": "molette : faire défiler le contenu du panneau",
+		"en": "wheel: scroll the panel's content",
+	},
+	"help.mouse_drag": {
+		"fr": "glisser : sélectionner des lignes, puis y pour copier",
+		"en": "drag: select lines, then y to copy",
+	},
 
 	"status.hint": {
 		"fr": " n: nouvelle session   x/d: tuer   j/k: naviguer   Tab: changer de focus   ?: aide   q: quitter ",

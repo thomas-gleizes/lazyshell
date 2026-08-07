@@ -38,7 +38,37 @@ type Screen struct {
 	title           string
 	bellPending     bool
 	activityPending bool
+	// mouseMode is the mouse tracking mode the application last asked for
+	// (DECSET 9/1000/1002/1003), or 0 for "did not ask". mouseSGR records the
+	// separate DECSET 1006 that only picks the *encoding*, not whether
+	// tracking happens at all — an application sets both, and they are turned
+	// off independently too.
+	mouseMode MouseMode
+	mouseSGR  bool
 }
+
+// MouseMode is how much of the mouse an application asked to be told about.
+// The values are the DECSET numbers themselves, so a reader can match them
+// against any terminal reference without a translation table.
+type MouseMode int
+
+// The mouse tracking modes lazyshell honours. Modes 1005/1015/1016 (alternate
+// encodings) are deliberately absent: SGR is the one every modern application
+// asks for alongside them, so answering in SGR whenever 1006 is set covers
+// them, and inventing partial support for the others would be worse than
+// having none.
+const (
+	// MouseOff means the application never asked; the mouse stays lazyshell's.
+	MouseOff MouseMode = 0
+	// MouseX10 (DECSET 9) reports button presses only, no releases.
+	MouseX10 MouseMode = 9
+	// MouseNormal (DECSET 1000) reports presses and releases.
+	MouseNormal MouseMode = 1000
+	// MouseButtonEvent (DECSET 1002) adds motion while a button is held.
+	MouseButtonEvent MouseMode = 1002
+	// MouseAnyEvent (DECSET 1003) adds motion with no button held.
+	MouseAnyEvent MouseMode = 1003
+)
 
 // New returns a Screen of the given size, in cells, with the emulator's
 // default scrollback size (vt.DefaultScrollbackSize).
@@ -72,8 +102,36 @@ func NewWithScrollback(cols, rows, scrollback int) *Screen {
 // EnableMode/DisableMode callbacks, so s.mu is already held — see the field
 // comments on Screen.
 func (s *Screen) setMode(mode ansi.Mode, set bool) {
-	if mode == ansi.ModeCursorKeys {
+	switch mode {
+	case ansi.ModeCursorKeys:
 		s.appCursorKeys = set
+	case ansi.ModeMouseExtSgr:
+		s.mouseSGR = set
+	case ansi.ModeMouseX10:
+		s.setMouseMode(MouseX10, set)
+	case ansi.ModeMouseNormal:
+		s.setMouseMode(MouseNormal, set)
+	case ansi.ModeMouseButtonEvent:
+		s.setMouseMode(MouseButtonEvent, set)
+	case ansi.ModeMouseAnyEvent:
+		s.setMouseMode(MouseAnyEvent, set)
+	}
+}
+
+// setMouseMode records one tracking mode being turned on or off. The modes are
+// not a hierarchy an application steps through: it sets the one it wants, and
+// turning a mode off while a different one is active must not disarm that
+// other one — vim resets 1002 and 1006 on exit while 1000 may still be armed
+// by whatever it was launched from.
+func (s *Screen) setMouseMode(mode MouseMode, set bool) {
+	if set {
+		s.mouseMode = mode
+
+		return
+	}
+
+	if s.mouseMode == mode {
+		s.mouseMode = MouseOff
 	}
 }
 
@@ -330,6 +388,19 @@ func (s *Screen) ApplicationCursorKeys() bool {
 	defer s.mu.Unlock()
 
 	return s.appCursorKeys
+}
+
+// MouseTracking reports whether the application running in this session asked
+// to receive mouse events itself, and in which encoding to send them: the
+// tracking mode it last set, and whether it also asked for the SGR form
+// (DECSET 1006) rather than the cramped historical one. MouseOff means it
+// never asked — a shell or an AI agent CLI never does — and lazyshell keeps
+// the mouse for its own panels. Consumed by pkg/gui's forwardMouseToApp.
+func (s *Screen) MouseTracking() (MouseMode, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.mouseMode, s.mouseSGR
 }
 
 // Title is the terminal title the application last set through OSC 0/2 —

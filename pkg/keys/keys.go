@@ -34,9 +34,11 @@ var specialKeys = map[gocui.Key]string{
 	gocui.KeyArrowLeft:  "\x1b[D",
 
 	// gocui has no dedicated constants for these: it reuses tcell's unused
-	// F62/F63, which are *the same values* as MouseRight/MouseLeft. The
-	// ambiguity is only safe because lazyshell keeps the mouse disabled
-	// (g.Mouse = false); enabling it later means dropping these two entries.
+	// F62/F63, which are *the same values* as MouseRight/MouseLeft. These two
+	// entries are therefore only reachable while the mouse is off; with
+	// mouse.enabled set, pkg/gui's editOutput drops mouse-valued keys before
+	// they ever get here, and the ambiguity is resolved in the mouse's favour.
+	// See docs/adr/0003-souris.md.
 	gocui.KeyShiftArrowUp:   "\x1b[1;2A",
 	gocui.KeyShiftArrowDown: "\x1b[1;2B",
 

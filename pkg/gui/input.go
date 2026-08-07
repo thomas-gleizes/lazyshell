@@ -98,6 +98,22 @@ func (gui *Gui) halfPageStep(rows int) int {
 // here, mirroring cmd/spike-pty's edit() but against a real session.Manager
 // selection instead of a single hardcoded pty.
 func (gui *Gui) editOutput(view *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) bool {
+	// This guard is what makes g.Mouse = true safe, and it has to come first.
+	// gocui routes a mouse event through the current view's Editor whenever no
+	// mouse binding claimed it (gui.go's execKeybindings), and MouseLeft is the
+	// very same value as KeyShiftArrowDown — so anything reaching
+	// keys.Translate below would be encoded as "\x1b[1;2B" and typed into the
+	// shell. Mouse events belong to mouse.go's bindings, never here.
+	//
+	// The cost is stated in docs/adr/0003-souris.md: while the mouse is on,
+	// Shift-Up/Shift-Down can no longer be forwarded to a session. The test on
+	// mouse.Enabled is what gives them back when it is off — gocui then emits
+	// no mouse event at all, so a MouseLeft-valued key can only be a genuine
+	// Shift-Down and must go through.
+	if gui.mouse.Enabled && gocui.IsMouseKey(key) {
+		return false
+	}
+
 	key, ch, mod = keys.Normalize(key, ch, mod)
 
 	if gui.passThroughActive {

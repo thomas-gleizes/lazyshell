@@ -66,6 +66,25 @@ func (gui *Gui) helpContent() string {
 		fmt.Fprintf(&b, "  %-10s %s\n", keyLabel(key, mod), binding.Description)
 	}
 
+	// The mouse gestures are listed as prose rather than in the key column
+	// above: they live in gocui's other registry (see mouse.go), they are not
+	// remappable, and "click" is not a key spec keyLabel could render. Hidden
+	// entirely when the mouse is off, so the help never advertises a gesture
+	// that does nothing.
+	if gui.mouse.Enabled {
+		fmt.Fprintln(&b)
+		fmt.Fprintf(&b, "  %s\n", gui.tr.T("help.mouse_header"))
+
+		for _, key := range []string{
+			"help.mouse_click",
+			"help.mouse_double_click",
+			"help.mouse_wheel",
+			"help.mouse_drag",
+		} {
+			fmt.Fprintf(&b, "    %s\n", gui.tr.T(key))
+		}
+	}
+
 	return b.String()
 }
 

@@ -39,6 +39,7 @@ func (c *Config) Validate() []error {
 		{"portrait_min_height", &c.PortraitMinHeight, 0, 0, def.PortraitMinHeight},
 		{"scroll.page_lines", &c.Scroll.PageLines, 0, 0, def.Scroll.PageLines},
 		{"scroll.half_page_divisor", &c.Scroll.HalfPageDivisor, 1, 0, def.Scroll.HalfPageDivisor},
+		{"mouse.wheel_lines", &c.Mouse.WheelLines, 1, 0, def.Mouse.WheelLines},
 	}
 
 	for _, check := range checks {

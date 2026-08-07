@@ -138,6 +138,14 @@ Deux pièges découverts pendant le spike, tous deux invisibles à la lecture de
    acceptable tant que `g.Mouse = false` ; **activer la souris (point ouvert n°3 de la roadmap)
    impose de renoncer aux Shift-flèches**, ou de descendre sous gocui pour lire l'événement tcell.
    Un test (`TestShiftArrowsCollideWithMouseButtons`) échouera si un bump de gocui change cela.
+
+   > **Mise à jour (phase 12).** La collision a été relue dans le source de gocui : elle est réelle
+   > mais porte sur **deux valeurs seulement**. `MouseMiddle`, `MouseRelease` et les quatre
+   > `MouseWheel*` occupent `F56`–`F61`, qui ne collisionnent avec rien. Le coût d'activer la souris
+   > se réduit donc aux deux Shift-flèches ci-dessus, et la phase 12 le paie : la souris est active
+   > par défaut, `mouse.enabled: false` rend les Shift-flèches. L'arbitrage se fait en un seul point,
+   > `editOutput`, qui écarte les touches de valeur souris avant `keys.Translate`. Voir
+   > `docs/adr/0003-souris.md`.
 3. **Le même `Ctrl-<lettre>` arrive sous plusieurs formes.** Selon le terminal et le protocole
    clavier qu'il utilise, `Ctrl-B` parvient soit comme `KeyCtrlB` sans modificateur, soit comme la
    rune `'b'` avec `ModCtrl` — et sous cette seconde forme il est **indistinguable d'un `b` tapé
@@ -172,4 +180,5 @@ observer, à savoir le rendu.
 - Le coût de la phase 6 est confirmé comme réel mais isolé : il porte sur le rendu, pas sur le
   clavier ni sur le cycle de vie des process.
 - La souris reste hors périmètre, désormais pour une raison technique documentée et non par simple
-  priorisation.
+  priorisation. *(Levé en phase 12 : la raison technique s'est avérée plus étroite que ce
+  paragraphe ne le laissait croire — voir la mise à jour du piège n°2 et `docs/adr/0003-souris.md`.)*

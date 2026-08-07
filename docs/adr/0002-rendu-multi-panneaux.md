@@ -161,6 +161,8 @@ phase 1.
 
 - **La souris** reste désactivée, pour la raison technique déjà documentée dans l'ADR 0001 : gocui
   réutilise les mêmes valeurs pour les boutons de souris et les Shift-flèches.
+  *(Levé en phase 12 — `docs/adr/0003-souris.md`. La collision ne portait que sur deux valeurs ; le
+  reste du raisonnement de cette section tient toujours.)*
 - **Les protocoles clavier étendus** (Kitty, CSI u, `modifyOtherKeys`) : gocui livre des
   événements déjà décodés, on ne peut pas encoder ce qu'il ne distingue pas.
 - **Le collage entre crochets** (bracketed paste) : les touches sont synthétisées une par une, il

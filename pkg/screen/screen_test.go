@@ -291,6 +291,68 @@ func TestApplicationCursorKeysFollowsDECCKM(t *testing.T) {
 	}
 }
 
+// Whether the mouse belongs to lazyshell's panels or to the program inside a
+// session is decided here, and nowhere else: a program that never sets one of
+// these modes never receives a mouse event.
+func TestMouseTrackingFollowsDECSET(t *testing.T) {
+	s := New(40, 10)
+
+	if mode, sgr := s.MouseTracking(); mode != MouseOff || sgr {
+		t.Fatalf("MouseTracking() = (%d, %v) before anything was written, want (MouseOff, false)", mode, sgr)
+	}
+
+	cases := []struct {
+		seq  string
+		want MouseMode
+	}{
+		{"\x1b[?9h", MouseX10},
+		{"\x1b[?1000h", MouseNormal},
+		{"\x1b[?1002h", MouseButtonEvent},
+		{"\x1b[?1003h", MouseAnyEvent},
+	}
+
+	for _, tc := range cases {
+		write(t, s, tc.seq)
+
+		if mode, _ := s.MouseTracking(); mode != tc.want {
+			t.Errorf("%q gave mode %d, want %d", tc.seq, mode, tc.want)
+		}
+	}
+
+	// SGR (1006) picks the encoding, not whether tracking happens: it is set
+	// and reset independently of the mode.
+	write(t, s, "\x1b[?1006h")
+
+	if _, sgr := s.MouseTracking(); !sgr {
+		t.Error("ESC[?1006h did not select the SGR encoding")
+	}
+
+	write(t, s, "\x1b[?1006l")
+
+	if mode, sgr := s.MouseTracking(); sgr || mode != MouseAnyEvent {
+		t.Errorf("ESC[?1006l left (%d, %v), want the tracking mode untouched and SGR off", mode, sgr)
+	}
+
+	write(t, s, "\x1b[?1003l")
+
+	if mode, _ := s.MouseTracking(); mode != MouseOff {
+		t.Errorf("ESC[?1003l left mode %d, want MouseOff", mode)
+	}
+}
+
+// Turning off a mode that is not the active one must not disarm the mouse:
+// vim resets 1002 on exit while whatever launched it may still hold 1000.
+func TestDisablingAnotherModeLeavesTrackingArmed(t *testing.T) {
+	s := New(40, 10)
+
+	write(t, s, "\x1b[?1000h")
+	write(t, s, "\x1b[?1002l")
+
+	if mode, _ := s.MouseTracking(); mode != MouseNormal {
+		t.Errorf("MouseTracking() = %d after resetting an inactive mode, want MouseNormal", mode)
+	}
+}
+
 // The title a shell sets is usually the running command, which is what makes
 // a session list readable.
 func TestTitleFollowsOSC(t *testing.T) {

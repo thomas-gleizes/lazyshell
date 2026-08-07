@@ -305,7 +305,10 @@ func (gui *Gui) setKeybindings(g *gocui.Gui) error {
 		}
 	}
 
-	return nil
+	// Mouse gestures live in their own registry (pkg/gui/mouse.go), which
+	// SetManager purges just the same — so they must be registered from here,
+	// after it, and not earlier.
+	return gui.setMouseBindings(g)
 }
 
 func (gui *Gui) quit(*gocui.Gui, *gocui.View) error {
