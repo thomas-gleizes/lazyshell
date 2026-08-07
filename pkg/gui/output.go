@@ -66,6 +66,14 @@ func (gui *Gui) showOutput(sess *session.Session) {
 		envContent = gui.envTabContent(sess.Env())
 	}
 
+	// The perf tab is the opposite case: it has to keep re-reading, but far
+	// slower than the redraw tick, so it carries its own sampler with its own
+	// interval — see perfSampler.
+	var perf *perfSampler
+	if tab == tabPerf {
+		perf = &perfSampler{sess: sess, interval: gui.perfInterval(), tr: gui.tr}
+	}
+
 	// Captured for the same reason as the tab: written from gocui's goroutine
 	// by scrollSecondaryTab, which restarts this task on every change.
 	tabOffset := gui.tabOffset
@@ -96,6 +104,8 @@ func (gui *Gui) showOutput(sess *session.Session) {
 			frame = buildOutputFrame(sess, offset, passThrough, pattern, selFrom, selTo)
 		case tabEnv:
 			frame = outputFrame{content: envContent}
+		case tabPerf:
+			frame = perf.frame()
 		}
 
 		if drawn && frame == previous {

@@ -726,6 +726,64 @@ par le test `TestEditOutputDropsMouseKeys`, qui échoue précisément sur ce sc�
 
 ---
 
+## Phase 13 — Onglets du panneau de sortie : `sortie` / `perf` / `env` — **faite**
+
+**But** : deux questions reviennent sans arrêt sur une session longue (un `npm run dev`, un agent
+qui tourne depuis 40 minutes) et n'avaient aucune réponse dans lazyshell — **qu'est-ce que ce
+process consomme ?** et **avec quel environnement a-t-il été lancé ?**. Il fallait sortir de
+lazyshell pour un `htop` ou un `env | grep`.
+
+**Le point d'appui, découvert en lisant le source.** gocui sait déjà dessiner une barre d'onglets :
+`View.Tabs`/`TabIndex` (rendus par `drawTitle`, l'entrée active surlignée en `SelFgColor`) et
+`SetTabClickBinding` pour le clic. Rien à écrire côté rendu, et le registre des clics d'onglet est
+purgé par `SetManager` exactement comme les keybindings et la souris — donc enregistré depuis
+`setKeybindings`, jamais depuis `initView`.
+
+**La décision structurante** : une **seule** vue gocui `output` dont le *contenu* change, pas une
+vue par onglet. `propagateResize` dimensionne le pty de chaque session depuis l'`InnerSize` de
+cette vue ; un onglet qui la ferait sortir du layout redimensionnerait tous les shells à chaque
+bascule.
+
+- [x] `pkg/session` : `Session.Env()` (env **au lancement**, cloné) et `Session.Stats()`, avec
+  `foregroundPGID` factorisé hors des deux `foreground_*.go`. Linux lit `/proc/<pid>/stat` et
+  `/proc/<pid>/io` ; darwin passe par un `ps` unique, faute de `proc_pidinfo` sans cgo.
+- [x] Portée des stats : le shell **plus** le leader du groupe d'avant-plan, jamais l'arbre — ce que
+  l'utilisateur regarde c'est `claude` ou `vim`, pas `bash`, et scanner l'arbre coûterait un
+  parcours de `/proc` par session et par rafraîchissement.
+- [x] Ce qu'un OS ne peut pas répondre est marqué **indisponible**, jamais rapporté à zéro : sur
+  darwin, le nombre de threads et l'I/O disque affichent « inconnu » / « indisponible sur ce
+  système » plutôt que `0`.
+- [x] `[` / `]` changent d'onglet, remappables (`next_tab` / `prev_tab`), **scopés au panneau des
+  sessions** : un binding scopé à une vue passe avant son `Editor`, donc sur `output` le `]` se
+  serait déclenché en plein pass-through au lieu d'atteindre le shell. La vue de sortie les rattrape
+  à la main dans `editDuringScroll`, comme `zoom`.
+- [x] Quitter l'onglet `sortie` désarme pass-through et copy-mode, coupe le curseur, le transfert
+  souris à l'application, le glissé et la reprise de focus à la mort d'une session. L'offset de
+  scrollback, lui, n'est **pas** remis à zéro : un aller-retour revient là où on l'avait laissé.
+- [x] Échantillonnage perf découplé du tick de rendu (`perf.refresh_interval_ms`, défaut 1000 ms) :
+  une frame inchangée n'est toujours pas poussée, donc les 32 ticks sur 33 qui ne réechantillonnent
+  pas ne repeignent rien. Le `%` CPU est un delta entre deux échantillons ; le premier, qui n'en a
+  pas, affiche la moyenne depuis le lancement **et le dit**.
+- [x] Onglet `env` masque par défaut la valeur des variables dont le *nom* ressemble à un
+  identifiant (`env_tab.mask_secrets`) : le panneau est aussi partageable qu'une capture d'écran de
+  lui-même.
+
+**Critère de sortie — atteint.** Barre d'onglets dessinée et surlignée, `[`/`]` et le clic
+fonctionnels, `perf` montrant un `%` CPU qui bouge et une RSS crédible, `env` trié, défilable et
+masqué, retour sur `sortie` avec le scrollback et le curseur intacts.
+
+**Limite connue, assumée** : gocui consulte `ShouldHandleMouseEvent` *avant* d'arriver à la barre
+d'onglets, donc on ne peut pas cliquer un onglet depuis le pass-through. En sortir est de toute
+façon un préalable, et le callback ne porte aucune coordonnée avec laquelle traiter la ligne de
+titre à part.
+
+**Repoussé, délibérément** : l'env **vivant** (un `export` tapé après coup). `/proc/<pid>/environ`
+n'existe que sur Linux et `KERN_PROCARGS2` sur darwin est non documenté et sous permissions — la
+valeur voudrait dire autre chose selon l'OS, ce qui est pire qu'une valeur qui dit toujours la même
+chose.
+
+---
+
 ## Séquencement et jalons
 
 | Phase | Livrable | Jalon | État |
@@ -743,6 +801,7 @@ par le test `TestEditOutputDropsMouseKeys`, qui échoue précisément sur ce sc�
 | 10 | émulation terminal complète | **v1.0** | fait (en avance) |
 | 11 | états d'agents IA, notifications, saut vers la session bloquée | **v1.1 — atteint** | faite (hors opencode) |
 | 12 | souris : clic, molette, glissé, transfert à l'application invitée | v1.2 | faite |
+| 13 | onglets du panneau de sortie : `sortie` / `perf` / `env` | v1.3 | faite |
 
 ## Décisions déjà actées (ne pas re-débattre)
 

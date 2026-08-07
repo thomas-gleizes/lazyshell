@@ -40,6 +40,10 @@ func (c *Config) Validate() []error {
 		{"scroll.page_lines", &c.Scroll.PageLines, 0, 0, def.Scroll.PageLines},
 		{"scroll.half_page_divisor", &c.Scroll.HalfPageDivisor, 1, 0, def.Scroll.HalfPageDivisor},
 		{"mouse.wheel_lines", &c.Mouse.WheelLines, 1, 0, def.Mouse.WheelLines},
+		// Floored at 100 ms rather than 1: sampling is the expensive part of
+		// the perf tab (a `ps` spawn per tick on macOS), and a value below
+		// that would spend more time measuring than the thing it measures.
+		{"perf.refresh_interval_ms", &c.Perf.RefreshIntervalMs, 100, 0, def.Perf.RefreshIntervalMs},
 	}
 
 	for _, check := range checks {

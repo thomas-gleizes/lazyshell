@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project status
 
 `lazyshell` is implemented and functional, past v1.1 (see `ROADMAP.md` for the full phase-by-phase
-history). All phases through 12 ("souris") are done.
+history). All phases through 13 ("onglets du panneau de sortie") are done.
 This is an active Go codebase with a real `go.mod`, CI, goreleaser packaging, and a test suite —
 do not treat this as a design-stage repo. `RAPPORT_ANALYSE_LAZYGIT_LAZYDOCKER.md` and
 `RAPPORT_ANALYSE_INTEGRATION_AGENTS_IA.md` are historical design docs (the first drove phases 0–10,
@@ -51,9 +51,10 @@ cmd/
   spike-pty/      phase-1 pty spike (kept for reference, not part of the shipped binary)
 pkg/
   app/            bootstrap: load config, build SessionManager, run gui.Run()
-  session/        SessionManager: CRUD (New, Kill, List); Session{cmd, ptmx, scrollback, status}
+  session/        SessionManager: CRUD (New, Kill, List); Session{cmd, ptmx, scrollback, status};
+                  Env() (launch-time) and Stats() (per-OS CPU/RSS/disk sampling)
   screen/         terminal emulator backing the output panel (vim/htop/less support)
-  gui/            gocui init, layout, keybindings, mouse, panels, help, theme, notify, stats
+  gui/            gocui init, layout, keybindings, mouse, panels, tabs, help, theme, notify, stats
   tasks/          TaskManager (display/reading goroutines only)
   agent/          AI agent state detection (config-free + hooks-driven)
   hook/           authoritative hooks channel for agent sessions

@@ -83,6 +83,10 @@ type Gui struct {
 	// maskSecrets is pkg/config's EnvTab.MaskSecrets — see
 	// pkg/gui/env_tab.go's envTabContent.
 	maskSecrets bool
+	// perfIntervalMs is pkg/config's Perf.RefreshIntervalMs: how often the
+	// perf tab samples the process, deliberately much slower than the redraw
+	// tick above — see pkg/gui/perf_tab.go's perfSampler.
+	perfIntervalMs int
 	// agentStatsCommand is pkg/config's AgentStatsCommand — see
 	// pkg/gui/stats.go's refreshAgentStats.
 	agentStatsCommand string
@@ -251,6 +255,7 @@ func New(sessions *session.Manager, cfg config.Config) *Gui {
 		notifyFallback:      cfg.Notify.FallbackCommand,
 		windowTitleEnabled:  cfg.WindowTitle.Enabled,
 		maskSecrets:         cfg.EnvTab.MaskSecrets,
+		perfIntervalMs:      cfg.Perf.RefreshIntervalMs,
 		agentStatsCommand:   cfg.AgentStatsCommand,
 		keymap:              cfg.Keybindings,
 	}
@@ -266,6 +271,23 @@ func refreshIntervalFrom(ms int) time.Duration {
 	}
 
 	return time.Duration(ms) * time.Millisecond
+}
+
+// perfSampleInterval mirrors pkg/config's defaultPerfRefreshIntervalMs, as
+// this package's own fallback — the same duplication every other config-backed
+// constant here already follows.
+const perfSampleInterval = time.Second
+
+// perfInterval is how often the perf tab samples, guarding the zero value the
+// way tick() guards the refresh interval: Config.Validate rejects it, but a
+// Gui built from a bare config.Config{} literal (several tests) has not been
+// through validation, and a zero interval would sample on every 30 ms tick.
+func (gui *Gui) perfInterval() time.Duration {
+	if gui.perfIntervalMs <= 0 {
+		return perfSampleInterval
+	}
+
+	return time.Duration(gui.perfIntervalMs) * time.Millisecond
 }
 
 // tick is the redraw period to use, guarding the one thing that would turn a

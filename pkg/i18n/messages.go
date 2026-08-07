@@ -111,6 +111,51 @@ var messages = map[string]map[string]string{
 		"en": "  (coming soon)",
 	},
 
+	"perf.shell": {
+		"fr": "shell",
+		"en": "shell",
+	},
+	"perf.foreground": {
+		"fr": "avant-plan",
+		"en": "foreground",
+	},
+	"perf.cpu": {
+		"fr": "CPU",
+		"en": "CPU",
+	},
+	"perf.rss": {
+		"fr": "mémoire",
+		"en": "memory",
+	},
+	"perf.threads": {
+		"fr": "threads",
+		"en": "threads",
+	},
+	"perf.disk": {
+		"fr": "disque",
+		"en": "disk",
+	},
+	"perf.disk_io": {
+		"fr": "%s lus · %s écrits",
+		"en": "%s read · %s written",
+	},
+	"perf.average": {
+		"fr": "(moy. depuis le lancement)",
+		"en": "(avg. since launch)",
+	},
+	"perf.unknown": {
+		"fr": "inconnu",
+		"en": "unknown",
+	},
+	"perf.unavailable_os": {
+		"fr": "indisponible sur ce système",
+		"en": "unavailable on this system",
+	},
+	"perf.unavailable": {
+		"fr": "Mesure impossible : %s",
+		"en": "Cannot measure: %s",
+	},
+
 	"env.count": {
 		"fr": "%d variable(s) au lancement de la session",
 		"en": "%d variable(s) at session launch",

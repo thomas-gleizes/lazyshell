@@ -67,6 +67,11 @@ const (
 	// output panel by (pkg/gui/mouse.go). Three is what terminals themselves
 	// use for their own scrollback.
 	defaultMouseWheelLines = 3
+	// defaultPerfRefreshIntervalMs is how often the perf tab samples the
+	// selected session's process (pkg/gui/perf_tab.go). A second: a CPU
+	// percentage needs a wide enough window to mean anything, and on macOS
+	// each sample costs a `ps` spawn.
+	defaultPerfRefreshIntervalMs = 1000
 )
 
 // Config is lazyshell's user-facing configuration. Every field has a
@@ -142,6 +147,8 @@ type Config struct {
 	Mouse Mouse `yaml:"mouse"`
 	// EnvTab configures the output panel's env tab.
 	EnvTab EnvTab `yaml:"env_tab"`
+	// Perf configures the output panel's perf tab.
+	Perf Perf `yaml:"perf"`
 	// AgentStatsCommand, when set, is run for the selected session — with
 	// $LAZYSHELL_SESSION_ID in its environment — and its first line of
 	// stdout is shown alongside the turn duration. Best-effort: lazyshell
@@ -232,6 +239,18 @@ type EnvTab struct {
 	MaskSecrets bool `yaml:"mask_secrets"`
 }
 
+// Perf configures the output panel's perf tab, which reports what a session's
+// process is consuming.
+type Perf struct {
+	// RefreshIntervalMs is how often the tab actually samples the process,
+	// independently of RefreshIntervalMs's redraw tick. Sampling is the one
+	// genuinely expensive thing this panel does — on macOS it spawns a `ps`,
+	// for want of a cgo-free alternative — so it is deliberately an order of
+	// magnitude slower than the redraw, and a CPU percentage is meaningless
+	// over a 30 ms window anyway.
+	RefreshIntervalMs int `yaml:"refresh_interval_ms"`
+}
+
 // Mouse configures the mouse support. It is on by default, and the switch
 // exists because enabling it is not free: gocui gives mouse buttons and the
 // Shift-Up/Shift-Down keys the very same values (MouseLeft is KeyShiftArrowDown,
@@ -304,6 +323,7 @@ func Default() Config {
 			ForwardToApp: true,
 		},
 		EnvTab:            EnvTab{MaskSecrets: true},
+		Perf:              Perf{RefreshIntervalMs: defaultPerfRefreshIntervalMs},
 		AgentStatsCommand: "",
 	}
 }

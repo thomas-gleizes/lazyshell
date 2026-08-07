@@ -56,6 +56,33 @@ func TestPerfBudgetBuildOutputFrame(t *testing.T) {
 	}
 }
 
+// The env tab is rendered once per task, not per tick, so its cost is paid on
+// every tab switch and every selection change — cheap enough not to be felt
+// there, but it sorts a few hundred strings, which is not free either.
+func TestPerfBudgetEnvTabContent(t *testing.T) {
+	const (
+		vars       = 300
+		budgetNsOp = 500_000
+	)
+
+	gui, _ := newHeadlessGui(t)
+
+	env := make([]string, vars)
+	for i := range env {
+		env[i] = fmt.Sprintf("LAZYSHELL_VAR_%03d=/some/reasonably/long/value/%d", i, i)
+	}
+
+	result := testing.Benchmark(func(b *testing.B) {
+		for range b.N {
+			_ = gui.envTabContent(env)
+		}
+	})
+
+	if got := result.NsPerOp(); got > budgetNsOp {
+		t.Errorf("envTabContent(%d vars) = %d ns/op, want <= %d ns/op", vars, got, budgetNsOp)
+	}
+}
+
 func TestPerfBudgetSessionsPanelContent(t *testing.T) {
 	const (
 		n          = 16
