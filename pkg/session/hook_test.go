@@ -110,8 +110,9 @@ func TestHookDrivenStateSurvivesConflictingManifestMatch(t *testing.T) {
 }
 
 // readSockEnv extracts $LAZYSHELL_SOCK from a session's own environment by
-// asking its shell to print it — the only way to observe it from the test
-// side, since Session does not expose its exec.Cmd.Env.
+// asking its shell to print it. Session.Env() would be easier to read, but it
+// reports what the process was *started* with; going through the shell proves
+// the value actually reached it, which is what the hook channel depends on.
 func readSockEnv(t *testing.T, sess *Session) string {
 	t.Helper()
 

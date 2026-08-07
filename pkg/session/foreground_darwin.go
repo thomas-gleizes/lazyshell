@@ -14,9 +14,9 @@ import (
 // TIOCGPGRP ioctl (there is no /proc on Darwin), then a KERN_PROC_PID sysctl
 // for the process group leader's name.
 func foregroundProcessName(ptmx *os.File) (string, error) {
-	pgid, err := unix.IoctlGetInt(int(ptmx.Fd()), unix.TIOCGPGRP)
+	pgid, err := foregroundPGID(ptmx)
 	if err != nil {
-		return "", fmt.Errorf("session: tcgetpgrp: %w", err)
+		return "", err
 	}
 
 	info, err := unix.SysctlKinfoProc("kern.proc.pid", pgid)

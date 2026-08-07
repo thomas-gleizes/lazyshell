@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-
-	"golang.org/x/sys/unix"
 )
 
 // foregroundProcessName reports the name of the process group leader
@@ -15,9 +13,9 @@ import (
 // pkg/agent needs to pick a manifest. It says *who*, never *what*: the
 // answer is a bare process name (e.g. "claude"), never a state.
 func foregroundProcessName(ptmx *os.File) (string, error) {
-	pgid, err := unix.IoctlGetInt(int(ptmx.Fd()), unix.TIOCGPGRP)
+	pgid, err := foregroundPGID(ptmx)
 	if err != nil {
-		return "", fmt.Errorf("session: tcgetpgrp: %w", err)
+		return "", err
 	}
 
 	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/comm", pgid))
