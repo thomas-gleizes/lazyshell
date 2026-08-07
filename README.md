@@ -171,6 +171,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `theme.pass_through_border_color` | color | `red` | Focused panel's border while in pass-through mode. |
 | `clipboard.fallback_command` | string | `""` | Command run with the yanked text on its stdin, instead of OSC 52, for a terminal that does not support it. There is no way to detect support, so this is a manual switch: empty means OSC 52 only. |
 | `notify.fallback_command` | string | `""` | Command run with the notification text on its stdin, instead of OSC 9/777, when a detected AI agent session goes blocked or done. Empty means OSC only. |
+| `window_title.enabled` | bool | `true` | Whether the host terminal's window/tab title tracks the focused session (its name, plus its live OSC 0/2 title when one is set) via OSC 0. |
 | `agent_stats_command` | string | `""` | Run for the selected AI agent session, with `$LAZYSHELL_SESSION_ID` in its environment; its first line of stdout is shown next to the turn duration. Empty disables it. |
 
 Key specs use `gocui.Parse` syntax: a bare character (`n`), or `Ctrl+N`,
@@ -264,6 +265,9 @@ clipboard:
 
 notify:
   fallback_command: ""
+
+window_title:
+  enabled: true
 
 agent_stats_command: ""
 ```

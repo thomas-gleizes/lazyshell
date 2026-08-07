@@ -131,6 +131,9 @@ type Config struct {
 	// Notify configures the desktop notification sent when a detected AI
 	// agent session goes blocked or done (pkg/agent).
 	Notify Notify `yaml:"notify"`
+	// WindowTitle configures whether the host terminal's window/tab title
+	// tracks the focused session's name and live OSC title.
+	WindowTitle WindowTitle `yaml:"window_title"`
 	// AgentStatsCommand, when set, is run for the selected session — with
 	// $LAZYSHELL_SESSION_ID in its environment — and its first line of
 	// stdout is shown alongside the turn duration. Best-effort: lazyshell
@@ -199,6 +202,16 @@ type Notify struct {
 	FallbackCommand string `yaml:"fallback_command"`
 }
 
+// WindowTitle configures the OSC 0 sequence lazyshell writes to the host
+// terminal so its window/tab title follows the focused session: its name,
+// plus whatever OSC 0/2 title the program running inside that session's pty
+// last set (pkg/screen's Screen.Title), when it has set one. Unlike
+// Clipboard/Notify there is no fallback command — an unsupported OSC 0 is
+// simply ignored by the terminal, so the only knob needed is on/off.
+type WindowTitle struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 // Scroll is how far the output panel moves per scrolling keystroke.
 type Scroll struct {
 	// PageLines is how many lines PgUp/PgDn move by. Zero means "one full
@@ -242,6 +255,7 @@ func Default() Config {
 		},
 		Clipboard:         Clipboard{FallbackCommand: ""},
 		Notify:            Notify{FallbackCommand: ""},
+		WindowTitle:       WindowTitle{Enabled: true},
 		AgentStatsCommand: "",
 	}
 }

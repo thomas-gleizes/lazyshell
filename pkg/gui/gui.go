@@ -73,6 +73,9 @@ type Gui struct {
 	// notifyFallback is pkg/config's Notify.FallbackCommand — see
 	// pkg/gui/notify.go's notifyAgentState.
 	notifyFallback string
+	// windowTitleEnabled is pkg/config's WindowTitle.Enabled — see
+	// pkg/gui/title.go's updateWindowTitle.
+	windowTitleEnabled bool
 	// agentStatsCommand is pkg/config's AgentStatsCommand — see
 	// pkg/gui/stats.go's refreshAgentStats.
 	agentStatsCommand string
@@ -171,6 +174,11 @@ type Gui struct {
 	statsCheckedAt time.Time
 	statsPending   bool
 
+	// lastWindowTitle is the last string written by updateWindowTitle
+	// (pkg/gui/title.go), guarded by mu for the same reason as
+	// notifiedState: dedupes redundant OSC 0 writes across ticks.
+	lastWindowTitle string
+
 	// sessionCounter feeds the default name of sessions created with "n".
 	sessionCounter int
 	// lastError, if non-empty, is shown in the status bar instead of the
@@ -211,6 +219,7 @@ func New(sessions *session.Manager, cfg config.Config) *Gui {
 		scroll:              cfg.Scroll,
 		clipboardFallback:   cfg.Clipboard.FallbackCommand,
 		notifyFallback:      cfg.Notify.FallbackCommand,
+		windowTitleEnabled:  cfg.WindowTitle.Enabled,
 		agentStatsCommand:   cfg.AgentStatsCommand,
 		keymap:              cfg.Keybindings,
 	}
@@ -310,6 +319,9 @@ func (gui *Gui) Run() (err error) {
 		}
 	}()
 	defer g.Close()
+	// Registered after g.Close(): LIFO means this runs first, so the OSC 0
+	// reset reaches the terminal before g.Close() hands control back to it.
+	defer gui.resetWindowTitle()
 
 	gui.g = g
 	// The cursor is off by default and turned on by the output render task
@@ -353,6 +365,7 @@ func (gui *Gui) Run() (err error) {
 	// what actually bounds the cost of the command it may spawn.
 	gui.goEvery(gui.tick(), func() error {
 		_ = gui.checkAgentNotifications()
+		gui.updateWindowTitle()
 
 		return gui.refreshAgentStats()
 	})

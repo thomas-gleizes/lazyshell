@@ -446,6 +446,8 @@ func (gui *Gui) onSelectionChanged() {
 		sess.Screen().ClearActivity()
 		gui.showOutput(sess)
 	}
+
+	gui.updateWindowTitle()
 }
 
 // newSession creates a session running the user's shell, in lazyshell's own
