@@ -162,6 +162,7 @@ type Theme struct {
 	InactiveBorderColor    string `yaml:"inactive_border_color"`
 	SelectedBgColor        string `yaml:"selected_bg_color"`
 	PassThroughBorderColor string `yaml:"pass_through_border_color"`
+	TabActiveColor         string `yaml:"tab_active_color"`
 }
 
 // Markers is the four-column gutter every session line starts with — the

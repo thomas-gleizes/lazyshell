@@ -70,6 +70,16 @@ func (gui *Gui) panelFooter(viewName string, width int) string {
 // outputFooterHints is the output panel's keys, which depend on what the panel
 // is currently doing — this is the one place where a fixed list would be wrong.
 func (gui *Gui) outputFooterHints() []footerHint {
+	// The perf and env tabs share none of the panel's usual keys — no typing,
+	// no selection, no search — so their footer is its own short list rather
+	// than a filtered version of the one below.
+	if gui.outputTab != tabOutput {
+		return []footerHint{
+			{actions: []string{"prev_tab", "next_tab"}, label: gui.tr.T("footer.tab")},
+			{actions: []string{"zoom"}, label: gui.tr.T("footer.zoom")},
+		}
+	}
+
 	// In pass-through every key but the prefix goes to the shell, so the prefix
 	// is the only thing that is true about this panel right now.
 	if gui.passThroughActive {
@@ -107,7 +117,12 @@ func (gui *Gui) outputFooterHints() []footerHint {
 		hints = append(hints, footerHint{key: "/", label: gui.tr.T("footer.search")})
 	}
 
-	hints = append(hints, footerHint{actions: []string{"zoom"}, label: gui.tr.T("footer.zoom")})
+	hints = append(hints,
+		footerHint{actions: []string{"zoom"}, label: gui.tr.T("footer.zoom")},
+		// Last, so it is the first hint dropped on a narrow panel: the tabs
+		// are discoverable from the strip drawn on the frame above, unlike
+		// every key before it.
+		footerHint{actions: []string{"prev_tab", "next_tab"}, label: gui.tr.T("footer.tab")})
 
 	return hints
 }

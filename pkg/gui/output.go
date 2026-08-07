@@ -48,6 +48,15 @@ type outputFrame struct {
 // drawn, which is what makes the first tick after any showOutput call always
 // draw.
 func (gui *Gui) showOutput(sess *session.Session) {
+	// Captured with the rest, for the same reason: the active tab is written
+	// from gocui's goroutine, and every place that changes it already calls
+	// back into here.
+	tab := gui.outputTab
+	// Resolved on this goroutine too — gui.tr is immutable after construction,
+	// but keeping every string the task needs in its closure is what makes
+	// "the task touches no Gui state" true rather than nearly true.
+	placeholder := gui.tr.T("tab.placeholder")
+
 	offset := gui.getScrollOffset()
 	passThrough := gui.passThroughActive
 	pattern := gui.searchPattern
@@ -63,7 +72,14 @@ func (gui *Gui) showOutput(sess *session.Session) {
 	)
 
 	gui.outputTasks.NewTickerTask(gui.tick(), func(context.Context) {
-		frame := buildOutputFrame(sess, offset, passThrough, pattern, selFrom, selTo)
+		// One builder per tab, all producing the same comparable outputFrame,
+		// so the skip-if-unchanged rule below covers the new tabs too. That
+		// matters most for them: a report that only changes once a second
+		// would otherwise repaint the whole screen on every tick.
+		frame := outputFrame{content: placeholder}
+		if tab == tabOutput {
+			frame = buildOutputFrame(sess, offset, passThrough, pattern, selFrom, selTo)
+		}
 
 		if drawn && frame == previous {
 			return

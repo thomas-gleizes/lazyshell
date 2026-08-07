@@ -111,6 +111,16 @@ type Gui struct {
 	// keybinding handler), same reasoning as passThroughActive above.
 	zoomed bool
 
+	// outputTab is which of the output panel's three tabs is showing
+	// (pkg/gui/tabs.go), and tabOffset how far the non-output ones are
+	// scrolled — a separate offset from scrollOffset, which stays pointing at
+	// the session's scrollback so returning to the output tab lands where it
+	// was left. Same concurrency rule as passThroughActive above: written only
+	// from gocui's goroutine, and captured by value at task start by
+	// showOutput rather than read per tick.
+	outputTab outputTab
+	tabOffset int
+
 	// searchPattern, searchMatches and searchIndex are the scrollback-search
 	// state (pkg/gui/search.go): "" means no search is active. Only ever
 	// touched from gocui's own goroutine (editDuringScroll, the search

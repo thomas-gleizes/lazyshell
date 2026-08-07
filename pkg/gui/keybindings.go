@@ -239,6 +239,28 @@ func (gui *Gui) staticBindings() []Binding {
 			Description: gui.tr.T("action.clear_filter"),
 			Enabled:     hasActiveFilter,
 		},
+		// The output panel's tab strip (pkg/gui/tabs.go). Scoped to the
+		// sessions view, not the output one it acts on: a view-scoped binding
+		// beats the Editor (see editOutput's comment), so registering these on
+		// outputViewName would make "]" fire during pass-through and stop it
+		// ever reaching the shell. The output view reaches them by hand from
+		// editDuringScroll instead, the same arrangement "zoom" already uses.
+		{
+			ViewName:    sessionsViewName,
+			Action:      "next_tab",
+			Key:         ']',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.nextTab,
+			Description: gui.tr.T("action.next_tab"),
+		},
+		{
+			ViewName:    sessionsViewName,
+			Action:      "prev_tab",
+			Key:         '[',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.prevTab,
+			Description: gui.tr.T("action.prev_tab"),
+		},
 		{
 			ViewName:    sessionsViewName,
 			Action:      "jump_next_blocked",
@@ -336,6 +358,13 @@ func (gui *Gui) setKeybindings(g *gocui.Gui) error {
 		if err := g.SetKeybinding(b.ViewName, key, mod, b.Handler); err != nil {
 			return err
 		}
+	}
+
+	// The output panel's tab strip is a third registry again, purged by
+	// SetManager like the other two — so it registers from here for the same
+	// reason, not from initView.
+	if err := g.SetTabClickBinding(outputViewName, gui.clickOutputTab); err != nil {
+		return err
 	}
 
 	// Mouse gestures live in their own registry (pkg/gui/mouse.go), which

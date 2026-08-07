@@ -202,6 +202,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `theme.inactive_border_color` | color | `default` | Every other panel's border. |
 | `theme.selected_bg_color` | color | `blue` | Selected line's background in the sessions list. |
 | `theme.pass_through_border_color` | color | `red` | Focused panel's border while in pass-through mode. |
+| `theme.tab_active_color` | color | `green` | Selected tab in the output panel's tab strip. |
 | `clipboard.fallback_command` | string | `""` | Command run with the yanked text on its stdin, instead of OSC 52, for a terminal that does not support it. There is no way to detect support, so this is a manual switch: empty means OSC 52 only. |
 | `notify.fallback_command` | string | `""` | Command run with the notification text on its stdin, instead of OSC 9/777, when a detected AI agent session goes blocked or done. Empty means OSC only. |
 | `window_title.enabled` | bool | `true` | Whether the host terminal's window/tab title tracks the focused session (its name, plus its live OSC 0/2 title when one is set) via OSC 0. |
@@ -267,6 +268,8 @@ keybindings:
   duplicate_session: "c"
   restart_session: "R"
   zoom: "z"
+  next_tab: "]"
+  prev_tab: "["
   filter_sessions: "/"
   export_session: "w"
   toggle_broadcast: "b"
@@ -296,6 +299,7 @@ theme:
   inactive_border_color: default
   selected_bg_color: blue
   pass_through_border_color: red
+  tab_active_color: green
 
 clipboard:
   fallback_command: ""

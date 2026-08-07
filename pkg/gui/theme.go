@@ -21,6 +21,11 @@ type Theme struct {
 	// while the output panel is in pass-through mode — the roadmap's second
 	// mode indicator, alongside the status bar text.
 	PassThroughBorderColor gocui.Attribute
+	// TabActiveColor is the output panel's selected tab (pkg/gui/tabs.go).
+	// gocui draws it from the view's SelFgColor, whose zero value is
+	// ColorDefault — i.e. identical to the inactive tabs, which would leave
+	// the strip with no way to tell which tab is showing.
+	TabActiveColor gocui.Attribute
 }
 
 // The default colors' names, in the syntax a config file uses. They exist
@@ -36,6 +41,7 @@ const (
 	defaultInactiveBorderColorName    = "default"
 	defaultSelectedBgColorName        = "blue"
 	defaultPassThroughBorderColorName = "red"
+	defaultTabActiveColorName         = "green"
 )
 
 // defaultTheme is what lazyshell draws with when nothing in the config file
@@ -46,6 +52,7 @@ func defaultTheme() Theme {
 		InactiveBorderColor:    gocui.ColorDefault,
 		SelectedBgColor:        gocui.ColorBlue,
 		PassThroughBorderColor: gocui.ColorRed,
+		TabActiveColor:         gocui.ColorGreen,
 	}
 }
 
@@ -62,6 +69,7 @@ func newTheme(cfg config.Theme) Theme {
 		InactiveBorderColor:    resolveColor(cfg.InactiveBorderColor, def.InactiveBorderColor),
 		SelectedBgColor:        resolveColor(cfg.SelectedBgColor, def.SelectedBgColor),
 		PassThroughBorderColor: resolveColor(cfg.PassThroughBorderColor, def.PassThroughBorderColor),
+		TabActiveColor:         resolveColor(cfg.TabActiveColor, def.TabActiveColor),
 	}
 }
 

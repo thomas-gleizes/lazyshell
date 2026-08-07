@@ -85,6 +85,31 @@ var messages = map[string]map[string]string{
 		"fr": "Sauter à la prochaine session bloquée",
 		"en": "Jump to the next blocked session",
 	},
+	"action.next_tab": {
+		"fr": "Onglet suivant du panneau de sortie",
+		"en": "Next output panel tab",
+	},
+	"action.prev_tab": {
+		"fr": "Onglet précédent du panneau de sortie",
+		"en": "Previous output panel tab",
+	},
+
+	"tab.output": {
+		"fr": "sortie",
+		"en": "output",
+	},
+	"tab.perf": {
+		"fr": "perf",
+		"en": "perf",
+	},
+	"tab.env": {
+		"fr": "env",
+		"en": "env",
+	},
+	"tab.placeholder": {
+		"fr": "  (à venir)",
+		"en": "  (coming soon)",
+	},
 
 	"help.title": {
 		"fr": " aide ",
@@ -260,6 +285,10 @@ var messages = map[string]map[string]string{
 	"footer.zoom": {
 		"fr": "zoom",
 		"en": "zoom",
+	},
+	"footer.tab": {
+		"fr": "onglet",
+		"en": "tab",
 	},
 	"footer.filter": {
 		"fr": "filtrer",

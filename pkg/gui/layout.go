@@ -228,7 +228,12 @@ func (gui *Gui) initView(name string, view *gocui.View) {
 		gui.focus.onFocus[sessionsViewName] = func() { view.HighlightInactive = false }
 		gui.focus.onFocusLost[sessionsViewName] = func() { view.HighlightInactive = true }
 	case outputViewName:
-		view.Title = " output "
+		// Tabs, not Title: gocui's drawTitle falls back to Title only when
+		// Tabs is empty, so setting both would leave a dead string behind.
+		// SelFgColor is what marks the active tab — see Theme.TabActiveColor.
+		view.Tabs = gui.tabLabels()
+		view.TabIndex = int(gui.outputTab)
+		view.SelFgColor = gui.theme.TabActiveColor
 		// The view mirrors a fixed-size emulated screen (pkg/screen): no
 		// wrapping, no autoscroll, it is overwritten wholesale on every
 		// render rather than appended to.

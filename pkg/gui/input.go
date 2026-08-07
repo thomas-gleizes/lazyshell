@@ -197,6 +197,15 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 	// more lines are visible than really are.
 	_, rows := view.InnerSize()
 
+	// Only the output tab is a terminal. On perf/env the panel is a static
+	// report about the session, so typing into it, selecting lines out of it
+	// or searching a scrollback it is not showing are all meaningless — those
+	// keys are simply not handled here, and fall through to gocui's ordinary
+	// dispatch (Tab, Ctrl-C) like any other unclaimed key.
+	if gui.outputTab != tabOutput {
+		return gui.editOnSecondaryTab(view, key, ch)
+	}
+
 	switch {
 	// Copy-mode's own keys come first and win over everything below: while
 	// selecting, j/k/arrows extend the selection instead of doing nothing,
@@ -296,6 +305,57 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 		_ = gui.toggleZoom(gui.g, view)
 
 		return true
+
+	case gui.matchesAction("next_tab", key, ch):
+		// Same reasoning again: these are scoped to sessionsViewName, and this
+		// view being Editable means SetKeybinding is never consulted for it.
+		gui.switchTab(1)
+
+		return true
+	case gui.matchesAction("prev_tab", key, ch):
+		gui.switchTab(-1)
+
+		return true
+	}
+
+	return false
+}
+
+// editOnSecondaryTab is editDuringScroll's counterpart for the perf and env
+// tabs: the handful of keys that still mean something when the panel is
+// showing a report rather than a screen.
+//
+// Everything it does not claim returns false and falls through to gocui's own
+// keybinding dispatch, which is what keeps Tab and Ctrl-C working — and what
+// makes "i", "v" and "/" quietly do nothing, since none of them has a binding
+// outside this Editor.
+func (gui *Gui) editOnSecondaryTab(view *gocui.View, key gocui.Key, ch rune) bool {
+	switch {
+	case gui.matchesAction("next_tab", key, ch):
+		gui.switchTab(1)
+
+		return true
+	case gui.matchesAction("prev_tab", key, ch):
+		gui.switchTab(-1)
+
+		return true
+
+	case ch == 'q':
+		// Same reasoning as editDuringScroll's own 'q': a printable-key global
+		// binding never fires as a fallback while this view is Editable.
+		gui.g.Update(func(*gocui.Gui) error { return gocui.ErrQuit })
+
+		return true
+
+	case gui.matchesAction("help", key, ch):
+		_ = gui.showHelp(gui.g, view)
+
+		return true
+
+	case gui.matchesAction("zoom", key, ch):
+		_ = gui.toggleZoom(gui.g, view)
+
+		return true
 	}
 
 	return false
@@ -344,6 +404,14 @@ func (gui *Gui) writeToSession(sess *session.Session, b []byte) {
 // escape prefix) goes to the shell. Scroll always resets to live on entry —
 // typing a command is pointless if you can't see its output.
 func (gui *Gui) enterPassThrough() {
+	// Handing the keyboard to a shell whose screen is not the one on display
+	// would type into something the user cannot see. Guarded here rather than
+	// only at each call site because there are three of them (the Editor, a
+	// double-click, focusSelectedShell) and they must not be able to disagree.
+	if gui.outputTab != tabOutput {
+		return
+	}
+
 	sess := gui.selectedSession()
 	if sess == nil || sess.Status() == session.StatusExited {
 		return
@@ -371,6 +439,14 @@ func (gui *Gui) exitPassThrough() {
 // application does not feed the scrollback, so there is no history to scroll
 // back into, and the keys that would do it belong to that application anyway.
 func (gui *Gui) scrollBy(delta int) {
+	// The offset below addresses the session's scrollback, which the perf and
+	// env tabs are not showing — moving it from there would scroll something
+	// invisible and leave the output tab somewhere the user never put it.
+	// Those tabs get their own offset in a later step.
+	if gui.outputTab != tabOutput {
+		return
+	}
+
 	sess := gui.selectedSession()
 	if sess == nil || sess.Screen().IsAltScreen() {
 		return
