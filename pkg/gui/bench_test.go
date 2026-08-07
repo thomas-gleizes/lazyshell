@@ -59,7 +59,7 @@ func BenchmarkSessionsPanelContent(b *testing.B) {
 			b.ResetTimer()
 
 			for range b.N {
-				_ = sessionsPanelContent(sessions, testMarkers, "", nil, nil)
+				_ = sessionsPanelContent(sessions, testMarkers, "", nil, nil, nil)
 			}
 		})
 	}

@@ -236,7 +236,7 @@ func TestSessionsPanelGutterShowsBroadcastMarker(t *testing.T) {
 
 	selectAndToggleMark(t, gui, 0)
 
-	got := sessionsPanelContent(sessions, gui.markerSet(), "", gui.broadcastMarks, gui.tr)
+	got := sessionsPanelContent(sessions, gui.markerSet(), "", gui.broadcastMarks, nil, gui.tr)
 	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
 
 	const gutterWidth = 4

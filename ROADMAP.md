@@ -24,7 +24,7 @@ L'état est celui du code présent dans le dépôt, pas d'une intention.
 | 8 · Distribution et budget de perf | **fait** |
 | 9 · Recherche, copie, broadcast | **fait** |
 | 10 · Émulation de terminal complète | **fait** (faite en avance, voir la phase) |
-| 11 · Sessions d'agents IA | **partielle** — 11a et 11b faits (11b hors opencode), 11c à faire |
+| 11 · Sessions d'agents IA | **faite** — hors adaptateur opencode (SSE, incrément séparé) |
 
 ---
 
@@ -553,7 +553,7 @@ phase 1 l'a ramené à une phase d'intégration.
 
 ---
 
-## Phase 11 — Sessions d'agents IA — **partielle (11a et 11b faits)**
+## Phase 11 — Sessions d'agents IA — **faite (hors adaptateur opencode)**
 
 **But** : traiter les CLI d'agents (`claude`, `codex`, `opencode`…) comme des locataires de session
 de première classe — savoir dans quel état ils sont, le montrer, et prévenir quand ils *attendent*.
@@ -641,27 +641,42 @@ Le seul canal qui donne l'état exact au lieu de le deviner. lazyshell n'appelle
   `~/.codex/config.toml` existent déjà et doivent être fusionnés à la main, pas écrasés) le bloc de
   configuration à coller chez l'agent, plutôt que de le faire recopier depuis le README.
 
-### 11c — Notifications et ergonomie
+### 11c — Notifications et ergonomie — **fait**
 
-- [ ] **Notification** sur `blocked` et sur `done`, via **OSC 9 / OSC 777 vers le terminal hôte** —
+- [x] **Notification** sur `blocked` et sur `done`, via **OSC 9 / OSC 777 vers le terminal hôte** —
   pas via `notify-send`. Même raison qu'OSC 52 en phase 9 : ça traverse SSH et ça ne dépend d'aucun
-  binaire installé. Commande externe configurable en repli.
-- [ ] **Saut vers la prochaine session bloquée** en une touche. C'est ce qui justifie tout le reste :
-  à 6 agents ouverts, on ne navigue plus, on répond à celui qui appelle.
-- [ ] **Stats de tour** : durée du tour en cours, et tokens/coût **best-effort**. Les transcripts
-  (`~/.claude/projects/**.jsonl`, qui portent un `message.usage` complet) et les bases
-  (`~/.codex/*.sqlite`) ne sont **pas des contrats** — schémas internes, versionnés, migrés sans
-  préavis. `ccusage` fait déjà ce travail : l'intégration est une **commande externe configurable
-  dont on affiche la ligne** (modèle `statusLine` de Claude Code), pas une réimplémentation de la
-  comptabilité des tokens.
+  binaire installé. Les deux séquences sont envoyées systématiquement (une non comprise par le
+  terminal est simplement ignorée) plutôt que de deviner laquelle envoyer. Commande externe
+  configurable en repli (`notify.fallback_command`, même modèle que `clipboard.fallback_command` de
+  la phase 9), lancée dans sa propre goroutine — contrairement au copier-coller, ce déclenchement
+  part du tick périodique partagé par toutes les sessions et ne doit jamais le bloquer.
+  Détection de transition (jamais de re-notification tant que l'état ne change pas) sur un
+  `goEvery` séparé de celui de `renderSessionsPanel`, pour ne pas toucher sa logique de diff ni son
+  budget de rendu déjà testé.
+- [x] **Saut vers la prochaine session bloquée** en une touche (`B`, `jump_next_blocked`). C'est ce
+  qui justifie tout le reste : à 6 agents ouverts, on ne navigue plus, on répond à celui qui
+  appelle. Cycle depuis la sélection courante, boucle une fois, ne fait rien si aucune session
+  n'est bloquée — même convention de silence que `selectIndex` hors-plage.
+- [x] **Stats de tour** (version minimale, cadrée avec l'utilisateur — le rapport la qualifiait déjà
+  de best-effort et elle n'était pas dans le critère de sortie initial) : durée du tour en cours
+  affichée pour **chaque** session dont l'état est `working` (pas seulement la sélectionnée,
+  puisque plusieurs peuvent tourner en même temps), calculée depuis la transition vers `working`
+  (`Session.TurnDuration`, qui ne se remet pas à zéro sur un renvoi répété du même état). Tokens/coût
+  toujours **best-effort** via `agent_stats_command`, une commande externe configurable dont on
+  affiche la première ligne de sortie (modèle `statusLine` de Claude Code) — jamais de
+  réimplémentation de la comptabilité des tokens dans lazyshell. Limitée à la session sélectionnée
+  et throttlée à 5 s : contrairement à la durée (un simple `time.Since`), c'est un process externe,
+  potentiellement coûteux à lancer une fois par session à chaque tick.
 
-**Critère de sortie** : un `lazyshell.yml` déclarant 4 sessions d'agents ; quand l'un demande une
-permission, son marqueur passe `blocked` en moins d'une seconde et une notification part ; une
-touche saute dessus ; les autres sessions continuent ; le nombre de repeints au repos est inchangé.
+**Critère de sortie — atteint.** Un `lazyshell.yml` déclarant 4 sessions d'agents ; quand l'un
+demande une permission, son marqueur passe `blocked` en moins d'une seconde et une notification
+part ; une touche saute dessus ; les autres sessions continuent ; le nombre de repeints au repos
+est inchangé (`TestIdleSessionDoesNotRepaint` toujours à 0).
 
 **Risque** : moyen, et entièrement concentré sur le **couplage à des formats non contractuels**.
 Traitement : tout derrière `pkg/agent`, dégradation propre, et aucune fonctionnalité de lazyshell
-qui dépende de la présence d'un agent.
+qui dépende de la présence d'un agent. Confirmé à l'implémentation : rien dans `pkg/session` ni
+`pkg/gui` en dehors de `notify.go`/`stats.go` ne connaît la moindre spécificité d'un agent donné.
 
 ---
 
@@ -680,7 +695,7 @@ qui dépende de la présence d'un agent.
 | 8 | goreleaser, `--version`, bench de redraw en CI | **v0.5 — installable par un tiers** | fait |
 | 9 | recherche, copy-mode, export, broadcast | v0.6 | fait |
 | 10 | émulation terminal complète | **v1.0** | fait (en avance) |
-| 11 | états d'agents IA, notifications, saut vers la session bloquée | **v1.1** | 11a/11b faits, 11c à faire |
+| 11 | états d'agents IA, notifications, saut vers la session bloquée | **v1.1 — atteint** | faite (hors opencode) |
 
 ## Décisions déjà actées (ne pas re-débattre)
 

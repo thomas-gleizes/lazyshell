@@ -229,7 +229,7 @@ func TestSessionsPanelGutterMarkers(t *testing.T) {
 	feed(t, ringing, "\a")
 	feed(t, editing, "\x1b[?1049h")
 
-	lines := strings.Split(strings.TrimRight(sessionsPanelContent([]*session.Session{quiet, ringing, editing}, testMarkers, "", nil, nil), "\n"), "\n")
+	lines := strings.Split(strings.TrimRight(sessionsPanelContent([]*session.Session{quiet, ringing, editing}, testMarkers, "", nil, nil, nil), "\n"), "\n")
 	if len(lines) != 3 {
 		t.Fatalf("got %d lines, want one per session:\n%q", len(lines), lines)
 	}
@@ -259,7 +259,7 @@ func TestSessionsPanelActivityMarker(t *testing.T) {
 	feed(t, busy, "output\r\n")
 	feed(t, watched, "output\r\n")
 
-	content := sessionsPanelContent([]*session.Session{quiet, busy, watched}, testMarkers, watched.ID, nil, nil)
+	content := sessionsPanelContent([]*session.Session{quiet, busy, watched}, testMarkers, watched.ID, nil, nil, nil)
 	lines := strings.Split(strings.TrimRight(content, "\n"), "\n")
 	if len(lines) != 3 {
 		t.Fatalf("got %d lines, want one per session:\n%q", len(lines), lines)
@@ -295,7 +295,7 @@ func TestSessionsPanelExitResult(t *testing.T) {
 		t.Fatal("the session never terminated")
 	}
 
-	got := sessionsPanelContent([]*session.Session{sess}, testMarkers, "", nil, nil)
+	got := sessionsPanelContent([]*session.Session{sess}, testMarkers, "", nil, nil, nil)
 	if !strings.Contains(got, "✗ 7") {
 		t.Errorf("content = %q, want the ✗ 7 exit result", got)
 	}
@@ -326,13 +326,13 @@ func TestSessionsPanelShowsTheTerminalTitle(t *testing.T) {
 
 	sess := newTestSession(t, gui, "s")
 
-	if got := sessionsPanelContent([]*session.Session{sess}, testMarkers, "", nil, nil); !strings.Contains(got, sess.Cwd) {
+	if got := sessionsPanelContent([]*session.Session{sess}, testMarkers, "", nil, nil, nil); !strings.Contains(got, sess.Cwd) {
 		t.Errorf("content = %q, want the cwd while no title is set", got)
 	}
 
 	feed(t, sess, "\x1b]0;vim ROADMAP.md\a")
 
-	got := sessionsPanelContent([]*session.Session{sess}, testMarkers, "", nil, nil)
+	got := sessionsPanelContent([]*session.Session{sess}, testMarkers, "", nil, nil, nil)
 	if !strings.Contains(got, "vim ROADMAP.md") {
 		t.Errorf("content = %q, want the terminal title", got)
 	}
@@ -346,7 +346,7 @@ func TestSessionsPanelSkipsUnchangedRedraws(t *testing.T) {
 
 	newTestSession(t, gui, "s")
 
-	content := sessionsPanelContent(gui.sessions.List(), testMarkers, "", nil, nil)
+	content := sessionsPanelContent(gui.sessions.List(), testMarkers, "", nil, nil, nil)
 
 	if !gui.sessionsPanelChanged(content, 0) {
 		t.Fatal("the first render was reported as unchanged")

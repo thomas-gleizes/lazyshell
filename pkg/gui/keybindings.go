@@ -205,6 +205,14 @@ func (gui *Gui) staticBindings() []Binding {
 			Handler:     gui.clearFilterKey,
 			Description: gui.tr.T("action.clear_filter"),
 		},
+		{
+			ViewName:    sessionsViewName,
+			Action:      "jump_next_blocked",
+			Key:         'B',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.jumpToNextBlockedSession,
+			Description: gui.tr.T("action.jump_next_blocked"),
+		},
 	}
 }
 

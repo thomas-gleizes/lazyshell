@@ -134,3 +134,57 @@ func TestEvaluateAgentStateTrailingEdgeRecheck(t *testing.T) {
 
 	t.Fatal("no deferred re-check ran after the throttle window closed")
 }
+
+func TestTurnDurationBeforeAnyTurnIsFalse(t *testing.T) {
+	m := newTestManager(t)
+	sess := newTestSession(t, m, "no-turn-yet")
+
+	if _, ok := sess.TurnDuration(); ok {
+		t.Fatal("TurnDuration() ok = true before any transition into StateWorking")
+	}
+}
+
+func TestTurnDurationWhileWorkingIsTrue(t *testing.T) {
+	m := newTestManager(t)
+	sess := newTestSession(t, m, "mid-turn")
+
+	sess.SetAgentState(agent.StateWorking)
+	time.Sleep(10 * time.Millisecond)
+
+	d, ok := sess.TurnDuration()
+	if !ok {
+		t.Fatal("TurnDuration() ok = false while StateWorking")
+	}
+	if d < 10*time.Millisecond {
+		t.Errorf("TurnDuration() = %v, want at least 10ms", d)
+	}
+}
+
+func TestTurnDurationDoesNotResetOnRepeatedWorking(t *testing.T) {
+	m := newTestManager(t)
+	sess := newTestSession(t, m, "repeated-working")
+
+	sess.SetAgentState(agent.StateWorking)
+	time.Sleep(30 * time.Millisecond)
+	sess.SetAgentState(agent.StateWorking) // must not restart the clock
+
+	d, ok := sess.TurnDuration()
+	if !ok {
+		t.Fatal("TurnDuration() ok = false while StateWorking")
+	}
+	if d < 30*time.Millisecond {
+		t.Errorf("TurnDuration() = %v after a repeated working report, want the clock to have kept running (>= 30ms)", d)
+	}
+}
+
+func TestTurnDurationFalseAfterLeavingWorking(t *testing.T) {
+	m := newTestManager(t)
+	sess := newTestSession(t, m, "turn-ended")
+
+	sess.SetAgentState(agent.StateWorking)
+	sess.SetAgentState(agent.StateDone)
+
+	if _, ok := sess.TurnDuration(); ok {
+		t.Fatal("TurnDuration() ok = true after leaving StateWorking, want false")
+	}
+}

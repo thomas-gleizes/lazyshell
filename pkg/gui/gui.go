@@ -11,6 +11,7 @@ import (
 	goerrors "github.com/go-errors/errors"
 	"github.com/jesseduffield/gocui"
 
+	"github.com/thomas-gleizes/lazyshell/pkg/agent"
 	"github.com/thomas-gleizes/lazyshell/pkg/config"
 	"github.com/thomas-gleizes/lazyshell/pkg/i18n"
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
@@ -69,6 +70,12 @@ type Gui struct {
 	// clipboardFallback is pkg/config's Clipboard.FallbackCommand — see
 	// pkg/gui/clipboard.go's copyToClipboard.
 	clipboardFallback string
+	// notifyFallback is pkg/config's Notify.FallbackCommand — see
+	// pkg/gui/notify.go's notifyAgentState.
+	notifyFallback string
+	// agentStatsCommand is pkg/config's AgentStatsCommand — see
+	// pkg/gui/stats.go's refreshAgentStats.
+	agentStatsCommand string
 	// keymap is pkg/config's Keybindings: action id -> gocui.Parse key spec,
 	// consulted by resolveBinding for every Binding with a non-empty Action.
 	keymap map[string]string
@@ -147,6 +154,23 @@ type Gui struct {
 	lastSessionsSelected int
 	sessionsDrawn        bool
 
+	// notifiedState is the last agent.State a notification was fired for,
+	// per session id (pkg/gui/notify.go) — written and read only from
+	// checkAgentNotifications' own goEvery tick, but guarded by mu anyway
+	// since renderSessionsPanel's goroutine reads sessions concurrently and
+	// a future caller should not have to rediscover this rule.
+	notifiedState map[string]agent.State
+
+	// statsSessionID/statsLine/statsCheckedAt cache AgentStatsCommand's last
+	// output (pkg/gui/stats.go): which session it was computed for, the
+	// trimmed first line of its stdout, and when — refreshAgentStats' own
+	// throttle. Read by sessionsPanelContent's caller to build its
+	// statsLines argument.
+	statsSessionID string
+	statsLine      string
+	statsCheckedAt time.Time
+	statsPending   bool
+
 	// sessionCounter feeds the default name of sessions created with "n".
 	sessionCounter int
 	// lastError, if non-empty, is shown in the status bar instead of the
@@ -186,6 +210,8 @@ func New(sessions *session.Manager, cfg config.Config) *Gui {
 		markers:             cfg.Markers,
 		scroll:              cfg.Scroll,
 		clipboardFallback:   cfg.Clipboard.FallbackCommand,
+		notifyFallback:      cfg.Notify.FallbackCommand,
+		agentStatsCommand:   cfg.AgentStatsCommand,
 		keymap:              cfg.Keybindings,
 	}
 }
@@ -317,6 +343,19 @@ func (gui *Gui) Run() (err error) {
 	}
 
 	gui.goEvery(gui.tick(), gui.renderSessionsPanel)
+
+	// A separate tick from renderSessionsPanel's, on purpose: a transition
+	// into blocked/done must be caught even on a render that gets skipped by
+	// its own content-diffing, and this must never touch that function's
+	// perf-tested diff logic. checkAgentNotifications and refreshAgentStats
+	// share this one tick (rather than each getting their own) since neither
+	// does anything expensive itself — refreshAgentStats' own throttle is
+	// what actually bounds the cost of the command it may spawn.
+	gui.goEvery(gui.tick(), func() error {
+		_ = gui.checkAgentNotifications()
+
+		return gui.refreshAgentStats()
+	})
 
 	// Sessions can already exist before the first keypress — pkg/app starts the
 	// ones a project file declares. Nothing else calls onSelectionChanged until

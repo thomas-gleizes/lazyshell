@@ -16,7 +16,7 @@ func TestLanguageEnglishTranslatesTheInterface(t *testing.T) {
 
 	gui, g := newHeadlessGuiSizedWithConfig(t, 80, 24, cfg)
 
-	if got := sessionsPanelContent(nil, testMarkers, "", nil, gui.tr); !strings.Contains(got, "No sessions") {
+	if got := sessionsPanelContent(nil, testMarkers, "", nil, nil, gui.tr); !strings.Contains(got, "No sessions") {
 		t.Errorf("empty panel content = %q, want the English hint", got)
 	}
 
@@ -42,7 +42,7 @@ func TestLanguageEnglishTranslatesTheInterface(t *testing.T) {
 func TestDefaultLanguageStaysFrench(t *testing.T) {
 	gui, _ := newHeadlessGui(t)
 
-	if got := sessionsPanelContent(nil, testMarkers, "", nil, gui.tr); !strings.Contains(got, "Aucune session") {
+	if got := sessionsPanelContent(nil, testMarkers, "", nil, nil, gui.tr); !strings.Contains(got, "Aucune session") {
 		t.Errorf("empty panel content = %q, want the French hint", got)
 	}
 }

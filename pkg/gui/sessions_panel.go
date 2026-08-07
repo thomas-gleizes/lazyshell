@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/jesseduffield/gocui"
 
@@ -148,7 +149,7 @@ func colorizeMarker(ch, sgrCode string) string {
 //
 // A pure function, kept separate from the gocui-writing side so it can be
 // tested directly, the same way keys.Translate and spike.edit are.
-func sessionsPanelContent(sessions []*session.Session, markers markerSet, selectedID string, broadcastMarks map[string]bool, tr *i18n.Catalog) string {
+func sessionsPanelContent(sessions []*session.Session, markers markerSet, selectedID string, broadcastMarks map[string]bool, statsLines map[string]string, tr *i18n.Catalog) string {
 	if len(sessions) == 0 {
 		return tr.T("sessions.empty")
 	}
@@ -165,6 +166,15 @@ func sessionsPanelContent(sessions []*session.Session, markers markerSet, select
 			detail = sess.Cwd
 		}
 
+		if d, ok := sess.TurnDuration(); ok {
+			turn := "⏱ " + formatTurnDuration(d)
+			if line := statsLines[sess.ID]; line != "" {
+				turn += " · " + line
+			}
+
+			detail = turn + "  " + detail
+		}
+
 		gutter := sessionMarkers(sess, markers, sess.ID == selectedID, broadcastMarks[sess.ID])
 		status := statusColumn(sess)
 
@@ -175,6 +185,13 @@ func sessionsPanelContent(sessions []*session.Session, markers markerSet, select
 	}
 
 	return b.String()
+}
+
+// formatTurnDuration renders a turn's elapsed time to whole seconds — a
+// gutter/detail column is not the place for sub-second precision, and
+// Duration's own String() would otherwise print e.g. "1m32.114837s".
+func formatTurnDuration(d time.Duration) string {
+	return d.Round(time.Second).String()
 }
 
 // sessionMarkers builds a session's gutter, padded to gutterColumns visible
@@ -287,7 +304,7 @@ func (gui *Gui) renderSessionsPanel() error {
 		sess.Screen().ClearActivity()
 	}
 
-	content := sessionsPanelContent(gui.filteredSessions(), gui.markerSet(), selectedID, gui.broadcastMarks, gui.tr)
+	content := sessionsPanelContent(gui.filteredSessions(), gui.markerSet(), selectedID, gui.broadcastMarks, gui.statsLinesForRender(), gui.tr)
 	selected := gui.getSelectedIndex()
 
 	if !gui.sessionsPanelChanged(content, selected) {
@@ -359,6 +376,35 @@ func (gui *Gui) selectionMoved(delta int) func(*gocui.Gui, *gocui.View) error {
 
 		return gui.applySelection(index)
 	}
+}
+
+// jumpToNextBlockedSession moves the selection to the next session whose
+// agent.State is StateBlocked, cycling from just after the current
+// selection and wrapping once — the ergonomics phase 11c's whole
+// notification/detection stack exists for: at 6 agent sessions open, this
+// is how you actually get to the one that is waiting on you, instead of
+// paging through the list by hand.
+//
+// Silently does nothing if none are blocked — same convention as
+// selectIndex's out-of-range no-op: a false "nothing to see here" beep for
+// what is, most of the time, the normal state would be worse than silence.
+func (gui *Gui) jumpToNextBlockedSession(*gocui.Gui, *gocui.View) error {
+	sessions := gui.filteredSessions()
+	if len(sessions) == 0 {
+		return nil
+	}
+
+	start := gui.getSelectedIndex()
+
+	for i := 1; i <= len(sessions); i++ {
+		index := (start + i) % len(sessions)
+
+		if sessions[index].AgentState() == agent.StateBlocked {
+			return gui.applySelection(index)
+		}
+	}
+
+	return nil
 }
 
 // selectIndex jumps straight to the i-th session (0-based) — the "1"-"9"

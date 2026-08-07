@@ -77,6 +77,10 @@ var messages = map[string]map[string]string{
 		"fr": "Marquer/démarquer la session pour la diffusion",
 		"en": "Mark/unmark the session for broadcast",
 	},
+	"action.jump_next_blocked": {
+		"fr": "Sauter à la prochaine session bloquée",
+		"en": "Jump to the next blocked session",
+	},
 
 	"help.title": {
 		"fr": " aide ",
@@ -110,6 +114,15 @@ var messages = map[string]map[string]string{
 	"status.broadcast": {
 		"fr": " ⚠ DIFFUSION → %d sessions ",
 		"en": " ⚠ BROADCAST → %d sessions ",
+	},
+
+	"notify.blocked": {
+		"fr": "%s attend une réponse",
+		"en": "%s is waiting for a response",
+	},
+	"notify.done": {
+		"fr": "%s a terminé",
+		"en": "%s is done",
 	},
 
 	"sessions.empty": {
@@ -219,6 +232,10 @@ var messages = map[string]map[string]string{
 	"footer.broadcast": {
 		"fr": "diffusion",
 		"en": "broadcast",
+	},
+	"footer.jump_next_blocked": {
+		"fr": "session bloquée suivante",
+		"en": "next blocked session",
 	},
 	"footer.exit_passthrough": {
 		"fr": "sortir",

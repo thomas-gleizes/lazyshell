@@ -115,6 +115,12 @@ type Session struct {
 	// exactly that, a fallback for when nothing better is available.
 	hookDriven bool
 
+	// turnStartedAt is when agentState last transitioned *into* StateWorking
+	// — set only on that edge (see applyAgentState), so a repeated "working"
+	// report (a hook that re-sends it, a manifest re-evaluation) does not
+	// reset the clock mid-turn. Read by TurnDuration.
+	turnStartedAt time.Time
+
 	// lastAgentCheck/agentRecheckPending implement evaluateAgentState's
 	// trailing-edge throttle: a check arriving inside agentCheckInterval of
 	// the last one is not just dropped, or the last burst of a turn — a
@@ -186,6 +192,23 @@ func (s *Session) AgentState() agent.State {
 	return s.agentState
 }
 
+// TurnDuration is how long the current agent turn has been running, valid
+// only while a turn is actually in progress: ok is false once the session
+// leaves StateWorking, rather than freezing on a stale duration that would
+// otherwise read as "still going" long after it finished. Backed by
+// turnStartedAt, set only on the edge into StateWorking — see
+// applyAgentState.
+func (s *Session) TurnDuration() (d time.Duration, ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.agentState != agent.StateWorking || s.turnStartedAt.IsZero() {
+		return 0, false
+	}
+
+	return time.Since(s.turnStartedAt), true
+}
+
 // SetAgentState pushes an authoritative agent state — the pkg/hook socket's
 // only capability, called once per received event from its own
 // connection-handling goroutine. Declarative only: this is the one place
@@ -198,9 +221,22 @@ func (s *Session) AgentState() agent.State {
 // session, not an arbitration replayed on every event.
 func (s *Session) SetAgentState(state agent.State) {
 	s.mu.Lock()
-	s.agentState = state
+	s.applyAgentState(state)
 	s.hookDriven = true
 	s.mu.Unlock()
+}
+
+// applyAgentState writes state and, on the edge into StateWorking, starts
+// the turn clock TurnDuration reads. Callers must hold s.mu. Centralized
+// here rather than duplicated at each write site (SetAgentState and
+// setAgentStateUnlessHookDriven) so "what counts as a new turn" has exactly
+// one definition.
+func (s *Session) applyAgentState(state agent.State) {
+	if state == agent.StateWorking && s.agentState != agent.StateWorking {
+		s.turnStartedAt = time.Now()
+	}
+
+	s.agentState = state
 }
 
 // Done is closed once the session has fully terminated: process reaped, both
@@ -396,7 +432,7 @@ func (s *Session) evaluateAgentState() {
 func (s *Session) setAgentStateUnlessHookDriven(state agent.State) {
 	s.mu.Lock()
 	if !s.hookDriven {
-		s.agentState = state
+		s.applyAgentState(state)
 	}
 	s.mu.Unlock()
 }

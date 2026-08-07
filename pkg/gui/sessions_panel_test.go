@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/thomas-gleizes/lazyshell/pkg/agent"
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
@@ -14,7 +15,7 @@ import (
 var testMarkers = markerSet{bell: bellMarker, altScreen: altScreenMarker, activity: activityMarker}
 
 func TestSessionsPanelContentEmpty(t *testing.T) {
-	got := sessionsPanelContent(nil, testMarkers, "", nil, nil)
+	got := sessionsPanelContent(nil, testMarkers, "", nil, nil, nil)
 
 	if !strings.Contains(got, "n pour en créer une") {
 		t.Errorf("empty content = %q, want a hint about the n keybinding", got)
@@ -35,7 +36,7 @@ func TestSessionsPanelContentListsSessions(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	got := sessionsPanelContent([]*session.Session{a, b}, testMarkers, "", nil, nil)
+	got := sessionsPanelContent([]*session.Session{a, b}, testMarkers, "", nil, nil, nil)
 
 	for _, want := range []string{a.Name(), b.Name(), a.Cwd} {
 		if !strings.Contains(got, want) {
@@ -45,6 +46,46 @@ func TestSessionsPanelContentListsSessions(t *testing.T) {
 
 	if strings.Count(got, "\n") != 2 {
 		t.Errorf("content = %q, want exactly 2 lines", got)
+	}
+}
+
+// A session mid-turn shows its duration in the detail column; a stats line
+// cached for it is appended after the duration. Neither appears for a
+// session that has never entered StateWorking.
+func TestSessionsPanelContentShowsTurnDurationAndStats(t *testing.T) {
+	m := session.NewManager()
+	m.KillTimeout = 300 * time.Millisecond
+	t.Cleanup(m.Shutdown)
+
+	quiet, err := m.New("quiet", "/bin/sh")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	working, err := m.New("working", "/bin/sh")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	working.SetAgentState(agent.StateWorking)
+
+	content := sessionsPanelContent([]*session.Session{quiet, working}, testMarkers, "", nil,
+		map[string]string{working.ID: "1.2k tokens"}, nil)
+
+	lines := strings.Split(strings.TrimRight(content, "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("got %d lines, want one per session:\n%q", len(lines), lines)
+	}
+
+	if strings.Contains(lines[0], "⏱") {
+		t.Errorf("quiet session shows a turn duration: %q", lines[0])
+	}
+
+	if !strings.Contains(lines[1], "⏱") {
+		t.Errorf("working session has no turn duration: %q", lines[1])
+	}
+
+	if !strings.Contains(lines[1], "1.2k tokens") {
+		t.Errorf("working session has no stats line: %q", lines[1])
 	}
 }
 

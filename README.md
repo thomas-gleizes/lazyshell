@@ -170,6 +170,8 @@ used instead — never a silent no-op, never a refusal to run.
 | `theme.selected_bg_color` | color | `blue` | Selected line's background in the sessions list. |
 | `theme.pass_through_border_color` | color | `red` | Focused panel's border while in pass-through mode. |
 | `clipboard.fallback_command` | string | `""` | Command run with the yanked text on its stdin, instead of OSC 52, for a terminal that does not support it. There is no way to detect support, so this is a manual switch: empty means OSC 52 only. |
+| `notify.fallback_command` | string | `""` | Command run with the notification text on its stdin, instead of OSC 9/777, when a detected AI agent session goes blocked or done. Empty means OSC only. |
+| `agent_stats_command` | string | `""` | Run for the selected AI agent session, with `$LAZYSHELL_SESSION_ID` in its environment; its first line of stdout is shown next to the turn duration. Empty disables it. |
 
 Key specs use `gocui.Parse` syntax: a bare character (`n`), or `Ctrl+N`,
 `Alt+Space`, `Tab`, `Esc`.
@@ -192,7 +194,8 @@ terminal shows as *bright* blue. lazyshell resolves the ANSI names first, so
 The remappable action ids are `new_session`, `new_session_in_dir`,
 `kill_session`, `rename_session`, `duplicate_session`, `restart_session`,
 `zoom`, `filter_sessions`, `export_session`, `toggle_broadcast`,
-`select_next`, `select_prev`, `cycle_focus`, `help` and `quit`. An id outside
+`jump_next_blocked`, `select_next`, `select_prev`, `cycle_focus`, `help` and
+`quit`. An id outside
 that list is reported rather than ignored.
 
 ### Example
@@ -229,6 +232,7 @@ keybindings:
   filter_sessions: "/"
   export_session: "w"
   toggle_broadcast: "b"
+  jump_next_blocked: "B"
   select_next: "j"
   select_prev: "k"
   cycle_focus: Tab
@@ -257,6 +261,11 @@ theme:
 
 clipboard:
   fallback_command: ""
+
+notify:
+  fallback_command: ""
+
+agent_stats_command: ""
 ```
 
 ### AI agent sessions
@@ -301,6 +310,26 @@ stops for that session for good: the hook is authoritative from then on, not
 just until the next screen change. lazyshell never calls the agent through
 this socket — it only ever listens, and the only thing a hook event can do is
 set that one state.
+
+#### Notifications, jumping to what's waiting, and turn stats
+
+A session going `blocked` or `done` fires a desktop notification — OSC 9 and
+OSC 777 to the host terminal by default (both sent unconditionally; a
+terminal that does not understand one just ignores it), or the command in
+`notify.fallback_command` instead, with the notification text on its stdin,
+for a terminal that needs one. At more than a couple of agent sessions open,
+`B` jumps the selection straight to the next `blocked` one, cycling and
+wrapping — the point of the marker and the notification both.
+
+A session currently mid-turn (`working`) shows how long its turn has been
+running in the sessions list, e.g. `⏱ 1m32s`. Setting `agent_stats_command`
+runs that command for the *selected* session only (at most once every 5
+seconds — it is meant for something like a token/cost lookup, not something
+cheap enough to run per session on every tick) with `$LAZYSHELL_SESSION_ID`
+in its environment, and shows its first line of output next to the
+duration — the same "external command, show its output line" shape as
+Claude Code's own `statusLine`. lazyshell does not parse or track token
+usage itself.
 
 ## Project configuration
 

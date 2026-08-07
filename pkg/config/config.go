@@ -128,6 +128,16 @@ type Config struct {
 	Theme Theme `yaml:"theme"`
 	// Clipboard configures copy-mode's yank.
 	Clipboard Clipboard `yaml:"clipboard"`
+	// Notify configures the desktop notification sent when a detected AI
+	// agent session goes blocked or done (pkg/agent).
+	Notify Notify `yaml:"notify"`
+	// AgentStatsCommand, when set, is run for the selected session — with
+	// $LAZYSHELL_SESSION_ID in its environment — and its first line of
+	// stdout is shown alongside the turn duration. Best-effort: lazyshell
+	// does not parse token/cost data itself, the same "external command
+	// whose output line is displayed" shape as Claude Code's own
+	// statusLine. Empty means no stats line.
+	AgentStatsCommand string `yaml:"agent_stats_command"`
 
 	// Warnings lists the keys the file contained but this struct has no field
 	// for, so that a typo says why it does nothing instead of being silently
@@ -177,6 +187,18 @@ type Clipboard struct {
 	FallbackCommand string `yaml:"fallback_command"`
 }
 
+// Notify configures the notification sent when a detected AI agent session
+// goes blocked or done. Same shape and the same reasoning as Clipboard: OSC
+// (9 and 777 here, both sent unconditionally — an unsupported one is simply
+// ignored by the terminal, so sending both costs nothing and reaches more
+// terminals than picking one) is a write with no acknowledgement, so the
+// fallback is a manual switch rather than something auto-detected: empty
+// means OSC only, set means this command runs instead, with the notification
+// text on its stdin.
+type Notify struct {
+	FallbackCommand string `yaml:"fallback_command"`
+}
+
 // Scroll is how far the output panel moves per scrolling keystroke.
 type Scroll struct {
 	// PageLines is how many lines PgUp/PgDn move by. Zero means "one full
@@ -218,7 +240,9 @@ func Default() Config {
 			PageLines:       0,
 			HalfPageDivisor: defaultHalfPageDivisor,
 		},
-		Clipboard: Clipboard{FallbackCommand: ""},
+		Clipboard:         Clipboard{FallbackCommand: ""},
+		Notify:            Notify{FallbackCommand: ""},
+		AgentStatsCommand: "",
 	}
 }
 

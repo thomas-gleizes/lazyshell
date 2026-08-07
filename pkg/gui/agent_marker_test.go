@@ -118,7 +118,7 @@ func TestSessionMarkersColorizesAgentStateWithoutBreakingAlignment(t *testing.T)
 		t.Fatalf("gutter = %q, want the colorized working marker", gutter)
 	}
 
-	content := sessionsPanelContent([]*session.Session{sess}, set, "", nil, gui.tr)
+	content := sessionsPanelContent([]*session.Session{sess}, set, "", nil, nil, gui.tr)
 	if !strings.Contains(content, sess.Name()) {
 		t.Fatalf("content = %q, name column shifted out of the line", content)
 	}

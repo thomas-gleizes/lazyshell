@@ -47,6 +47,7 @@ func (gui *Gui) sessionsFooterHints() []footerHint {
 		{actions: []string{"filter_sessions"}, label: gui.tr.T("footer.filter")},
 		{actions: []string{"export_session"}, label: gui.tr.T("footer.export")},
 		{actions: []string{"toggle_broadcast"}, label: gui.tr.T("footer.broadcast")},
+		{actions: []string{"jump_next_blocked"}, label: gui.tr.T("footer.jump_next_blocked")},
 		{actions: []string{"duplicate_session"}, label: gui.tr.T("footer.duplicate")},
 		{actions: []string{"new_session_in_dir"}, label: gui.tr.T("footer.new_in_dir")},
 	}
