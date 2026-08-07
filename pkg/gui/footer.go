@@ -30,7 +30,7 @@ type footerHint struct {
 	label string
 }
 
-// footerSeparator is a single space: the sessions panel is 30 columns wide by
+// footerSeparator is a single space: the sessions panel is narrow by
 // default, and anything wider costs a whole hint.
 const footerSeparator = " "
 
@@ -40,6 +40,7 @@ func (gui *Gui) sessionsFooterHints() []footerHint {
 	return []footerHint{
 		{actions: []string{"new_session"}, label: gui.tr.T("footer.new")},
 		{actions: []string{"kill_session"}, label: gui.tr.T("footer.kill")},
+		{actions: []string{"delete_session"}, label: gui.tr.T("footer.delete")},
 		{actions: []string{"select_next", "select_prev"}, label: gui.tr.T("footer.navigate")},
 		{actions: []string{"rename_session"}, label: gui.tr.T("footer.rename")},
 		{actions: []string{"restart_session"}, label: gui.tr.T("footer.restart")},

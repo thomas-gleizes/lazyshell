@@ -479,6 +479,21 @@ func (gui *Gui) killSession(*gocui.Gui, *gocui.View) error {
 	})
 }
 
+// deleteSession asks for confirmation before permanently removing the
+// selected session: unlike killSession, it also drops the session from the
+// panel — it stops showing up at all, running or exited, and cannot be
+// restarted afterwards.
+func (gui *Gui) deleteSession(*gocui.Gui, *gocui.View) error {
+	sess := gui.selectedSession()
+	if sess == nil {
+		return nil
+	}
+
+	return gui.showConfirm(gui.tr.T("sessions.delete_confirm", sess.Name()), func() error {
+		return gui.sessions.Remove(sess.ID)
+	})
+}
+
 // restartSession re-creates the selected session if it has exited — same
 // name, shell, cwd, env and initial command as when it was created. Refuses
 // (rather than silently no-op) on a session that is still running, so the
@@ -500,6 +515,13 @@ func (gui *Gui) restartSession(*gocui.Gui, *gocui.View) error {
 	gui.lastError = ""
 	gui.lastInfo = ""
 	gui.onSelectionChanged()
+
+	// A restart is a fresh shell like any other creation, and it is what the
+	// user reaches for right after watchSelectedExit dropped them back on the
+	// exited session — so it lands them back inside it.
+	if err := gui.focusSelectedShell(); err != nil {
+		return err
+	}
 
 	return gui.renderSessionsPanel()
 }
@@ -581,7 +603,39 @@ func (gui *Gui) selectNewlyCreatedSession() error {
 	gui.setSelectedIndex(len(gui.sessions.List()) - 1)
 	gui.onSelectionChanged()
 
+	if err := gui.focusSelectedShell(); err != nil {
+		return err
+	}
+
 	return gui.renderSessionsPanel()
+}
+
+// focusSelectedShell hands the keyboard to the selected session's shell:
+// focus to the output panel, pass-through armed. The counterpart of
+// watchSelectedExit (pkg/gui/exit_watch.go), which does the reverse when a
+// shell ends — starting a session is only ever followed by typing into it, so
+// the panel-then-Tab-then-i sequence is three keystrokes of pure ceremony.
+//
+// Called from the creation paths only (newSession, duplicateSession,
+// newSessionInDir, restartSession): moving the selection with j/k stays a
+// navigation gesture and must not arm pass-through under the user.
+//
+// enterPassThrough calls onSelectionChanged again, after the callers here
+// already did — harmless (it resets the scroll to live and restarts the render
+// task, both idempotent) and preferable to a second way into pass-through
+// that could drift from this one.
+func (gui *Gui) focusSelectedShell() error {
+	if gui.g == nil {
+		return nil
+	}
+
+	if _, err := gui.g.SetCurrentView(outputViewName); err != nil {
+		return err
+	}
+
+	gui.enterPassThrough()
+
+	return nil
 }
 
 // reportSessionError shows err in the status bar in place of the keybinding

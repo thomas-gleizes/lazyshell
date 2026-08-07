@@ -276,6 +276,39 @@ func (m *Manager) Kill(id string) error {
 	return sess.Kill(m.KillTimeout)
 }
 
+// Remove kills the session if it is still running, then drops it entirely
+// from the manager — unlike Kill, the session no longer appears in List()
+// afterwards and cannot be restarted. Used when the user wants a session
+// gone from the panel rather than just stopped.
+func (m *Manager) Remove(id string) error {
+	m.mu.RLock()
+	sess, ok := m.sessions[id]
+	m.mu.RUnlock()
+
+	if !ok {
+		return fmt.Errorf("session: unknown id %q", id)
+	}
+
+	if sess.Status() != StatusExited {
+		if err := sess.Kill(m.KillTimeout); err != nil {
+			return err
+		}
+	}
+
+	m.mu.Lock()
+	delete(m.sessions, id)
+	for i, oid := range m.order {
+		if oid == id {
+			m.order = append(m.order[:i], m.order[i+1:]...)
+
+			break
+		}
+	}
+	m.mu.Unlock()
+
+	return nil
+}
+
 // List returns every session in creation order, including exited ones: they
 // stay visible, the same way a stopped container stays listed in lazydocker.
 func (m *Manager) List() []*Session {

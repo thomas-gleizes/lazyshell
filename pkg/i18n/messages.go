@@ -37,6 +37,10 @@ var messages = map[string]map[string]string{
 		"fr": "Tuer la session sélectionnée",
 		"en": "Kill the selected session",
 	},
+	"action.delete_session": {
+		"fr": "Supprimer définitivement la session sélectionnée",
+		"en": "Permanently delete the selected session",
+	},
 	"action.rename_session": {
 		"fr": "Renommer la session sélectionnée",
 		"en": "Rename the selected session",
@@ -133,6 +137,10 @@ var messages = map[string]map[string]string{
 		"fr": "Tuer la session %q ? (y/n)",
 		"en": "Kill session %q? (y/n)",
 	},
+	"sessions.delete_confirm": {
+		"fr": "Supprimer définitivement la session %q ? Elle ne sera plus listée. (y/n)",
+		"en": "Permanently delete session %q? It will no longer be listed. (y/n)",
+	},
 	"sessions.restart_running": {
 		"fr": "session %s : encore en cours d'exécution",
 		"en": "session %s: still running",
@@ -196,6 +204,10 @@ var messages = map[string]map[string]string{
 	"footer.kill": {
 		"fr": "tuer",
 		"en": "kill",
+	},
+	"footer.delete": {
+		"fr": "supprimer",
+		"en": "delete",
 	},
 	"footer.navigate": {
 		"fr": "naviguer",

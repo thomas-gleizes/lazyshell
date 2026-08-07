@@ -23,7 +23,7 @@ const (
 	defaultScrollbackSize = 10000
 	// defaultSessionsPanelWidth is the sessions panel's width in landscape mode
 	// (pkg/gui/layout.go's sessionsWidthLandscape).
-	defaultSessionsPanelWidth = 30
+	defaultSessionsPanelWidth = 40
 	// defaultSessionsPanelHeight is its height in portrait mode
 	// (pkg/gui/layout.go's sessionsHeightPortrait).
 	defaultSessionsPanelHeight = 10

@@ -54,6 +54,7 @@ to open an in-app help popup listing every binding below.
 | `k` / `↑` | Session précédente |
 | `n` | Nouvelle session |
 | `x` / `d` | Tuer la session sélectionnée |
+| `D` | Supprimer définitivement la session sélectionnée (retirée du panneau) |
 | `r` | Renommer la session sélectionnée |
 | `c` | Dupliquer la session sélectionnée |
 | `N` | Nouvelle session dans un dossier choisi |
@@ -72,6 +73,17 @@ While the **output panel** is focused, these apply instead:
 | `v` | Démarrer (ou étendre) une sélection de lignes — mode copie |
 | `y` ou un second `v` | Copier la sélection (OSC 52, ou la commande de repli configurée) |
 | `Esc` | Quitter la recherche ou annuler la sélection en cours |
+
+Starting a session (`n`, `N`, `c`) or restarting one (`R`) lands you straight
+inside it: the output panel takes the focus and pass-through is armed, so you
+can type immediately. `Ctrl+B` gets the keyboard back. Moving the selection
+with `j` / `k` is navigation and never does this.
+
+A shell that ends on its own — `exit`, `Ctrl+D`, or whatever it was running
+finishing — takes the interface with it: pass-through is disarmed and focus
+goes back to the sessions panel, on that same session. It stays selected and
+listed, exited, so `R` restarts it and `x` / `D` disposes of it. Nothing
+happens behind a popup: a confirmation or the help keeps the focus it has.
 
 Each panel also carries its own most-used keys on the bottom line of its
 frame, so the common ones are readable without opening `?`. The list shortens
@@ -147,7 +159,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `shell` | string | `""` | Command started behind each session's pty. Empty means `$SHELL`, falling back to `/bin/bash`. |
 | `term` | string | `xterm-256color` | `TERM` announced to sessions. Lower it to make programs degrade on purpose. |
 | `scrollback_size` | int ≥ 0 | `10000` | Lines kept per session once they scroll off-screen. |
-| `sessions_panel_width` | int ≥ 5 | `30` | Sessions list width, in columns, in landscape mode. |
+| `sessions_panel_width` | int ≥ 5 | `40` | Sessions list width, in columns, in landscape mode. |
 | `sessions_panel_height` | int ≥ 5 | `10` | Sessions list height, in rows, in portrait mode. |
 | `portrait_max_width` | int | `84` | Portrait mode applies at or below this terminal width… |
 | `portrait_min_height` | int | `45` | …and above this terminal height. Portrait stacks the panels instead of splitting them side by side. |
@@ -193,10 +205,10 @@ terminal shows as *bright* blue. lazyshell resolves the ANSI names first, so
 `brightblue` for the bright terminal slot.
 
 The remappable action ids are `new_session`, `new_session_in_dir`,
-`kill_session`, `rename_session`, `duplicate_session`, `restart_session`,
-`zoom`, `filter_sessions`, `export_session`, `toggle_broadcast`,
-`jump_next_blocked`, `select_next`, `select_prev`, `cycle_focus`, `help` and
-`quit`. An id outside
+`kill_session`, `delete_session`, `rename_session`, `duplicate_session`,
+`restart_session`, `zoom`, `filter_sessions`, `export_session`,
+`toggle_broadcast`, `jump_next_blocked`, `select_next`, `select_prev`,
+`cycle_focus`, `help` and `quit`. An id outside
 that list is reported rather than ignored.
 
 ### Example
@@ -212,7 +224,7 @@ shell: ""
 term: xterm-256color
 scrollback_size: 10000
 
-sessions_panel_width: 30
+sessions_panel_width: 40
 sessions_panel_height: 10
 portrait_max_width: 84
 portrait_min_height: 45
@@ -226,6 +238,7 @@ keybindings:
   new_session: "n"
   new_session_in_dir: "N"
   kill_session: "x"
+  delete_session: "D"
   rename_session: "r"
   duplicate_session: "c"
   restart_session: "R"

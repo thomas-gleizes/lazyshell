@@ -21,8 +21,9 @@ func TestSessionsFooterTruncatesToFit(t *testing.T) {
 		{width: 10, want: "n:nouvelle"},
 		{width: 16, want: "n:nouvelle"},
 		{width: 17, want: "n:nouvelle x:tuer"},
-		{width: 29, want: "n:nouvelle x:tuer"},
-		{width: 30, want: "n:nouvelle x:tuer j/k:naviguer"},
+		{width: 28, want: "n:nouvelle x:tuer"},
+		{width: 29, want: "n:nouvelle x:tuer D:supprimer"},
+		{width: 42, want: "n:nouvelle x:tuer D:supprimer j/k:naviguer"},
 	} {
 		if got := gui.panelFooter(sessionsViewName, tc.width); got != tc.want {
 			t.Errorf("panelFooter(sessions, %d) = %q, want %q", tc.width, got, tc.want)

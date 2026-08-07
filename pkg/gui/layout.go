@@ -16,7 +16,7 @@ const (
 	// height in portrait (parent direction ROW) — the same Size field means a
 	// different axis depending on which direction its parent picked. Both are
 	// overridden by pkg/config (sessions_panel_width/_height).
-	sessionsWidthLandscape = 30
+	sessionsWidthLandscape = 40
 	sessionsHeightPortrait = 10
 	statusBarHeight        = 1
 

@@ -136,6 +136,14 @@ func (gui *Gui) staticBindings() []Binding {
 		},
 		{
 			ViewName:    sessionsViewName,
+			Action:      "delete_session",
+			Key:         'D',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.deleteSession,
+			Description: gui.tr.T("action.delete_session"),
+		},
+		{
+			ViewName:    sessionsViewName,
 			Action:      "rename_session",
 			Key:         'r',
 			Modifier:    gocui.ModNone,

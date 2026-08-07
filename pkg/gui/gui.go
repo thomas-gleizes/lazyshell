@@ -157,6 +157,12 @@ type Gui struct {
 	lastSessionsSelected int
 	sessionsDrawn        bool
 
+	// exitHandledID is the session id watchSelectedExit (pkg/gui/exit_watch.go)
+	// last backed out of pass-through for, so a session that stays selected
+	// after exiting does not re-trigger it on every tick. Under mu: written
+	// from goEvery's background goroutine.
+	exitHandledID string
+
 	// notifiedState is the last agent.State a notification was fired for,
 	// per session id (pkg/gui/notify.go) — written and read only from
 	// checkAgentNotifications' own goEvery tick, but guarded by mu anyway
@@ -359,12 +365,13 @@ func (gui *Gui) Run() (err error) {
 	// A separate tick from renderSessionsPanel's, on purpose: a transition
 	// into blocked/done must be caught even on a render that gets skipped by
 	// its own content-diffing, and this must never touch that function's
-	// perf-tested diff logic. checkAgentNotifications and refreshAgentStats
-	// share this one tick (rather than each getting their own) since neither
-	// does anything expensive itself — refreshAgentStats' own throttle is
-	// what actually bounds the cost of the command it may spawn.
+	// perf-tested diff logic. The checks below share this one tick (rather
+	// than each getting their own) since none does anything expensive itself —
+	// refreshAgentStats' own throttle is what actually bounds the cost of the
+	// command it may spawn, and watchSelectedExit only reads a status.
 	gui.goEvery(gui.tick(), func() error {
 		_ = gui.checkAgentNotifications()
+		_ = gui.watchSelectedExit()
 		gui.updateWindowTitle()
 
 		return gui.refreshAgentStats()
