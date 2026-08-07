@@ -330,7 +330,26 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 // makes "i", "v" and "/" quietly do nothing, since none of them has a binding
 // outside this Editor.
 func (gui *Gui) editOnSecondaryTab(view *gocui.View, key gocui.Key, ch rune) bool {
+	_, rows := view.InnerSize()
+
 	switch {
+	case key == gocui.KeyPgup:
+		gui.scrollBy(gui.pageStep(rows))
+
+		return true
+	case key == gocui.KeyPgdn:
+		gui.scrollBy(-gui.pageStep(rows))
+
+		return true
+	case key == gocui.KeyCtrlU:
+		gui.scrollBy(gui.halfPageStep(rows))
+
+		return true
+	case key == gocui.KeyCtrlD:
+		gui.scrollBy(-gui.halfPageStep(rows))
+
+		return true
+
 	case gui.matchesAction("next_tab", key, ch):
 		gui.switchTab(1)
 
@@ -440,10 +459,11 @@ func (gui *Gui) exitPassThrough() {
 // back into, and the keys that would do it belong to that application anyway.
 func (gui *Gui) scrollBy(delta int) {
 	// The offset below addresses the session's scrollback, which the perf and
-	// env tabs are not showing — moving it from there would scroll something
-	// invisible and leave the output tab somewhere the user never put it.
-	// Those tabs get their own offset in a later step.
+	// env tabs are not showing — they scroll their own rendered text instead,
+	// through gocui's view origin.
 	if gui.outputTab != tabOutput {
+		gui.scrollSecondaryTab(delta)
+
 		return
 	}
 
@@ -463,6 +483,43 @@ func (gui *Gui) scrollBy(delta int) {
 
 	gui.setScrollOffset(offset)
 	gui.showOutput(sess)
+}
+
+// scrollSecondaryTab moves the perf/env tabs' own offset. The sign is flipped
+// against scrollBy's: its delta counts *backwards* from a live bottom, while a
+// view origin counts forwards from the top, so PgUp — positive there — has to
+// decrease the origin here.
+//
+// Clamped against what is currently rendered, so a key held down does not run
+// the offset off into a number the user then has to scroll all the way back
+// through. Only ever called from gocui's goroutine, like everything that
+// touches tabOffset.
+func (gui *Gui) scrollSecondaryTab(delta int) {
+	if gui.g == nil {
+		return
+	}
+
+	view, err := gui.g.View(outputViewName)
+	if err != nil {
+		return
+	}
+
+	offset := gui.tabOffset - delta
+
+	if max := maxTabOffset(view); offset > max {
+		offset = max
+	}
+
+	if offset < 0 {
+		offset = 0
+	}
+
+	if offset == gui.tabOffset {
+		return
+	}
+
+	gui.tabOffset = offset
+	gui.restartOutput()
 }
 
 // refreshChrome updates the status bar text and the active border colour to

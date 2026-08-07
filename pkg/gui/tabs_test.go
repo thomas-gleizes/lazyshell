@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/jesseduffield/gocui"
@@ -235,22 +236,140 @@ func TestTabKeysWorkFromTheOutputView(t *testing.T) {
 	}
 }
 
-// scrollBy addresses the session's scrollback, which the secondary tabs are
-// not showing — moving it from there would scroll something invisible.
-func TestScrollingIsInertOnSecondaryTabs(t *testing.T) {
+// The two offsets are separate on purpose: scrolling a report must not move
+// where the session's scrollback is sitting.
+func TestScrollingASecondaryTabLeavesTheScrollbackAlone(t *testing.T) {
 	gui, g := newHeadlessGui(t)
 	if err := gui.layout(g); err != nil {
 		t.Fatalf("layout: %v", err)
 	}
 
 	gui.setScrollOffset(7)
-	gui.outputTab = tabPerf
+	gui.outputTab = tabEnv
+	fillOutputView(t, g, 100)
 
-	gui.scrollBy(10)
+	gui.scrollBy(-10)
 
 	if got := gui.getScrollOffset(); got != 7 {
 		t.Errorf("scrollOffset = %d, want it untouched at 7", got)
 	}
+
+	if gui.tabOffset == 0 {
+		t.Error("tabOffset did not move, want the tab's own content scrolled")
+	}
+}
+
+func TestSecondaryTabScrolling(t *testing.T) {
+	const lines = 100
+
+	// wantMax stands for "however far this view can actually scroll" — derived
+	// from the laid-out view rather than hardcoded, since the panel's inner
+	// height depends on the frame and the status bar.
+	const wantMax = -1
+
+	tests := []struct {
+		name  string
+		start int
+		delta int
+		want  int
+	}{
+		// scrollBy's delta counts backwards from a live bottom; a view origin
+		// counts forwards, so the two have opposite signs.
+		{name: "PgDn moves down", start: 0, delta: -10, want: 10},
+		{name: "PgUp moves back up", start: 30, delta: 10, want: 20},
+		{name: "cannot go above the top", start: 3, delta: 50, want: 0},
+		{name: "cannot scroll past the last line", start: 0, delta: -1000, want: wantMax},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gui, g := newHeadlessGui(t)
+			if err := gui.layout(g); err != nil {
+				t.Fatalf("layout: %v", err)
+			}
+
+			gui.outputTab = tabEnv
+			gui.tabOffset = tc.start
+			fillOutputView(t, g, lines)
+
+			view, err := g.View(outputViewName)
+			if err != nil {
+				t.Fatalf("View: %v", err)
+			}
+
+			want := tc.want
+			if want == wantMax {
+				want = maxTabOffset(view)
+				if want <= 0 {
+					t.Fatalf("maxTabOffset = %d, want the content to overflow the panel", want)
+				}
+			}
+
+			gui.scrollBy(tc.delta)
+
+			if gui.tabOffset != want {
+				t.Errorf("tabOffset = %d, want %d", gui.tabOffset, want)
+			}
+		})
+	}
+}
+
+// Switching tabs starts the new one at the top: an offset carried over from
+// another tab's content addresses nothing in this one.
+func TestSwitchingTabResetsTheTabOffset(t *testing.T) {
+	gui, g := newHeadlessGui(t)
+	if err := gui.layout(g); err != nil {
+		t.Fatalf("layout: %v", err)
+	}
+
+	gui.outputTab = tabEnv
+	gui.tabOffset = 40
+
+	gui.switchTab(1)
+
+	if gui.tabOffset != 0 {
+		t.Errorf("tabOffset = %d after a tab switch, want 0", gui.tabOffset)
+	}
+}
+
+// The output tab's view must always be drawn from its own origin: the emulator
+// decides what is on screen, and drawCursor relies on view rows being emulator
+// rows.
+func TestOutputTabIsPinnedToTheTopEvenAfterScrollingAnother(t *testing.T) {
+	gui, g := newHeadlessGui(t)
+	if err := gui.layout(g); err != nil {
+		t.Fatalf("layout: %v", err)
+	}
+
+	view, err := g.View(outputViewName)
+	if err != nil {
+		t.Fatalf("View: %v", err)
+	}
+
+	view.SetOrigin(0, 30)
+	applyTabOrigin(view, tabOutput, 30)
+
+	if _, y := view.Origin(); y != 0 {
+		t.Errorf("origin y = %d on the output tab, want 0", y)
+	}
+}
+
+// fillOutputView puts n lines into the output view, so scroll clamping has
+// real content to clamp against.
+func fillOutputView(t *testing.T, g *gocui.Gui, n int) {
+	t.Helper()
+
+	view, err := g.View(outputViewName)
+	if err != nil {
+		t.Fatalf("View: %v", err)
+	}
+
+	lines := make([]string, n)
+	for i := range lines {
+		lines[i] = "line"
+	}
+
+	view.SetContent(strings.Join(lines, "\n"))
 }
 
 func TestSecondaryTabFooterOffersTheTabKeys(t *testing.T) {

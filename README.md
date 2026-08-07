@@ -209,6 +209,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `mouse.enabled` | bool | `true` | Click, wheel and drag support. Turning it on costs `Shift-Up`/`Shift-Down` pass-through — gocui gives those keys and the mouse buttons the same values, so they cannot both work. Set to `false` to get them back. |
 | `mouse.wheel_lines` | int ≥ 1 | `3` | Lines one wheel notch scrolls the output panel by. |
 | `mouse.forward_to_app` | bool | `true` | Whether a program inside a session may receive the mouse itself, and only once it has asked for it with a DECSET 9/1000/1002/1003 (`vim` with `set mouse=a`, `htop`). A shell or an AI agent CLI never asks, so the wheel keeps scrolling lazyshell's scrollback. |
+| `env_tab.mask_secrets` | bool | `true` | Whether the output panel's env tab masks the value of variables whose name looks like a credential (`TOKEN`, `SECRET`, `PASSWORD`, `AUTH`, `..._KEY`). The panel is as shareable as a screenshot of it; set to `false` to see the real values. |
 | `agent_stats_command` | string | `""` | Run for the selected AI agent session, with `$LAZYSHELL_SESSION_ID` in its environment; its first line of stdout is shown next to the turn duration. Empty disables it. |
 
 Key specs use `gocui.Parse` syntax: a bare character (`n`), or `Ctrl+N`,
@@ -314,6 +315,9 @@ mouse:
   enabled: true
   wheel_lines: 3
   forward_to_app: true
+
+env_tab:
+  mask_secrets: true
 
 agent_stats_command: ""
 ```

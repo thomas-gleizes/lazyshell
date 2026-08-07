@@ -80,6 +80,9 @@ type Gui struct {
 	// windowTitleEnabled is pkg/config's WindowTitle.Enabled — see
 	// pkg/gui/title.go's updateWindowTitle.
 	windowTitleEnabled bool
+	// maskSecrets is pkg/config's EnvTab.MaskSecrets — see
+	// pkg/gui/env_tab.go's envTabContent.
+	maskSecrets bool
 	// agentStatsCommand is pkg/config's AgentStatsCommand — see
 	// pkg/gui/stats.go's refreshAgentStats.
 	agentStatsCommand string
@@ -247,6 +250,7 @@ func New(sessions *session.Manager, cfg config.Config) *Gui {
 		clipboardFallback:   cfg.Clipboard.FallbackCommand,
 		notifyFallback:      cfg.Notify.FallbackCommand,
 		windowTitleEnabled:  cfg.WindowTitle.Enabled,
+		maskSecrets:         cfg.EnvTab.MaskSecrets,
 		agentStatsCommand:   cfg.AgentStatsCommand,
 		keymap:              cfg.Keybindings,
 	}

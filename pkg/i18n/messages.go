@@ -111,6 +111,19 @@ var messages = map[string]map[string]string{
 		"en": "  (coming soon)",
 	},
 
+	"env.count": {
+		"fr": "%d variable(s) au lancement de la session",
+		"en": "%d variable(s) at session launch",
+	},
+	"env.masked": {
+		"fr": " — %d masquée(s)",
+		"en": " — %d masked",
+	},
+	"env.empty": {
+		"fr": "Aucune variable d'environnement",
+		"en": "No environment variables",
+	},
+
 	"help.title": {
 		"fr": " aide ",
 		"en": " help ",

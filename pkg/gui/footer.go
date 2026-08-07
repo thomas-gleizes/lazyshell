@@ -76,6 +76,7 @@ func (gui *Gui) outputFooterHints() []footerHint {
 	if gui.outputTab != tabOutput {
 		return []footerHint{
 			{actions: []string{"prev_tab", "next_tab"}, label: gui.tr.T("footer.tab")},
+			{key: "PgUp/PgDn", label: gui.tr.T("footer.scroll")},
 			{actions: []string{"zoom"}, label: gui.tr.T("footer.zoom")},
 		}
 	}

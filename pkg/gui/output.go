@@ -57,6 +57,19 @@ func (gui *Gui) showOutput(sess *session.Session) {
 	// "the task touches no Gui state" true rather than nearly true.
 	placeholder := gui.tr.T("tab.placeholder")
 
+	// The env tab is static for the life of a session: Env() reports what the
+	// shell was *launched* with, which cannot change. So it is rendered once
+	// here rather than rebuilt on every tick — the cheapest possible version
+	// of the skip-if-unchanged rule below.
+	envContent := ""
+	if tab == tabEnv {
+		envContent = gui.envTabContent(sess.Env())
+	}
+
+	// Captured for the same reason as the tab: written from gocui's goroutine
+	// by scrollSecondaryTab, which restarts this task on every change.
+	tabOffset := gui.tabOffset
+
 	offset := gui.getScrollOffset()
 	passThrough := gui.passThroughActive
 	pattern := gui.searchPattern
@@ -77,8 +90,12 @@ func (gui *Gui) showOutput(sess *session.Session) {
 		// matters most for them: a report that only changes once a second
 		// would otherwise repaint the whole screen on every tick.
 		frame := outputFrame{content: placeholder}
-		if tab == tabOutput {
+
+		switch tab {
+		case tabOutput:
 			frame = buildOutputFrame(sess, offset, passThrough, pattern, selFrom, selTo)
+		case tabEnv:
+			frame = outputFrame{content: envContent}
 		}
 
 		if drawn && frame == previous {
@@ -99,6 +116,7 @@ func (gui *Gui) showOutput(sess *session.Session) {
 			}
 
 			view.SetContent(frame.content)
+			applyTabOrigin(view, tab, tabOffset)
 			drawCursor(g, view, frame)
 
 			return nil
@@ -157,6 +175,51 @@ func drawCursor(g *gocui.Gui, view *gocui.View, frame outputFrame) {
 	// The view never scrolls (origin stays 0,0 — the emulator decides what is
 	// on screen), so emulator coordinates are view coordinates.
 	view.SetCursor(frame.cursorX, frame.cursorY)
+}
+
+// applyTabOrigin decides where in its own content the view starts drawing.
+//
+// The output tab is pinned at (0,0), unconditionally and not just when it
+// happens to already be there: the emulator decides what is on screen, which
+// is what makes "emulator coordinates are view coordinates" true for
+// drawCursor and for mouse.go's outputLineAt. Coming back from a scrolled env
+// tab has to restore that in the very frame that restores the content, or the
+// cursor lands rows away from where it is really typing.
+//
+// The secondary tabs are ordinary scrollable text, so they use gocui's own
+// origin. The offset is clamped here rather than trusted: it was computed
+// against whatever content was on screen when the key was pressed, and the
+// content may since have got shorter.
+func applyTabOrigin(view *gocui.View, tab outputTab, offset int) {
+	if tab == tabOutput {
+		view.SetOrigin(0, 0)
+
+		return
+	}
+
+	if max := maxTabOffset(view); offset > max {
+		offset = max
+	}
+
+	if offset < 0 {
+		offset = 0
+	}
+
+	view.SetOrigin(0, offset)
+}
+
+// maxTabOffset is how far a secondary tab can scroll before its last line
+// reaches the bottom of the panel — scrolling past that would only reveal
+// blank rows.
+func maxTabOffset(view *gocui.View) int {
+	_, rows := view.InnerSize()
+
+	max := view.LinesHeight() - rows
+	if max < 0 {
+		return 0
+	}
+
+	return max
 }
 
 // restartOutput restarts the render task for the selected session, so that

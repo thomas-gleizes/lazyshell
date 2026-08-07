@@ -140,6 +140,8 @@ type Config struct {
 	WindowTitle WindowTitle `yaml:"window_title"`
 	// Mouse configures clicking, wheel scrolling and drag selection.
 	Mouse Mouse `yaml:"mouse"`
+	// EnvTab configures the output panel's env tab.
+	EnvTab EnvTab `yaml:"env_tab"`
 	// AgentStatsCommand, when set, is run for the selected session — with
 	// $LAZYSHELL_SESSION_ID in its environment — and its first line of
 	// stdout is shown alongside the turn duration. Best-effort: lazyshell
@@ -219,6 +221,17 @@ type WindowTitle struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+// EnvTab configures the output panel's env tab, which lists the environment a
+// session's shell was launched with.
+type EnvTab struct {
+	// MaskSecrets replaces the value of any variable whose *name* looks like a
+	// credential (TOKEN, SECRET, PASSWORD, AUTH, ..._KEY) with a fixed-width
+	// mask. On by default: the panel is as shareable as a screenshot of it,
+	// and an API key must not be what makes a screenshot dangerous. Set to
+	// false to see the real values.
+	MaskSecrets bool `yaml:"mask_secrets"`
+}
+
 // Mouse configures the mouse support. It is on by default, and the switch
 // exists because enabling it is not free: gocui gives mouse buttons and the
 // Shift-Up/Shift-Down keys the very same values (MouseLeft is KeyShiftArrowDown,
@@ -290,6 +303,7 @@ func Default() Config {
 			WheelLines:   defaultMouseWheelLines,
 			ForwardToApp: true,
 		},
+		EnvTab:            EnvTab{MaskSecrets: true},
 		AgentStatsCommand: "",
 	}
 }
