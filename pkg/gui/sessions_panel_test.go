@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -96,6 +97,60 @@ func TestRenderSessionsPanelWithoutView(t *testing.T) {
 
 	if err := gui.renderSessionsPanel(); err != nil {
 		t.Fatalf("renderSessionsPanel: %v", err)
+	}
+}
+
+// The bug this guards against: with a list longer than the panel, the
+// selected line could be past what fits on screen, and nothing ever moved the
+// view's origin to bring it into the visible window — the same lines stayed
+// hidden below the frame no matter what was selected.
+func TestApplySessionsPanelUpdateScrollsToKeepSelectionVisible(t *testing.T) {
+	gui, g := newHeadlessGuiSized(t, 80, 20)
+
+	const total = 30
+	for i := range total {
+		if _, err := gui.sessions.New(fmt.Sprintf("s%02d", i), "/bin/sh"); err != nil {
+			t.Fatalf("sessions.New: %v", err)
+		}
+	}
+
+	for range 2 {
+		if err := gui.layout(g); err != nil {
+			t.Fatalf("layout: %v", err)
+		}
+	}
+
+	view, err := g.View(sessionsViewName)
+	if err != nil {
+		t.Fatalf("sessions view not found: %v", err)
+	}
+
+	innerHeight := view.InnerHeight()
+	if innerHeight >= total {
+		t.Fatalf("test terminal too tall to exercise overflow: InnerHeight=%d, want < %d", innerHeight, total)
+	}
+
+	content := sessionsPanelContent(gui.filteredSessions(), testMarkers, "", nil, nil, nil)
+
+	// The last session is well past what a 20-row terminal's panel shows.
+	last := total - 1
+	applySessionsPanelUpdate(view, content, last)
+
+	origin := view.OriginY()
+	if origin == 0 {
+		t.Fatal("origin did not move: the selected line is past InnerHeight and would never be drawn")
+	}
+	if last < origin || last >= origin+innerHeight {
+		t.Errorf("selected line %d is outside the visible window [%d, %d)", last, origin, origin+innerHeight)
+	}
+
+	// Selecting the first session again must scroll all the way back: a stale
+	// offset here would hide it above the viewport instead, the same bug in
+	// the other direction.
+	applySessionsPanelUpdate(view, content, 0)
+
+	if origin := view.OriginY(); origin != 0 {
+		t.Errorf("origin = %d after selecting the first session, want 0", origin)
 	}
 }
 

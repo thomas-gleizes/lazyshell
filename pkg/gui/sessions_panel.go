@@ -322,14 +322,30 @@ func (gui *Gui) renderSessionsPanel() error {
 			return nil
 		}
 
-		view.Clear()
-		fmt.Fprint(view, content)
-		view.SetCursor(0, selected)
+		applySessionsPanelUpdate(view, content, selected)
 
 		return nil
 	})
 
 	return nil
+}
+
+// applySessionsPanelUpdate writes content to the sessions view and scrolls it
+// so the selected line stays visible. Split out from renderSessionsPanel's
+// g.Update closure so it can be exercised directly in a test — that closure
+// only runs once gocui's MainLoop drains it, which headless tests never do.
+//
+// FocusPoint, not SetCursor: SetCursor takes a position relative to the
+// current origin and never moves that origin, so once the list grows past the
+// panel's height the origin stays pinned at 0 forever — everything past the
+// first InnerHeight lines is simply never drawn, selected or not. FocusPoint
+// takes the absolute line instead and scrolls the origin just enough to keep
+// it on screen (centering only when it was outside the visible window), the
+// same list-follows-selection behaviour j/k already implies.
+func applySessionsPanelUpdate(view *gocui.View, content string, selected int) {
+	view.Clear()
+	fmt.Fprint(view, content)
+	view.FocusPoint(0, selected, true)
 }
 
 // sessionsPanelChanged reports whether the panel differs from what was last
