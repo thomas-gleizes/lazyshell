@@ -108,6 +108,24 @@ type Gui struct {
 	helpSelectedIndex int
 	// promptReturnView is helpReturnView's equivalent for showPrompt's popup.
 	promptReturnView string
+	// busyActive/busyMessage/busyFrame/busyReturnView/busyStop are the
+	// spinner popup's state (pkg/gui/busy.go): whether one is up, what it
+	// says, which animation frame it is on, where focus goes when it closes,
+	// and the channel that stops its animation goroutine. Same concurrency
+	// rule as passThroughActive above — all five are only ever touched from
+	// gocui's own goroutine, the animation goroutine included since it does
+	// its work inside a g.Update closure.
+	busyActive     bool
+	busyMessage    string
+	busyFrame      int
+	busyReturnView string
+	busyStop       chan struct{}
+	// busyInline turns runBusy into a plain synchronous call — no popup, no
+	// goroutine. For callers running without a gocui main loop to pump the
+	// g.Update the spinner's completion is delivered through: a Gui driven
+	// straight from a test rather than from Run, where an asynchronous
+	// operation would simply never be reported.
+	busyInline bool
 	// promptOnSubmit is the callback showPrompt is currently waiting on,
 	// captured at open time and consumed (then cleared) by submitPrompt.
 	promptOnSubmit func(string) error

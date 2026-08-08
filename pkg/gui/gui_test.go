@@ -55,6 +55,11 @@ func newHeadlessGuiSizedWithConfig(t testing.TB, width, height int, cfg config.C
 
 	gui := New(sessions, cfg)
 	gui.g = g
+	// Nothing pumps g.Update here unless the test starts a MainLoop of its
+	// own, so operations that would otherwise go behind busy.go's spinner run
+	// inline and are observable right after the call that triggered them. The
+	// tests that do run a MainLoop and want the popup clear this themselves.
+	gui.busyInline = true
 
 	return gui, g
 }

@@ -117,11 +117,33 @@ func (gui *Gui) yankCopySelection() {
 	from, to := gui.copySelectionRange()
 	text := sess.Screen().TextRange(from, to)
 
-	if err := gui.copyToClipboard(text); err != nil {
-		_ = gui.reportSessionError(fmt.Errorf("%s", gui.tr.T("copymode.copy_failed", err)))
-	} else {
+	report := func(err error) error {
+		if err != nil {
+			return gui.reportSessionError(fmt.Errorf("%s", gui.tr.T("copymode.copy_failed", err)))
+		}
+
 		gui.lastError = ""
 		gui.lastInfo = ""
+
+		return nil
+	}
+
+	// OSC 52 is a single write to the host terminal — far too fast to be worth
+	// a popup. The configured fallback is a whole process instead, which can
+	// take as long as it likes (and hang outright, on a misconfigured one), so
+	// only that branch goes behind the spinner.
+	if gui.clipboardFallback == "" {
+		_ = report(gui.copyToClipboard(text))
+	} else {
+		_ = gui.runBusyThen(gui.tr.T("busy.clipboard"), func() error {
+			return gui.copyToClipboard(text)
+		}, func(err error) error {
+			if err := report(err); err != nil {
+				return err
+			}
+
+			return gui.refreshAfterBusy()
+		})
 	}
 
 	gui.restartOutput()

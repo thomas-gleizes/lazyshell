@@ -42,6 +42,14 @@ func (gui *Gui) showConfirm(message string, onConfirm func() error) error {
 	}
 
 	if err := gui.g.SetKeybinding(confirmViewName, 'y', gocui.ModNone, func(*gocui.Gui, *gocui.View) error {
+		// Torn down *before* the callback runs, same order as submitPrompt's:
+		// an onConfirm that opens another popup of its own — every one of them
+		// currently does, via runBusy — would otherwise have its focus taken
+		// straight back by closeConfirm's SetCurrentView.
+		if err := gui.closeConfirm(); err != nil {
+			return err
+		}
+
 		if err := onConfirm(); err != nil {
 			gui.lastError = err.Error()
 		} else {
@@ -49,7 +57,9 @@ func (gui *Gui) showConfirm(message string, onConfirm func() error) error {
 			gui.lastInfo = ""
 		}
 
-		return gui.closeConfirm()
+		// closeConfirm already redrew both, but that was before the callback
+		// ran and set the message it may want shown.
+		return gui.refreshAfterBusy()
 	}); err != nil {
 		return err
 	}

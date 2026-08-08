@@ -98,9 +98,18 @@ func (gui *Gui) submitPrompt(g *gocui.Gui, v *gocui.View) error {
 		return nil
 	}
 
-	if err := onSubmit(text); err != nil {
+	// Snapshotted so the generic tail below cannot undo a callback that
+	// reported its own outcome: onExportSubmit calls reportSessionError/
+	// reportSessionInfo and returns nil, and clearing lastError on that nil
+	// would wipe the very message it had just put there.
+	beforeError, beforeInfo := gui.lastError, gui.lastInfo
+
+	switch err := onSubmit(text); {
+	case err != nil:
 		gui.lastError = err.Error()
-	} else {
+	case gui.lastError == beforeError && gui.lastInfo == beforeInfo:
+		// The callback said nothing of its own: the submission succeeded, so
+		// whatever an earlier action had left in the status bar goes.
 		gui.lastError = ""
 	}
 

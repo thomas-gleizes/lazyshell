@@ -308,6 +308,27 @@ var messages = map[string]map[string]string{
 		"en": " confirm ",
 	},
 
+	"busy.title": {
+		"fr": " en cours ",
+		"en": " working ",
+	},
+	"busy.kill": {
+		"fr": "arrêt de la session %s...",
+		"en": "stopping session %s...",
+	},
+	"busy.delete": {
+		"fr": "suppression de la session %s...",
+		"en": "deleting session %s...",
+	},
+	"busy.export": {
+		"fr": "export vers %s...",
+		"en": "exporting to %s...",
+	},
+	"busy.clipboard": {
+		"fr": "copie vers le presse-papiers...",
+		"en": "copying to the clipboard...",
+	},
+
 	"prompt.rename": {
 		"fr": "renommer la session",
 		"en": "rename the session",

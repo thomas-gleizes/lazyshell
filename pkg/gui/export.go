@@ -44,22 +44,30 @@ func defaultExportPath(sess *session.Session) string {
 // for again on purpose (re-running "w" at the same path to refresh a bug
 // report) — overwriting is the point, not a mistake to prevent.
 //
-// A write failure is returned as-is, following showPrompt's own contract
-// (see newSessionInDir): submitPrompt's generic tail turns a returned error
-// into the status bar's lastError, so nothing here needs to duplicate that.
-// Success is different — there is no existing "it worked" channel — so this
-// reports it itself via reportSessionInfo, which submitPrompt's tail leaves
-// alone (it only ever touches lastError).
+// Both outcomes are reported from here rather than through showPrompt's
+// contract (a returned error becoming lastError in submitPrompt's tail): the
+// write runs behind busy.go's spinner, so it has already outlived submitPrompt
+// by the time it fails, and there is nobody left up the stack to hand an error
+// to. runBusyThen's own tail is that "up the stack" instead — one branch for
+// the failure, one for the success reportSessionInfo has always carried.
 func (gui *Gui) onExportSubmit(sess *session.Session, path string) error {
 	if path == "" {
 		return nil
 	}
 
+	// Read here, on gocui's goroutine, not inside the op below: the emulator
+	// is shared with the render task, and TextRange is cheap next to the write
+	// it feeds — a whole scrollback to a slow or networked filesystem is the
+	// part worth putting behind a spinner.
 	text := sess.Screen().TextRange(0, math.MaxInt)
 
-	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
-		return fmt.Errorf("%s", gui.tr.T("export.failed", err))
-	}
+	return gui.runBusyThen(gui.tr.T("busy.export", path), func() error {
+		return os.WriteFile(path, []byte(text), 0o644)
+	}, func(err error) error {
+		if err != nil {
+			return gui.reportSessionError(fmt.Errorf("%s", gui.tr.T("export.failed", err)))
+		}
 
-	return gui.reportSessionInfo(gui.tr.T("export.success", path))
+		return gui.reportSessionInfo(gui.tr.T("export.success", path))
+	})
 }

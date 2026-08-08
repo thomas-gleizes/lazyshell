@@ -497,7 +497,12 @@ func (gui *Gui) killSession(*gocui.Gui, *gocui.View) error {
 	return gui.showConfirm(gui.tr.T("sessions.kill_confirm", sess.Name()), func() error {
 		gui.debug.Event("session %s (%s) killed", sess.Name(), sess.ID)
 
-		return gui.sessions.Kill(sess.ID)
+		// Behind a spinner: Kill waits for the process group to actually be
+		// reaped, escalating to SIGKILL after KillTimeout and waiting again —
+		// up to 4s of frozen interface by default if it runs inline.
+		return gui.runBusy(gui.tr.T("busy.kill", sess.Name()), func() error {
+			return gui.sessions.Kill(sess.ID)
+		})
 	})
 }
 
@@ -517,7 +522,11 @@ func (gui *Gui) deleteSession(*gocui.Gui, *gocui.View) error {
 		// process, and a later session reusing the id would inherit them.
 		gui.forgetPerfHistory(sess.ID)
 
-		return gui.sessions.Remove(sess.ID)
+		// Remove kills a still-running session first, so it carries exactly
+		// the same wait as killSession's — and the same spinner.
+		return gui.runBusy(gui.tr.T("busy.delete", sess.Name()), func() error {
+			return gui.sessions.Remove(sess.ID)
+		})
 	})
 }
 
