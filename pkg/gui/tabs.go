@@ -1,6 +1,9 @@
 package gui
 
-import "github.com/jesseduffield/gocui"
+import (
+	"github.com/jesseduffield/gocui"
+	"github.com/rivo/uniseg"
+)
 
 // The output panel is a tab host: three ways of looking at the *same* selected
 // session, not three panels. `output` is its emulated screen, `perf` what its
@@ -18,32 +21,90 @@ import "github.com/jesseduffield/gocui"
 type outputTab int
 
 const (
-	// tabOutput is the emulated screen — the default, and the only tab the
+	// tabTerminal is the emulated screen — the default, and the only tab the
 	// keyboard can be handed to a shell from.
-	tabOutput outputTab = iota
-	// tabPerf is the selected session's resource usage.
-	tabPerf
-	// tabEnv is the environment its shell was launched with.
-	tabEnv
+	tabTerminal outputTab = iota
+	// tabResources is the selected session's resource usage.
+	tabResources
+	// tabEnvironment is the environment its shell was launched with.
+	tabEnvironment
 
 	// outputTabCount bounds switchTab's wrap-around. Kept next to the values
 	// it counts so adding a fourth tab is one edit, not two.
 	outputTabCount = 3
 )
 
-// tabLabels is the strip gocui draws, in tab order.
+// tabSeparator is what gocui joins the strip with. Not configurable — it is
+// hardcoded in drawTitle — but tabLabels has to know its width to work out
+// whether a set of labels fits.
+const tabSeparator = " - "
+
+// tabLabels is the strip gocui draws, in tab order, for a panel this wide.
+//
+// The width matters because gocui *truncates* a strip that does not fit rather
+// than shortening it: the last tab simply loses its end, and on an 80-column
+// terminal the output panel is only about 40 columns wide. So the full labels
+// are used when they fit and an abbreviated set otherwise — the same
+// width-dependent treatment layout already gives View.Footer, and the reason
+// both are recomputed on every layout pass rather than once at creation.
 //
 // Each label is padded with a space on both sides. That is not cosmetic:
 // gocui's drawTitle starts painting at x0+2 while GetClickedTabIndex starts
 // counting at x0+1 (view.go), so a click lands one column left of where the
 // label was drawn. The padding absorbs that off-by-one — without it, clicking
 // the first character of a tab selects the one before it.
-func (gui *Gui) tabLabels() []string {
-	return []string{
-		" " + gui.tr.T("tab.output") + " ",
-		" " + gui.tr.T("tab.perf") + " ",
-		" " + gui.tr.T("tab.env") + " ",
+func (gui *Gui) tabLabels(width int) []string {
+	// Tiers, widest first: the first one that fits wins, and the last is used
+	// when nothing does. Abbreviation is spent where it costs the least
+	// clarity — "env" first, since `env` is a command everybody already types
+	// short, and only then the two words that carry real meaning.
+	tiers := [][]string{
+		{"tab.terminal", "tab.resources", "tab.environment"},
+		{"tab.terminal", "tab.resources", "tab.environment_short"},
+		{"tab.terminal_short", "tab.resources_short", "tab.environment_short"},
 	}
+
+	for _, keys := range tiers {
+		labels := gui.paddedLabels(keys...)
+		if width <= 0 || labelsWidth(labels) <= width {
+			return labels
+		}
+	}
+
+	return gui.paddedLabels(tiers[len(tiers)-1]...)
+}
+
+func (gui *Gui) paddedLabels(keys ...string) []string {
+	labels := make([]string, 0, len(keys))
+	for _, key := range keys {
+		labels = append(labels, " "+gui.tr.T(key)+" ")
+	}
+
+	return labels
+}
+
+// labelsWidth is how many columns a strip of labels occupies once gocui has
+// joined them. Measured in display columns rather than bytes, like footerText:
+// an accented label is wider in bytes than on screen.
+func labelsWidth(labels []string) int {
+	total := 0
+
+	for i, label := range labels {
+		if i > 0 {
+			total += uniseg.StringWidth(tabSeparator)
+		}
+
+		total += uniseg.StringWidth(label)
+	}
+
+	return total
+}
+
+// tabStripWidth is how many columns of a view's top frame line drawTitle can
+// actually paint on: it starts at x0+2 and stops once past x1-2, which leaves
+// two columns fewer than the view's inner width.
+func tabStripWidth(view *gocui.View) int {
+	return view.InnerWidth() - 2
 }
 
 // switchTab moves delta tabs along, wrapping in both directions.

@@ -153,6 +153,14 @@ func (gui *Gui) layout(g *gocui.Gui) error {
 		// that lands left of x0 — a footer one column too wide vanishes
 		// entirely instead of being clipped.
 		view.Footer = gui.panelFooter(name, view.InnerWidth())
+
+		// Same reasoning as the footer, and the same reason it cannot be done
+		// once in initView: gocui truncates a tab strip that does not fit
+		// instead of shortening it, so which set of labels is right depends on
+		// the width this pass just assigned.
+		if name == outputViewName {
+			view.Tabs = gui.tabLabels(tabStripWidth(view))
+		}
 	}
 
 	if g.CurrentView() == nil {
@@ -230,8 +238,9 @@ func (gui *Gui) initView(name string, view *gocui.View) {
 	case outputViewName:
 		// Tabs, not Title: gocui's drawTitle falls back to Title only when
 		// Tabs is empty, so setting both would leave a dead string behind.
-		// SelFgColor is what marks the active tab — see Theme.TabActiveColor.
-		view.Tabs = gui.tabLabels()
+		// The strip itself is (re)built on every layout pass below, since it
+		// depends on the panel's current width. SelFgColor is what marks the
+		// active tab — see Theme.TabActiveColor.
 		view.TabIndex = int(gui.outputTab)
 		view.SelFgColor = gui.theme.TabActiveColor
 		// The view mirrors a fixed-size emulated screen (pkg/screen): no

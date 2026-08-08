@@ -94,15 +94,35 @@ var messages = map[string]map[string]string{
 		"en": "Previous output panel tab",
 	},
 
-	"tab.output": {
-		"fr": "sortie",
-		"en": "output",
+	// The output panel's tab strip. Lower case throughout, like every other
+	// label lazyshell draws (the " sessions " panel title, the footers).
+	//
+	// The *_short variants are the fallbacks used when the panel is too narrow
+	// for the full strip, which gocui would otherwise truncate rather than
+	// shorten — see pkg/gui/tabs.go's tabLabels. A translation should keep
+	// them genuinely short: they exist for a panel of about 25 columns, and a
+	// "short" form as long as the full one defeats the whole mechanism.
+	"tab.terminal": {
+		"fr": "terminal",
+		"en": "terminal",
 	},
-	"tab.perf": {
-		"fr": "perf",
-		"en": "perf",
+	"tab.terminal_short": {
+		"fr": "term.",
+		"en": "term.",
 	},
-	"tab.env": {
+	"tab.resources": {
+		"fr": "ressources",
+		"en": "resources",
+	},
+	"tab.resources_short": {
+		"fr": "ress.",
+		"en": "res.",
+	},
+	"tab.environment": {
+		"fr": "environnement",
+		"en": "environment",
+	},
+	"tab.environment_short": {
 		"fr": "env",
 		"en": "env",
 	},

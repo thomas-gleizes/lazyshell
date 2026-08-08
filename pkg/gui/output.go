@@ -62,7 +62,7 @@ func (gui *Gui) showOutput(sess *session.Session) {
 	// here rather than rebuilt on every tick — the cheapest possible version
 	// of the skip-if-unchanged rule below.
 	envContent := ""
-	if tab == tabEnv {
+	if tab == tabEnvironment {
 		envContent = gui.envTabContent(sess.Env())
 	}
 
@@ -70,7 +70,7 @@ func (gui *Gui) showOutput(sess *session.Session) {
 	// slower than the redraw tick, so it carries its own sampler with its own
 	// interval — see perfSampler.
 	var perf *perfSampler
-	if tab == tabPerf {
+	if tab == tabResources {
 		perf = &perfSampler{sess: sess, interval: gui.perfInterval(), tr: gui.tr}
 	}
 
@@ -100,11 +100,11 @@ func (gui *Gui) showOutput(sess *session.Session) {
 		frame := outputFrame{content: placeholder}
 
 		switch tab {
-		case tabOutput:
+		case tabTerminal:
 			frame = buildOutputFrame(sess, offset, passThrough, pattern, selFrom, selTo)
-		case tabEnv:
+		case tabEnvironment:
 			frame = outputFrame{content: envContent}
-		case tabPerf:
+		case tabResources:
 			frame = perf.frame()
 		}
 
@@ -201,7 +201,7 @@ func drawCursor(g *gocui.Gui, view *gocui.View, frame outputFrame) {
 // against whatever content was on screen when the key was pressed, and the
 // content may since have got shorter.
 func applyTabOrigin(view *gocui.View, tab outputTab, offset int) {
-	if tab == tabOutput {
+	if tab == tabTerminal {
 		view.SetOrigin(0, 0)
 
 		return

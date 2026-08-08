@@ -67,7 +67,7 @@ func (gui *Gui) backOutOfExitedSession(g *gocui.Gui) error {
 	// post-mortem — that is arguably when the perf tab is most useful. Only
 	// the output tab has a reason to be left, since that is the one that just
 	// became a frozen screen.
-	if gui.outputTab != tabOutput {
+	if gui.outputTab != tabTerminal {
 		return nil
 	}
 

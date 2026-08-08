@@ -73,7 +73,7 @@ func (gui *Gui) outputFooterHints() []footerHint {
 	// The perf and env tabs share none of the panel's usual keys — no typing,
 	// no selection, no search — so their footer is its own short list rather
 	// than a filtered version of the one below.
-	if gui.outputTab != tabOutput {
+	if gui.outputTab != tabTerminal {
 		return []footerHint{
 			{actions: []string{"prev_tab", "next_tab"}, label: gui.tr.T("footer.tab")},
 			{key: "PgUp/PgDn", label: gui.tr.T("footer.scroll")},

@@ -726,7 +726,7 @@ par le test `TestEditOutputDropsMouseKeys`, qui échoue précisément sur ce sc�
 
 ---
 
-## Phase 13 — Onglets du panneau de sortie : `sortie` / `perf` / `env` — **faite**
+## Phase 13 — Onglets du panneau de sortie : `terminal` / `ressources` / `environnement` — **faite**
 
 **But** : deux questions reviennent sans arrêt sur une session longue (un `npm run dev`, un agent
 qui tourne depuis 40 minutes) et n'avaient aucune réponse dans lazyshell — **qu'est-ce que ce
@@ -757,20 +757,22 @@ bascule.
   sessions** : un binding scopé à une vue passe avant son `Editor`, donc sur `output` le `]` se
   serait déclenché en plein pass-through au lieu d'atteindre le shell. La vue de sortie les rattrape
   à la main dans `editDuringScroll`, comme `zoom`.
-- [x] Quitter l'onglet `sortie` désarme pass-through et copy-mode, coupe le curseur, le transfert
+- [x] Quitter l'onglet `terminal` désarme pass-through et copy-mode, coupe le curseur, le transfert
   souris à l'application, le glissé et la reprise de focus à la mort d'une session. L'offset de
   scrollback, lui, n'est **pas** remis à zéro : un aller-retour revient là où on l'avait laissé.
 - [x] Échantillonnage perf découplé du tick de rendu (`perf.refresh_interval_ms`, défaut 1000 ms) :
   une frame inchangée n'est toujours pas poussée, donc les 32 ticks sur 33 qui ne réechantillonnent
   pas ne repeignent rien. Le `%` CPU est un delta entre deux échantillons ; le premier, qui n'en a
   pas, affiche la moyenne depuis le lancement **et le dit**.
-- [x] Onglet `env` masque par défaut la valeur des variables dont le *nom* ressemble à un
+- [x] Onglet `environnement` masque par défaut la valeur des variables dont le *nom* ressemble à un
   identifiant (`env_tab.mask_secrets`) : le panneau est aussi partageable qu'une capture d'écran de
   lui-même.
 
 **Critère de sortie — atteint.** Barre d'onglets dessinée et surlignée, `[`/`]` et le clic
-fonctionnels, `perf` montrant un `%` CPU qui bouge et une RSS crédible, `env` trié, défilable et
-masqué, retour sur `sortie` avec le scrollback et le curseur intacts.
+fonctionnels, `ressources` montrant un `%` CPU qui bouge et une RSS crédible, `environnement` trié,
+défilable et masqué, retour sur `terminal` avec le scrollback et le curseur intacts. Les libellés se
+replient en deux paliers quand le panneau est trop étroit (gocui tronque au lieu d'abréger), vérifié
+à 120, 80 et ~26 colonnes de barre.
 
 **Limite connue, assumée** : gocui consulte `ShouldHandleMouseEvent` *avant* d'arriver à la barre
 d'onglets, donc on ne peut pas cliquer un onglet depuis le pass-through. En sortir est de toute
@@ -801,7 +803,7 @@ chose.
 | 10 | émulation terminal complète | **v1.0** | fait (en avance) |
 | 11 | états d'agents IA, notifications, saut vers la session bloquée | **v1.1 — atteint** | faite (hors opencode) |
 | 12 | souris : clic, molette, glissé, transfert à l'application invitée | v1.2 | faite |
-| 13 | onglets du panneau de sortie : `sortie` / `perf` / `env` | v1.3 | faite |
+| 13 | onglets du panneau de sortie : `terminal` / `ressources` / `environnement` | v1.3 | faite |
 
 ## Décisions déjà actées (ne pas re-débattre)
 

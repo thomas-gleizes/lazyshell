@@ -256,7 +256,7 @@ func (gui *Gui) clickOutput(opts gocui.ViewMouseBindingOpts) error {
 func (gui *Gui) dragOutput(opts gocui.ViewMouseBindingOpts) error {
 	// Copy-mode selects lines of the session's scrollback, which is not what
 	// the perf and env tabs are showing — a drag there has nothing to select.
-	if gui.outputTab != tabOutput {
+	if gui.outputTab != tabTerminal {
 		return nil
 	}
 
@@ -347,7 +347,7 @@ func (gui *Gui) appWantsMouse() bool {
 	// A program only owns the mouse over its own screen. On the perf or env
 	// tab the panel is showing a report, and forwarding a click there would
 	// send coordinates that mean nothing to the program they land in.
-	if gui.outputTab != tabOutput {
+	if gui.outputTab != tabTerminal {
 		return false
 	}
 

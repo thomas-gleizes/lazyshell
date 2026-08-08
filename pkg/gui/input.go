@@ -202,7 +202,7 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 	// or searching a scrollback it is not showing are all meaningless — those
 	// keys are simply not handled here, and fall through to gocui's ordinary
 	// dispatch (Tab, Ctrl-C) like any other unclaimed key.
-	if gui.outputTab != tabOutput {
+	if gui.outputTab != tabTerminal {
 		return gui.editOnSecondaryTab(view, key, ch)
 	}
 
@@ -427,7 +427,7 @@ func (gui *Gui) enterPassThrough() {
 	// would type into something the user cannot see. Guarded here rather than
 	// only at each call site because there are three of them (the Editor, a
 	// double-click, focusSelectedShell) and they must not be able to disagree.
-	if gui.outputTab != tabOutput {
+	if gui.outputTab != tabTerminal {
 		return
 	}
 
@@ -461,7 +461,7 @@ func (gui *Gui) scrollBy(delta int) {
 	// The offset below addresses the session's scrollback, which the perf and
 	// env tabs are not showing — they scroll their own rendered text instead,
 	// through gocui's view origin.
-	if gui.outputTab != tabOutput {
+	if gui.outputTab != tabTerminal {
 		gui.scrollSecondaryTab(delta)
 
 		return

@@ -14,11 +14,11 @@ func TestSwitchTabWrapsInBothDirections(t *testing.T) {
 		delta int
 		want  outputTab
 	}{
-		{name: "forward", start: tabOutput, delta: 1, want: tabPerf},
-		{name: "forward again", start: tabPerf, delta: 1, want: tabEnv},
-		{name: "forward wraps", start: tabEnv, delta: 1, want: tabOutput},
-		{name: "backward", start: tabEnv, delta: -1, want: tabPerf},
-		{name: "backward wraps", start: tabOutput, delta: -1, want: tabEnv},
+		{name: "forward", start: tabTerminal, delta: 1, want: tabResources},
+		{name: "forward again", start: tabResources, delta: 1, want: tabEnvironment},
+		{name: "forward wraps", start: tabEnvironment, delta: 1, want: tabTerminal},
+		{name: "backward", start: tabEnvironment, delta: -1, want: tabResources},
+		{name: "backward wraps", start: tabTerminal, delta: -1, want: tabEnvironment},
 	}
 
 	for _, tc := range tests {
@@ -54,15 +54,69 @@ func TestSwitchTabWrapsInBothDirections(t *testing.T) {
 func TestTabLabelsCoverEveryTab(t *testing.T) {
 	gui, _ := newHeadlessGui(t)
 
-	labels := gui.tabLabels()
-	if len(labels) != outputTabCount {
-		t.Fatalf("len(tabLabels()) = %d, want %d", len(labels), outputTabCount)
+	for _, width := range []int{0, 10, 40, 200} {
+		labels := gui.tabLabels(width)
+		if len(labels) != outputTabCount {
+			t.Fatalf("len(tabLabels(%d)) = %d, want %d", width, len(labels), outputTabCount)
+		}
+
+		for i, label := range labels {
+			if label == "" {
+				t.Errorf("tabLabels(%d)[%d] is empty", width, i)
+			}
+		}
+	}
+}
+
+// gocui truncates a strip that does not fit instead of shortening it, so a
+// narrow panel would silently lose the end of its last tab.
+func TestTabLabelsShrinkToFitTheStrip(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+
+	full := gui.tabLabels(0)
+	fullWidth := labelsWidth(full)
+
+	// One column short of what the full set needs is exactly the case that
+	// must fall back.
+	narrow := gui.tabLabels(fullWidth - 1)
+
+	if labelsWidth(narrow) >= fullWidth {
+		t.Errorf("tabLabels(%d) is %d columns wide, want narrower than the full %d",
+			fullWidth-1, labelsWidth(narrow), fullWidth)
 	}
 
-	for i, label := range labels {
-		if label == "" {
-			t.Errorf("tabLabels()[%d] is empty", i)
-		}
+	// And with room to spare, the full labels must come back.
+	if got := gui.tabLabels(fullWidth); labelsWidth(got) != fullWidth {
+		t.Errorf("tabLabels(%d) fell back despite fitting exactly", fullWidth)
+	}
+}
+
+// The strip drawn on the frame and the strip gocui resolves a click against
+// are the same field, so a width-dependent strip must stay consistent with the
+// laid-out panel.
+func TestLayoutSizesTheTabStripToThePanel(t *testing.T) {
+	for _, size := range []struct {
+		name          string
+		width, height int
+	}{
+		{name: "roomy", width: 140, height: 24},
+		{name: "narrow", width: 80, height: 24},
+	} {
+		t.Run(size.name, func(t *testing.T) {
+			gui, g := newHeadlessGuiSized(t, size.width, size.height)
+			if err := gui.layout(g); err != nil {
+				t.Fatalf("layout: %v", err)
+			}
+
+			view, err := g.View(outputViewName)
+			if err != nil {
+				t.Fatalf("View: %v", err)
+			}
+
+			if got, want := labelsWidth(view.Tabs), tabStripWidth(view); got > want {
+				t.Errorf("strip is %d columns wide in a %d-column panel, want it to fit", got, want)
+			}
+		})
 	}
 }
 
@@ -134,12 +188,12 @@ func TestClickOutputTabSelectsTheClickedTab(t *testing.T) {
 		index int
 		want  outputTab
 	}{
-		{name: "perf", index: int(tabPerf), want: tabPerf},
-		{name: "env", index: int(tabEnv), want: tabEnv},
+		{name: "perf", index: int(tabResources), want: tabResources},
+		{name: "env", index: int(tabEnvironment), want: tabEnvironment},
 		// gocui hands over whatever GetClickedTabIndex resolved; an index past
 		// the strip must not address a tab that does not exist.
-		{name: "out of range", index: 99, want: tabOutput},
-		{name: "negative", index: -1, want: tabOutput},
+		{name: "out of range", index: 99, want: tabTerminal},
+		{name: "negative", index: -1, want: tabTerminal},
 	}
 
 	for _, tc := range tests {
@@ -173,7 +227,7 @@ func TestSecondaryTabsRefuseTheScreenKeys(t *testing.T) {
 		t.Fatalf("View: %v", err)
 	}
 
-	gui.outputTab = tabEnv
+	gui.outputTab = tabEnvironment
 
 	for _, key := range []struct {
 		name string
@@ -222,8 +276,8 @@ func TestTabKeysWorkFromTheOutputView(t *testing.T) {
 		t.Fatal("']' was not claimed on the output tab")
 	}
 
-	if gui.outputTab != tabPerf {
-		t.Fatalf("outputTab = %d after ']', want %d", gui.outputTab, tabPerf)
+	if gui.outputTab != tabResources {
+		t.Fatalf("outputTab = %d after ']', want %d", gui.outputTab, tabResources)
 	}
 
 	// And back, this time through the secondary tab's own handler.
@@ -231,8 +285,8 @@ func TestTabKeysWorkFromTheOutputView(t *testing.T) {
 		t.Fatal("'[' was not claimed on a secondary tab")
 	}
 
-	if gui.outputTab != tabOutput {
-		t.Errorf("outputTab = %d after '[', want %d", gui.outputTab, tabOutput)
+	if gui.outputTab != tabTerminal {
+		t.Errorf("outputTab = %d after '[', want %d", gui.outputTab, tabTerminal)
 	}
 }
 
@@ -245,7 +299,7 @@ func TestScrollingASecondaryTabLeavesTheScrollbackAlone(t *testing.T) {
 	}
 
 	gui.setScrollOffset(7)
-	gui.outputTab = tabEnv
+	gui.outputTab = tabEnvironment
 	fillOutputView(t, g, 100)
 
 	gui.scrollBy(-10)
@@ -288,7 +342,7 @@ func TestSecondaryTabScrolling(t *testing.T) {
 				t.Fatalf("layout: %v", err)
 			}
 
-			gui.outputTab = tabEnv
+			gui.outputTab = tabEnvironment
 			gui.tabOffset = tc.start
 			fillOutputView(t, g, lines)
 
@@ -322,7 +376,7 @@ func TestSwitchingTabResetsTheTabOffset(t *testing.T) {
 		t.Fatalf("layout: %v", err)
 	}
 
-	gui.outputTab = tabEnv
+	gui.outputTab = tabEnvironment
 	gui.tabOffset = 40
 
 	gui.switchTab(1)
@@ -347,7 +401,7 @@ func TestOutputTabIsPinnedToTheTopEvenAfterScrollingAnother(t *testing.T) {
 	}
 
 	view.SetOrigin(0, 30)
-	applyTabOrigin(view, tabOutput, 30)
+	applyTabOrigin(view, tabTerminal, 30)
 
 	if _, y := view.Origin(); y != 0 {
 		t.Errorf("origin y = %d on the output tab, want 0", y)
@@ -375,7 +429,7 @@ func fillOutputView(t *testing.T, g *gocui.Gui, n int) {
 func TestSecondaryTabFooterOffersTheTabKeys(t *testing.T) {
 	gui, _ := newHeadlessGui(t)
 
-	gui.outputTab = tabEnv
+	gui.outputTab = tabEnvironment
 
 	hints := gui.outputFooterHints()
 	if len(hints) == 0 {
