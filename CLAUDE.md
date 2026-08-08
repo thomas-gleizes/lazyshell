@@ -4,12 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-`lazyshell` is implemented and functional, past v1.1 (see `ROADMAP.md` for the full phase-by-phase
-history). All phases through 13 ("onglets du panneau de sortie") are done.
-This is an active Go codebase with a real `go.mod`, CI, goreleaser packaging, and a test suite —
-do not treat this as a design-stage repo. `RAPPORT_ANALYSE_LAZYGIT_LAZYDOCKER.md` and
-`RAPPORT_ANALYSE_INTEGRATION_AGENTS_IA.md` are historical design docs (the first drove phases 0–10,
-the second drove phase 11); consult `ROADMAP.md` for what's actually built versus still open.
+`lazyshell` is implemented and functional, past v1.1. Everything the phased roadmap planned, through
+phase 13 ("onglets du panneau de sortie"), is built. This is an active Go codebase with a real
+`go.mod`, CI, goreleaser packaging, and a test suite — do not treat this as a design-stage repo.
+
+`ROADMAP.md` no longer exists (removed in `04e4d9c`): the phase-by-phase history it carried is in
+the git log, and what it said about the architecture lives in the two sections below. Code comments
+and ADRs still cite phase numbers ("phase 11b", "the phase-1 spike") — those are historical
+coordinates into that history, not a pointer to a file you can open.
+
+`docs/repports/RAPPORT_ANALYSE_LAZYGIT_LAZYDOCKER.md` and
+`docs/repports/RAPPORT_ANALYSE_INTEGRATION_AGENTS_IA.md` are historical design docs (the first drove
+phases 0–10, the second drove phase 11). They record what was decided then, so read them as history:
+the code is the authority on what is actually built.
 
 ## Project goal
 
@@ -19,7 +26,7 @@ live session output on the right — for managing multiple persistent shell sess
 long-running AI coding agent sessions (Claude Code, etc.) whose blocked/working/done state is
 surfaced in the sessions panel.
 
-## Key architectural decisions (implemented, see ROADMAP.md "Décisions déjà actées")
+## Key architectural decisions (all implemented)
 
 - **Base library**: `github.com/jesseduffield/gocui`.
 - **Layout engine**: `github.com/jesseduffield/lazycore/pkg/boxlayout` for the sessions-list /
@@ -87,7 +94,11 @@ site/             sources of the bilingual GitHub Pages site (site/en/, site/fr/
 - The application itself ships both languages (`pkg/i18n`, `language:` config); its CLI output
   (`lazyshell config ...`) stays French.
 
-## Open items (see ROADMAP.md "Ce qui reste ouvert" for full rationale)
+## Open items
+
+Each entry carries its own rationale — this list is the reference for what was decided and why,
+now that the roadmap that used to hold it is gone.
+
 
 - Mouse support: **done (phase 12, ADR 0003)**, on by default. gocui's mouse/Shift-arrow collision
   turned out to cover only two values, and the cost paid is that `Shift-Up`/`Shift-Down` are no
