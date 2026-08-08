@@ -1,6 +1,22 @@
 name: Release
 
+# Deux chemins d'entrée, un seul aboutissement (goreleaser) :
+#
+#  1. Automatique — la CI passe au vert sur `main`. Le job `tag` calcule la
+#     version suivante à partir des commits, pose le tag, et `release` publie.
+#     On se branche sur `workflow_run` plutôt que sur `push` pour ne jamais
+#     publier une version dont les tests n'ont pas fini de tourner.
+#  2. Manuel — un `git push origin vX.Y.Z` posé à la main. Le job `tag` est
+#     alors sauté et `release` publie le tag tel quel.
+#
+# Le tag et la release vivent dans le *même* workflow à dessein : un tag poussé
+# avec le GITHUB_TOKEN ne déclenche pas d'autre workflow (garde-fou GitHub
+# contre les boucles), donc un `autotag.yml` séparé exigerait un PAT à gérer.
 on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   push:
     tags:
       - "v*"
@@ -8,17 +24,80 @@ on:
 permissions:
   contents: write
 
+# Deux merges rapprochés sur main ne doivent pas calculer leur version en
+# parallèle : le second lirait un `git describe` d'avant le tag du premier et
+# proposerait le même numéro. On sérialise, sans annuler (une release commencée
+# se termine).
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  goreleaser:
+  tag:
+    # `workflow_run.event == 'push'` écarte les CI de pull request : seule une
+    # intégration effective sur main donne lieu à une version.
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.compute.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Le SHA que la CI a validé, pas la pointe de main : si un autre push
+          # est arrivé entre-temps, il aura son propre run.
+          ref: ${{ github.event.workflow_run.head_sha }}
+          # Historique et tags complets — `next-version.sh` calcule à partir de
+          # `git describe` et de tous les commits depuis le dernier tag.
+          fetch-depth: 0
+
+      - name: Calculer la version suivante
+        id: compute
+        run: |
+          tag=$(.github/scripts/next-version.sh)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ -z "$tag" ]; then
+            echo "Aucun commit ne justifie une release (ni feat, ni fix, ni rupture)." \
+              >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Nouvelle version : \`$tag\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Poser et pousser le tag
+        if: steps.compute.outputs.tag != ''
+        env:
+          TAG: ${{ steps.compute.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+  release:
+    needs: [tag]
+    # `always()` est indispensable : sur un push de tag manuel, `tag` est sauté
+    # et sans lui `release` le serait aussi par propagation.
+    if: >-
+      always() &&
+      (github.event_name == 'push' ||
+       (needs.tag.result == 'success' && needs.tag.outputs.tag != ''))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          # Chemin auto : le tag qu'on vient de pousser. Chemin manuel : le tag
+          # poussé à la main, déjà dans github.ref. goreleaser exige que HEAD
+          # soit exactement sur un tag.
+          ref: ${{ needs.tag.outputs.tag || github.ref }}
           fetch-depth: 0
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
