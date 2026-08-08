@@ -817,7 +817,7 @@ chose.
 | 4 | pass-through interactif | **v0.1 — MVP dogfoodable** | fait |
 | 5 | config, thème, aide, README | **v0.2 — publiable** | fait |
 | 6 | `lazyshell.yml` de projet, sessions déclaratives | **v0.3** | fait |
-| 7 | activité, relance, saut par index, zoom, aides contextuelles | **v0.4** | à faire |
+| 7 | activité, relance, saut par index, zoom, aides contextuelles | **v0.4** | fait |
 | 8 | goreleaser, `--version`, bench de redraw en CI | **v0.5 — installable par un tiers** | fait |
 | 9 | recherche, copy-mode, export, broadcast | v0.6 | fait |
 | 10 | émulation terminal complète | **v1.0** | fait (en avance) |
