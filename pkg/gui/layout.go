@@ -170,8 +170,29 @@ func (gui *Gui) layout(g *gocui.Gui) error {
 	}
 
 	gui.propagateResize(g)
+	gui.reflowOutputOnResize()
 
 	return nil
+}
+
+// reflowOutputOnResize restarts the output render task when the panel's width
+// changes, because the resources tab draws its charts to a width captured when
+// the task started and has no other way to hear about a resize.
+//
+// Guarded on an actual change, and on that tab only: restarting the task on
+// every layout pass would throw away its previous-frame comparison ~33 times a
+// second and repaint the whole screen with it.
+func (gui *Gui) reflowOutputOnResize() {
+	width := gui.outputPanelWidth()
+	if width == gui.lastOutputWidth {
+		return
+	}
+
+	gui.lastOutputWidth = width
+
+	if gui.outputTab == tabResources {
+		gui.restartOutput()
+	}
 }
 
 // toggleZoom flips the output panel between its normal share of the screen

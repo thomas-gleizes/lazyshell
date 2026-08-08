@@ -506,6 +506,11 @@ func (gui *Gui) deleteSession(*gocui.Gui, *gocui.View) error {
 	}
 
 	return gui.showConfirm(gui.tr.T("sessions.delete_confirm", sess.Name()), func() error {
+		// The resources tab's series are keyed by session id; a deleted
+		// session's would otherwise stay in memory for the life of the
+		// process, and a later session reusing the id would inherit them.
+		gui.forgetPerfHistory(sess.ID)
+
 		return gui.sessions.Remove(sess.ID)
 	})
 }

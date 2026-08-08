@@ -83,6 +83,29 @@ func TestPerfBudgetEnvTabContent(t *testing.T) {
 	}
 }
 
+// The charts are redrawn on every perf sample, i.e. about once a second, so
+// they have a whole order of magnitude more headroom than the render tick —
+// but they are also the only thing on this tab that loops over a full history,
+// which is what this guards.
+func TestPerfBudgetBrailleChart(t *testing.T) {
+	const budgetNsOp = 200_000
+
+	series := make([]float64, perfHistoryLen)
+	for i := range series {
+		series[i] = float64(i % 97)
+	}
+
+	result := testing.Benchmark(func(b *testing.B) {
+		for range b.N {
+			_ = brailleChart(series, 96, 200, cpuChartHeight)
+		}
+	})
+
+	if got := result.NsPerOp(); got > budgetNsOp {
+		t.Errorf("brailleChart(%d points) = %d ns/op, want <= %d ns/op", len(series), got, budgetNsOp)
+	}
+}
+
 func TestPerfBudgetSessionsPanelContent(t *testing.T) {
 	const (
 		n          = 16

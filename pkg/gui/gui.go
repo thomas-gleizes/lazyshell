@@ -128,6 +128,15 @@ type Gui struct {
 	outputTab outputTab
 	tabOffset int
 
+	// perfHistories holds the resources tab's sample series, per session id.
+	// It lives here rather than in the render task's closure because it must
+	// survive that task being rebuilt — see pkg/gui/perf_history.go for the
+	// full reasoning and the concurrency rule (no mutex, and why).
+	perfHistories map[string]*perfHistory
+	// lastOutputWidth is what reflowOutputOnResize compares against to notice
+	// the output panel has been resized. Same goroutine rule as above.
+	lastOutputWidth int
+
 	// searchPattern, searchMatches and searchIndex are the scrollback-search
 	// state (pkg/gui/search.go): "" means no search is active. Only ever
 	// touched from gocui's own goroutine (editDuringScroll, the search

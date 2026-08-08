@@ -207,6 +207,83 @@ func TestPerfSamplerReportsAnUnmeasurableSession(t *testing.T) {
 	}
 }
 
+// A sampler built without a history must degrade to "no charts", never take
+// the render task down with it.
+func TestPerfSamplerWithoutAHistoryDoesNotPanic(t *testing.T) {
+	p := &perfSampler{
+		tr:    i18n.New("fr"),
+		sess:  &session.Session{CreatedAt: time.Now()},
+		width: 100,
+	}
+
+	got := p.renderProcess(session.ProcStats{PID: 42, Comm: "sh", RSSBytes: 1024})
+
+	if !strings.Contains(got, "sh") {
+		t.Errorf("renderProcess produced nothing useful:\n%s", got)
+	}
+
+	if chart := p.renderCPUChart(); chart != "" {
+		t.Errorf("renderCPUChart drew something with no history:\n%s", chart)
+	}
+}
+
+// The charts only appear once there is a series to draw; before that the tab is
+// the figures alone rather than an empty frame.
+func TestPerfSamplerDrawsChartsOnlyOnceThereIsHistory(t *testing.T) {
+	p := &perfSampler{
+		tr:      i18n.New("fr"),
+		sess:    &session.Session{CreatedAt: time.Now()},
+		width:   100,
+		history: &perfHistory{},
+	}
+
+	if got := p.renderCPUChart(); got != "" {
+		t.Errorf("a chart was drawn from an empty history:\n%s", got)
+	}
+
+	p.history.track(false).push(1, 10, 100)
+
+	if got := p.renderCPUChart(); got != "" {
+		t.Errorf("a chart was drawn from a single point:\n%s", got)
+	}
+
+	p.history.track(false).push(1, 40, 110)
+
+	chart := p.renderCPUChart()
+	if chart == "" {
+		t.Fatal("no chart once there are two points")
+	}
+
+	// The peak is what the auto-scaled vertical axis is anchored on, so it has
+	// to be stated — a curve on an unlabelled moving scale means nothing.
+	if !strings.Contains(chart, "40.0") {
+		t.Errorf("the chart does not state its peak:\n%s", chart)
+	}
+}
+
+// A panel too narrow for a chart must fall back to the figures rather than draw
+// a stub of one.
+func TestPerfSamplerDropsChartsOnANarrowPanel(t *testing.T) {
+	p := &perfSampler{
+		tr:      i18n.New("fr"),
+		sess:    &session.Session{CreatedAt: time.Now()},
+		width:   perfChartMinWidth - 1,
+		history: &perfHistory{},
+	}
+
+	p.history.track(false).push(1, 10, 100)
+	p.history.track(false).push(1, 40, 110)
+
+	if got := p.renderCPUChart(); got != "" {
+		t.Errorf("a chart was drawn on a %d-column panel:\n%s", p.width, got)
+	}
+
+	line := p.metricLine("CPU", "40.0 %", p.history.track(false).cpu, true)
+	if strings.ContainsAny(line, string(sparkLevels)) {
+		t.Errorf("a sparkline was drawn on a %d-column panel: %q", p.width, line)
+	}
+}
+
 // newTestSessionManager is a Manager whose sessions are killed and drained
 // before the test returns, so none outlives it.
 func newTestSessionManager(t *testing.T) *session.Manager {

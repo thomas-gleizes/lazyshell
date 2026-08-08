@@ -764,6 +764,21 @@ bascule.
   une frame inchangée n'est toujours pas poussée, donc les 32 ticks sur 33 qui ne réechantillonnent
   pas ne repeignent rien. Le `%` CPU est un delta entre deux échantillons ; le premier, qui n'en a
   pas, affiche la moyenne depuis le lancement **et le dit**.
+- [x] Courbes dans l'onglet `ressources` : une sparkline en blocs collée à chaque chiffre, plus un
+  graphe braille de 4 lignes pour le CPU du process d'avant-plan (celui du shell à défaut). Aucune
+  dépendance : `pkg/gui/perf_chart.go` est deux fonctions pures sur une série.
+- [x] L'historique vit sur `Gui`, pas dans la closure de la tâche de rendu — celle-ci est reconstruite
+  à chaque `restartOutput` (défilement, bascule d'onglet, focus), donc une série gardée là se
+  réinitialiserait dès que l'utilisateur touche quoi que ce soit. Sans verrou : `tasks.Manager`
+  arrête la tâche précédente **synchroniquement** avant de démarrer la suivante, la garantie sur
+  laquelle `showOutput` s'appuie déjà pour sa comparaison de frames.
+- [x] Échelles choisies par métrique, pas uniformément : le CPU est cadré depuis zéro (l'inactivité
+  *est* le plancher), la mémoire sur sa propre plage — cadrée depuis zéro, un process qui oscille
+  entre 8,8 et 8,9 Mio est une ligne plate au plafond, ce qui ne dit rien. Une série immobile est
+  dessinée à mi-hauteur plutôt qu'au sol (lu « zéro ») ou au plafond (lu « saturé »).
+- [x] La série d'avant-plan est vidée quand plus aucun process n'est au premier plan, sinon le grand
+  graphe continuait de tracer la ligne plate d'un `sleep` terminé pendant que le shell était
+  visiblement à 50 % juste en dessous.
 - [x] Onglet `environnement` masque par défaut la valeur des variables dont le *nom* ressemble à un
   identifiant (`env_tab.mask_secrets`) : le panneau est aussi partageable qu'une capture d'écran de
   lui-même.

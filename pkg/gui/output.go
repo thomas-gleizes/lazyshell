@@ -71,7 +71,17 @@ func (gui *Gui) showOutput(sess *session.Session) {
 	// interval — see perfSampler.
 	var perf *perfSampler
 	if tab == tabResources {
-		perf = &perfSampler{sess: sess, interval: gui.perfInterval(), tr: gui.tr}
+		perf = &perfSampler{
+			sess:     sess,
+			interval: gui.perfInterval(),
+			tr:       gui.tr,
+			// Both come from Gui and are read here, on gocui's goroutine, not
+			// from the task: the history because it has to outlive this task
+			// (see pkg/gui/perf_history.go), the width because a task has no
+			// way to learn it has been resized — layout restarts it instead.
+			history: gui.perfHistoryFor(sess.ID),
+			width:   gui.outputPanelWidth(),
+		}
 	}
 
 	// Captured for the same reason as the tab: written from gocui's goroutine
@@ -185,6 +195,21 @@ func drawCursor(g *gocui.Gui, view *gocui.View, frame outputFrame) {
 	// The view never scrolls (origin stays 0,0 — the emulator decides what is
 	// on screen), so emulator coordinates are view coordinates.
 	view.SetCursor(frame.cursorX, frame.cursorY)
+}
+
+// outputPanelWidth is the output view's current inner width, or 0 when it is
+// not laid out yet. Read on gocui's goroutine only.
+func (gui *Gui) outputPanelWidth() int {
+	if gui.g == nil {
+		return 0
+	}
+
+	view, err := gui.g.View(outputViewName)
+	if err != nil {
+		return 0
+	}
+
+	return view.InnerWidth()
 }
 
 // applyTabOrigin decides where in its own content the view starts drawing.

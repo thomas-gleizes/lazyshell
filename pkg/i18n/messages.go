@@ -159,6 +159,10 @@ var messages = map[string]map[string]string{
 		"fr": "%s lus · %s écrits",
 		"en": "%s read · %s written",
 	},
+	"perf.cpu_chart": {
+		"fr": "CPU du %s — max %.1f %%",
+		"en": "%s CPU — peak %.1f%%",
+	},
 	"perf.average": {
 		"fr": "(moy. depuis le lancement)",
 		"en": "(avg. since launch)",
