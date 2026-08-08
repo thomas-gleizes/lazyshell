@@ -50,8 +50,9 @@ make build   # produit ./bin/lazyshell
 ## Utilisation
 
 Lancer `lazyshell` dans un terminal. `Tab` change le panneau actif entre la liste
-des sessions et le panneau de sortie ; quand le panneau de sortie a le focus, les
-frappes vont directement au shell de cette session (mode « pass-through »).
+des sessions et le panneau de sortie, et `→` / `←` font la même chose de façon
+directionnelle ; quand le panneau de sortie a le focus, les frappes vont
+directement au shell de cette session (mode « pass-through »).
 Appuyer sur `?` à tout moment ouvre une aide dans l'application, qui liste tous
 les raccourcis ci-dessous.
 
@@ -59,6 +60,7 @@ les raccourcis ci-dessous.
 | --- | --- |
 | `q` / `Ctrl+C` | Quitter lazyshell |
 | `Tab` | Changer de panneau actif |
+| `→` | Aller au panneau de sortie |
 | `?` | Afficher l'aide |
 | `j` / `↓` | Session suivante |
 | `k` / `↑` | Session précédente |
@@ -78,6 +80,7 @@ s'appliquent :
 
 | Touche | Action |
 | --- | --- |
+| `←` | Revenir à la liste des sessions (sauf pendant le pass-through) |
 | `i` / `Enter` | Donner le clavier au shell (mode pass-through) |
 | `Ctrl+O` (configurable) | Reprendre le clavier, depuis le mode pass-through |
 | `Esc` `Esc` | Pareil, sans touche à apprendre : deux Échap d'affilée, en moins de 400 ms |

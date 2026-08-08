@@ -53,7 +53,8 @@
 <h1>Utilisation</h1>
 <p class="lede">
   Lancez <code>lazyshell</code> dans un terminal. <kbd>Tab</kbd> bascule le focus entre le panneau
-  des sessions et le panneau de sortie ; <kbd>?</kbd> ouvre à tout moment une aide listant chaque
+  des sessions et le panneau de sortie, <kbd>→</kbd> / <kbd>←</kbd> faisant la même chose de façon
+  directionnelle ; <kbd>?</kbd> ouvre à tout moment une aide listant chaque
   raccourci en vigueur, y compris ceux que vous avez remappés.
 </p>
 
@@ -82,6 +83,7 @@
   <tbody>
     <tr><td><kbd>q</kbd> / <kbd>Ctrl+C</kbd></td><td>Quitter lazyshell</td></tr>
     <tr><td><kbd>Tab</kbd></td><td>Changer de panneau actif</td></tr>
+    <tr><td><kbd>→</kbd></td><td>Aller au panneau de sortie</td></tr>
     <tr><td><kbd>?</kbd></td><td>Afficher l'aide</td></tr>
     <tr><td><kbd>j</kbd> / <kbd>↓</kbd></td><td>Session suivante</td></tr>
     <tr><td><kbd>k</kbd> / <kbd>↑</kbd></td><td>Session précédente</td></tr>
@@ -112,6 +114,7 @@
 <table>
   <thead><tr><th>Touche</th><th>Action</th></tr></thead>
   <tbody>
+    <tr><td><kbd>←</kbd></td><td>Revenir à la liste des sessions (sauf pendant le pass-through)</td></tr>
     <tr><td><kbd>i</kbd> / <kbd>Entrée</kbd></td><td>Donner le clavier au shell (mode pass-through)</td></tr>
     <tr><td><kbd>Ctrl+O</kbd> <span style="color:var(--text-faint)">(configurable)</span></td><td>Reprendre le clavier depuis le pass-through</td></tr>
     <tr><td><kbd>Esc</kbd> <kbd>Esc</kbd></td><td>Pareil, sans touche à apprendre : deux Échap d'affilée, en moins de 400 ms</td></tr>

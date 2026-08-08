@@ -17,6 +17,10 @@ var messages = map[string]map[string]string{
 		"fr": "Changer de panneau actif",
 		"en": "Switch focused panel",
 	},
+	"action.focus_output": {
+		"fr": "Aller au panneau de sortie",
+		"en": "Go to the output panel",
+	},
 	"action.help": {
 		"fr": "Afficher l'aide",
 		"en": "Show help",

@@ -50,14 +50,16 @@ make build   # produces ./bin/lazyshell
 ## Usage
 
 Run `lazyshell` in a terminal. `Tab` switches focus between the sessions
-panel and the output panel; while the output panel is focused, keystrokes go
-straight to that session's shell ("pass-through" mode). Press `?` at any time
+panel and the output panel, and `→` / `←` do the same thing directionally;
+while the output panel is focused, keystrokes go straight to that session's
+shell ("pass-through" mode). Press `?` at any time
 to open an in-app help popup listing every binding below.
 
 | Key | Action |
 | --- | --- |
 | `q` / `Ctrl+C` | Quit lazyshell |
 | `Tab` | Switch the focused panel |
+| `→` | Go to the output panel |
 | `?` | Show the help |
 | `j` / `↓` | Next session |
 | `k` / `↑` | Previous session |
@@ -76,6 +78,7 @@ While the **output panel** is focused, these apply instead:
 
 | Key | Action |
 | --- | --- |
+| `←` | Go back to the sessions panel (not during pass-through) |
 | `i` / `Enter` | Hand the keyboard to the shell (pass-through mode) |
 | `Ctrl+O` (configurable) | Take the keyboard back, out of pass-through mode |
 | `Esc` `Esc` | Same, without a key to learn: two Escapes in a row, within 400 ms |

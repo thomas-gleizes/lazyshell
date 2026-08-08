@@ -88,6 +88,23 @@ func (gui *Gui) staticBindings() []Binding {
 			Handler:     gui.cycleFocus,
 			Description: gui.tr.T("action.cycle_focus"),
 		},
+		// Directional counterpart to Tab, matching the on-screen geometry: →
+		// from the sessions panel goes to the output panel, ← comes back. No
+		// Action, so they are not remappable — "cycle_focus" stays the single
+		// configurable entry point, these are fixed aliases for it.
+		//
+		// The ← half cannot live here: it belongs to the output view, which is
+		// Editable, so a view-scoped binding would beat the Editor and steal
+		// the left arrow from the shell during pass-through. It is matched by
+		// hand in editDuringScroll instead, like "zoom" and the tab keys.
+		{
+			ViewName:    sessionsViewName,
+			Key:         gocui.KeyArrowRight,
+			Modifier:    gocui.ModNone,
+			Handler:     gui.focusOutputPanel,
+			Description: gui.tr.T("action.focus_output"),
+			Enabled:     hasSelectedSession,
+		},
 		{
 			ViewName:    "",
 			Action:      "help",
@@ -326,6 +343,32 @@ func (gui *Gui) cycleFocus(g *gocui.Gui, _ *gocui.View) error {
 	_, err := g.SetCurrentView(next)
 
 	return err
+}
+
+// focusOutputPanel moves focus to the output panel, without arming
+// pass-through: → is a navigation gesture like Tab, not "start typing into the
+// session" (which is what "i"/Enter are for once there).
+func (gui *Gui) focusOutputPanel(g *gocui.Gui, _ *gocui.View) error {
+	// Same guard as cycleFocus: with no session the output panel is not a
+	// valid focus target.
+	if gui.selectedSession() == nil {
+		return nil
+	}
+
+	_, err := g.SetCurrentView(outputViewName)
+
+	return err
+}
+
+// focusSessionsPanel is ←'s handler, called by hand from the output view's
+// Editor. While zoomed the sessions view does not exist at all, so there is
+// nothing to focus and the key does nothing rather than failing.
+func (gui *Gui) focusSessionsPanel() error {
+	if gui.zoomed {
+		return nil
+	}
+
+	return gui.cutControlToSessions()
 }
 
 // resolveBinding applies gui.keymap (pkg/config's Keybindings) to a binding

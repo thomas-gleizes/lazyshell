@@ -53,7 +53,8 @@
 <h1>Usage</h1>
 <p class="lede">
   Run <code>lazyshell</code> in a terminal. <kbd>Tab</kbd> switches focus between the sessions
-  panel and the output panel; <kbd>?</kbd> opens, at any time, a help popup listing every binding
+  panel and the output panel, with <kbd>→</kbd> / <kbd>←</kbd> as directional equivalents;
+  <kbd>?</kbd> opens, at any time, a help popup listing every binding
   in effect — including the ones you have remapped.
 </p>
 
@@ -82,6 +83,7 @@
   <tbody>
     <tr><td><kbd>q</kbd> / <kbd>Ctrl+C</kbd></td><td>Quit lazyshell</td></tr>
     <tr><td><kbd>Tab</kbd></td><td>Switch the active panel</td></tr>
+    <tr><td><kbd>→</kbd></td><td>Go to the output panel</td></tr>
     <tr><td><kbd>?</kbd></td><td>Show the help</td></tr>
     <tr><td><kbd>j</kbd> / <kbd>↓</kbd></td><td>Next session</td></tr>
     <tr><td><kbd>k</kbd> / <kbd>↑</kbd></td><td>Previous session</td></tr>
@@ -112,6 +114,7 @@
 <table>
   <thead><tr><th>Key</th><th>Action</th></tr></thead>
   <tbody>
+    <tr><td><kbd>←</kbd></td><td>Go back to the sessions panel (not during pass-through)</td></tr>
     <tr><td><kbd>i</kbd> / <kbd>Enter</kbd></td><td>Hand the keyboard to the shell (pass-through mode)</td></tr>
     <tr><td><kbd>Ctrl+O</kbd> <span style="color:var(--text-faint)">(configurable)</span></td><td>Take the keyboard back from pass-through</td></tr>
     <tr><td><kbd>Esc</kbd> <kbd>Esc</kbd></td><td>Same, without a key to learn: two Escapes in a row, within 400 ms</td></tr>

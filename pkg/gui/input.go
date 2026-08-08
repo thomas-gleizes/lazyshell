@@ -310,6 +310,15 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 
 		return true
 
+	// Below copy mode's keys on purpose: while selecting, the arrows belong
+	// to the selection, and leaving the panel mid-selection is not what ← is
+	// asking for.
+	case key == gocui.KeyArrowLeft && !gui.copyModeActive:
+		gui.debug.Action("editor focus_sessions")
+		_ = gui.focusSessionsPanel()
+
+		return true
+
 	case (ch == 'i' || key == gocui.KeyEnter) && !gui.copyModeActive:
 		gui.debug.Action("editor enter_pass_through")
 		gui.enterPassThrough()
@@ -430,6 +439,12 @@ func (gui *Gui) editOnSecondaryTab(view *gocui.View, key gocui.Key, ch rune) boo
 
 	// Same reason as editDuringScroll's switch for the per-branch debug lines.
 	switch {
+	case key == gocui.KeyArrowLeft:
+		gui.debug.Action("editor focus_sessions")
+		_ = gui.focusSessionsPanel()
+
+		return true
+
 	case key == gocui.KeyPgup:
 		gui.debug.Action("editor scroll page_up")
 		gui.scrollBy(gui.pageStep(rows))
