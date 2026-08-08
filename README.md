@@ -12,6 +12,12 @@ included.
 
 ![démo](docs/demo.gif)
 
+📖 **Documentation en ligne : [thomas-gleizes.github.io/lazyshell](https://thomas-gleizes.github.io/lazyshell/)**
+— installation, utilisation, configuration, sessions d'agents IA et configuration de projet,
+en [français](https://thomas-gleizes.github.io/lazyshell/fr/) et en
+[anglais](https://thomas-gleizes.github.io/lazyshell/en/). Les sources du site vivent dans
+`site/`.
+
 ## Install
 
 Binaire précompilé, sans toolchain Go : télécharger l'archive de son OS/arch

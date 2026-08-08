@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuration — lazyshell</title>
+<meta name="description" content="lazyshell's config file: location, precedence, full option reference, theme colours and remappable keybindings.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❯</text></svg>">
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">lazyshell</a>
+  <span class="spacer"></span>
+  <nav class="toplinks">
+    <a href="https://github.com/thomas-gleizes/lazyshell">GitHub</a>
+    <a href="https://github.com/thomas-gleizes/lazyshell/releases">Releases</a>
+    <a class="langswitch" href="../fr/configuration.html">FR</a>
+  </nav>
+</header>
+
+<div class="shell">
+
+<aside class="sidebar">
+  <h2>Documentation</h2>
+  <ul>
+    <li><a href="index.html">Home</a></li>
+    <li><a href="installation.html">Installation</a></li>
+    <li><a href="usage.html">Usage</a></li>
+    <li><a class="current" href="configuration.html">Configuration</a></li>
+    <li><a href="agents.html">AI agent sessions</a></li>
+    <li><a href="project.html">Project configuration</a></li>
+    <li><a href="development.html">Development</a></li>
+  </ul>
+  <h2>On this page</h2>
+  <ul>
+    <li><a href="#where">Where the file lives</a></li>
+    <li><a href="#precedence">Precedence</a></li>
+    <li><a href="#reference">Option reference</a></li>
+    <li><a href="#keys">Key specs</a></li>
+    <li><a href="#colors">Colours</a></li>
+    <li><a href="#example">Full example</a></li>
+  </ul>
+</aside>
+
+<main>
+
+<h1>Configuration</h1>
+<p class="lede">
+  <code>lazyshell config init</code> writes a fully commented config file at the right place, and
+  <code>lazyshell config show</code> prints the configuration actually in effect — after every
+  layer has had its say — together with the sources it came from. That second command is the answer
+  to "why is my setting not taking".
+</p>
+
+<h2 id="where">Where the file lives</h2>
+
+<p>lazyshell reads its YAML config file from the first match:</p>
+
+<ol>
+  <li><code>$LAZYSHELL_CONFIG</code>, if set</li>
+  <li><code>$XDG_CONFIG_HOME/lazyshell/config.yml</code></li>
+  <li><code>~/.config/lazyshell/config.yml</code></li>
+</ol>
+
+<p>
+  A missing file is not an error — lazyshell just runs with its built-in defaults. A partial file
+  only needs to mention the fields it wants to override; everything else keeps its default.
+</p>
+
+<h2 id="precedence">Precedence</h2>
+
+<pre><code>built-in defaults  &lt;  ~/.config/lazyshell/config.yml  &lt;  project lazyshell.yml
+                   &lt;  environment variables  &lt;  command-line flags</code></pre>
+
+<div class="note">
+  <p>
+    <strong>Nothing in a config file can stop lazyshell from starting.</strong> A key it does not
+    know, a value out of range, an unparseable keybinding or an unknown colour are each reported on
+    stderr before the interface opens, and the built-in default is used instead — never a silent
+    no-op, never a refusal to run.
+  </p>
+</div>
+
+<h2 id="reference">Option reference</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Key</th><th>Type</th><th>Default</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr><td><code>language</code></td><td><code>fr</code> | <code>en</code></td><td><code>fr</code></td><td>UI language: bindings, popups, status bar, footers and session messages. CLI output (<code>lazyshell config …</code>) stays French.</td></tr>
+    <tr><td><code>shell</code></td><td>string</td><td><code>""</code></td><td>Command started behind each session's pty. Empty means <code>$SHELL</code>, falling back to <code>/bin/bash</code>.</td></tr>
+    <tr><td><code>term</code></td><td>string</td><td><code>xterm-256color</code></td><td><code>TERM</code> announced to sessions. Lower it to make programs degrade on purpose.</td></tr>
+    <tr><td><code>scrollback_size</code></td><td>int ≥ 0</td><td><code>10000</code></td><td>Lines kept per session once they scroll off-screen.</td></tr>
+    <tr><td><code>sessions_panel_width</code></td><td>int ≥ 5</td><td><code>40</code></td><td>Sessions list width, in columns, in landscape mode.</td></tr>
+    <tr><td><code>sessions_panel_height</code></td><td>int ≥ 5</td><td><code>10</code></td><td>Sessions list height, in rows, in portrait mode.</td></tr>
+    <tr><td><code>portrait_max_width</code></td><td>int</td><td><code>84</code></td><td>Portrait mode applies at or below this terminal width…</td></tr>
+    <tr><td><code>portrait_min_height</code></td><td>int</td><td><code>45</code></td><td>…and above this terminal height. Portrait stacks the panels instead of splitting them side by side.</td></tr>
+    <tr><td><code>refresh_interval_ms</code></td><td>int, 10–1000</td><td><code>30</code></td><td>Redraw period. An unchanged panel is never pushed, so idle cost stays near zero at any value.</td></tr>
+    <tr><td><code>kill_timeout_ms</code></td><td>int ≥ 100</td><td><code>2000</code></td><td>Wait after <code>SIGTERM</code> before escalating to <code>SIGKILL</code>, and again before giving up.</td></tr>
+    <tr><td><code>prefix_key</code></td><td>key spec</td><td><code>Ctrl+B</code></td><td>Pass-through escape prefix. Must be a control key. <code>$LAZYSHELL_PREFIX</code> overrides it.</td></tr>
+    <tr><td><code>keybindings</code></td><td>map</td><td>see <a href="#keys">below</a></td><td>Remaps an action id to a key spec. An action left out keeps its default key.</td></tr>
+    <tr><td><code>markers.bell</code></td><td>0–1 char</td><td><code>!</code></td><td>Gutter marker for a session that rang while hidden. <code>""</code> turns it off.</td></tr>
+    <tr><td><code>markers.alt_screen</code></td><td>0–1 char</td><td><code>#</code></td><td>Gutter marker for a session running a full-screen application.</td></tr>
+    <tr><td><code>markers.activity</code></td><td>0–1 char</td><td><code>●</code></td><td>Gutter marker for a session that produced output while hidden.</td></tr>
+    <tr><td><code>markers.broadcast</code></td><td>0–1 char</td><td><code>+</code></td><td>Gutter marker for a session marked to receive broadcast keystrokes.</td></tr>
+    <tr><td><code>markers.agent_idle</code></td><td>0–1 char</td><td><code>·</code></td><td>Gutter marker for a detected AI agent session that is idle.</td></tr>
+    <tr><td><code>markers.agent_working</code></td><td>0–1 char</td><td><code>…</code></td><td>Gutter marker for a detected AI agent session that is working.</td></tr>
+    <tr><td><code>markers.agent_blocked</code></td><td>0–1 char</td><td><code>‼</code></td><td>Gutter marker for a detected AI agent session waiting on you.</td></tr>
+    <tr><td><code>markers.agent_done</code></td><td>0–1 char</td><td><code>✓</code></td><td>Gutter marker for a detected AI agent session that finished its turn.</td></tr>
+    <tr><td><code>scroll.page_lines</code></td><td>int ≥ 0</td><td><code>0</code></td><td>Lines <kbd>PgUp</kbd>/<kbd>PgDn</kbd> move by. <code>0</code> means one full panel height.</td></tr>
+    <tr><td><code>scroll.half_page_divisor</code></td><td>int ≥ 1</td><td><code>2</code></td><td><kbd>Ctrl+U</kbd>/<kbd>Ctrl+D</kbd> move by the panel height divided by this.</td></tr>
+    <tr><td><code>theme.active_border_color</code></td><td>colour</td><td><code>green</code></td><td>Focused panel's border.</td></tr>
+    <tr><td><code>theme.inactive_border_color</code></td><td>colour</td><td><code>default</code></td><td>Every other panel's border.</td></tr>
+    <tr><td><code>theme.selected_bg_color</code></td><td>colour</td><td><code>blue</code></td><td>Selected line's background in the sessions list.</td></tr>
+    <tr><td><code>theme.pass_through_border_color</code></td><td>colour</td><td><code>red</code></td><td>Focused panel's border while in pass-through mode.</td></tr>
+    <tr><td><code>theme.tab_active_color</code></td><td>colour</td><td><code>green</code></td><td>Selected tab in the output panel's tab strip.</td></tr>
+    <tr><td><code>clipboard.fallback_command</code></td><td>string</td><td><code>""</code></td><td>Command run with the yanked text on its stdin, instead of OSC 52, for a terminal that does not support it. There is no way to detect support, so this is a manual switch: empty means OSC 52 only.</td></tr>
+    <tr><td><code>notify.fallback_command</code></td><td>string</td><td><code>""</code></td><td>Command run with the notification text on its stdin, instead of OSC 9/777, when a detected AI agent session goes blocked or done. Empty means OSC only.</td></tr>
+    <tr><td><code>window_title.enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether the host terminal's window/tab title tracks the focused session (its name, plus its live OSC 0/2 title when one is set) via OSC 0.</td></tr>
+    <tr><td><code>mouse.enabled</code></td><td>bool</td><td><code>true</code></td><td>Click, wheel and drag support. Turning it on costs <kbd>Shift+↑</kbd>/<kbd>Shift+↓</kbd> pass-through — gocui gives those keys and the mouse buttons the same values, so they cannot both work.</td></tr>
+    <tr><td><code>mouse.wheel_lines</code></td><td>int ≥ 1</td><td><code>3</code></td><td>Lines one wheel notch scrolls the output panel by.</td></tr>
+    <tr><td><code>mouse.forward_to_app</code></td><td>bool</td><td><code>true</code></td><td>Whether a program inside a session may receive the mouse itself, and only once it has asked for it with a DECSET 9/1000/1002/1003 (<code>vim</code> with <code>set mouse=a</code>, <code>htop</code>). A shell or an AI agent CLI never asks.</td></tr>
+    <tr><td><code>perf.refresh_interval_ms</code></td><td><code>0</code>, or int ≥ 100</td><td><code>5000</code></td><td>How often every session's processes are sampled for the resources tab. Runs in the background whether or not the tab is open, in a single pass across all sessions. <code>0</code> turns sampling off — it is the one periodic job that spawns a process.</td></tr>
+    <tr><td><code>env_tab.mask_secrets</code></td><td>bool</td><td><code>true</code></td><td>Whether the environment tab masks the value of variables whose name looks like a credential (<code>TOKEN</code>, <code>SECRET</code>, <code>PASSWORD</code>, <code>AUTH</code>, <code>..._KEY</code>).</td></tr>
+    <tr><td><code>agent_stats_command</code></td><td>string</td><td><code>""</code></td><td>Run for the selected AI agent session, with <code>$LAZYSHELL_SESSION_ID</code> in its environment; its first line of stdout is shown next to the turn duration. Empty disables it.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="keys">Key specs</h2>
+
+<p>
+  Key specs use <code>gocui.Parse</code> syntax: a bare character (<code>n</code>), or
+  <code>Ctrl+N</code>, <code>Alt+Space</code>, <code>Tab</code>, <code>Esc</code>.
+</p>
+
+<p>The remappable action ids are:</p>
+
+<p>
+  <code>new_session</code>, <code>new_session_in_dir</code>, <code>kill_session</code>,
+  <code>delete_session</code>, <code>rename_session</code>, <code>duplicate_session</code>,
+  <code>restart_session</code>, <code>zoom</code>, <code>next_tab</code>, <code>prev_tab</code>,
+  <code>filter_sessions</code>, <code>export_session</code>, <code>toggle_broadcast</code>,
+  <code>jump_next_blocked</code>, <code>select_next</code>, <code>select_prev</code>,
+  <code>cycle_focus</code>, <code>help</code>, <code>quit</code>.
+</p>
+
+<p>An id outside that list is reported rather than ignored.</p>
+
+<h2 id="colors">Colours</h2>
+
+<p>Colours accept any of:</p>
+
+<ul>
+  <li>
+    an <strong>ANSI terminal colour name</strong> — <code>black</code>, <code>red</code>,
+    <code>green</code>, <code>yellow</code>, <code>blue</code>, <code>magenta</code>,
+    <code>cyan</code>, <code>white</code>, and each one prefixed with <code>bright</code>
+    (<code>brightblue</code>, …). These follow your terminal's own palette;
+  </li>
+  <li>
+    a <strong>W3C/CSS colour name</strong> (<code>navy</code>, <code>teal</code>,
+    <code>chartreuse</code>, …) or <code>#rrggbb</code>, for a specific colour rather than a
+    palette slot;
+  </li>
+  <li><code>default</code>, for the terminal's own default colour.</li>
+</ul>
+
+<div class="note">
+  <p>
+    The two name sets overlap and disagree: in CSS, <code>blue</code> is <code>#0000FF</code>,
+    which a terminal shows as <em>bright</em> blue. lazyshell resolves the ANSI names first, so
+    <code>blue</code> gives you ordinary blue; write <code>navy</code> if you want the CSS one, or
+    <code>brightblue</code> for the bright terminal slot.
+  </p>
+</div>
+
+<h2 id="example">Full example</h2>
+
+<p>
+  This is what <code>lazyshell config init</code> writes — every option at its default value, so
+  you can delete whatever you do not change.
+</p>
+
+<pre><code># ~/.config/lazyshell/config.yml
+
+language: fr
+shell: ""
+term: xterm-256color
+scrollback_size: 10000
+
+sessions_panel_width: 40
+sessions_panel_height: 10
+portrait_max_width: 84
+portrait_min_height: 45
+
+refresh_interval_ms: 30
+kill_timeout_ms: 2000
+
+prefix_key: Ctrl+B
+
+keybindings:
+  new_session: "n"
+  new_session_in_dir: "N"
+  kill_session: "x"
+  delete_session: "D"
+  rename_session: "r"
+  duplicate_session: "c"
+  restart_session: "R"
+  zoom: "z"
+  next_tab: "]"
+  prev_tab: "["
+  filter_sessions: "/"
+  export_session: "w"
+  toggle_broadcast: "b"
+  jump_next_blocked: "B"
+  select_next: "j"
+  select_prev: "k"
+  cycle_focus: Tab
+  help: "?"
+  quit: "q"
+
+markers:
+  bell: "!"
+  alt_screen: "#"
+  activity: "●"
+  broadcast: "+"
+  agent_idle: "·"
+  agent_working: "…"
+  agent_blocked: "‼"
+  agent_done: "✓"
+
+scroll:
+  page_lines: 0
+  half_page_divisor: 2
+
+theme:
+  active_border_color: green
+  inactive_border_color: default
+  selected_bg_color: blue
+  pass_through_border_color: red
+  tab_active_color: green
+
+clipboard:
+  fallback_command: ""
+
+notify:
+  fallback_command: ""
+
+window_title:
+  enabled: true
+
+mouse:
+  enabled: true
+  wheel_lines: 3
+  forward_to_app: true
+
+perf:
+  refresh_interval_ms: 5000
+
+env_tab:
+  mask_secrets: true
+
+agent_stats_command: ""</code></pre>
+
+<footer class="pagefoot">
+  <span>lazyshell — see the repository for its licence</span>
+  <a href="https://github.com/thomas-gleizes/lazyshell">Source code</a>
+  <a href="https://github.com/thomas-gleizes/lazyshell/issues">Report an issue</a>
+  <a href="../fr/configuration.html">Français</a>
+</footer>
+
+</main>
+</div>
+</body>
+</html>

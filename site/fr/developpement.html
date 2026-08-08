@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Développement — lazyshell</title>
+<meta name="description" content="Construire, tester et comprendre l'architecture de lazyshell : structure des paquets, décisions d'architecture, contribution.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❯</text></svg>">
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">lazyshell</a>
+  <span class="spacer"></span>
+  <nav class="toplinks">
+    <a href="https://github.com/thomas-gleizes/lazyshell">GitHub</a>
+    <a href="https://github.com/thomas-gleizes/lazyshell/releases">Releases</a>
+    <a class="langswitch" href="../en/development.html">EN</a>
+  </nav>
+</header>
+
+<div class="shell">
+
+<aside class="sidebar">
+  <h2>Documentation</h2>
+  <ul>
+    <li><a href="index.html">Accueil</a></li>
+    <li><a href="installation.html">Installation</a></li>
+    <li><a href="utilisation.html">Utilisation</a></li>
+    <li><a href="configuration.html">Configuration</a></li>
+    <li><a href="agents.html">Sessions d'agents IA</a></li>
+    <li><a href="projet.html">Configuration de projet</a></li>
+    <li><a class="current" href="developpement.html">Développement</a></li>
+  </ul>
+  <h2>Sur cette page</h2>
+  <ul>
+    <li><a href="#commandes">Construire et tester</a></li>
+    <li><a href="#paquets">Structure des paquets</a></li>
+    <li><a href="#decisions">Décisions d'architecture</a></li>
+    <li><a href="#adr">ADR</a></li>
+    <li><a href="#contribuer">Contribuer</a></li>
+  </ul>
+</aside>
+
+<main>
+
+<h1>Développement</h1>
+<p class="lede">
+  lazyshell est un projet Go sans génération de code ni étape de build exotique :
+  <code>go build</code>, <code>go test</code>, <code>golangci-lint</code>.
+</p>
+
+<h2 id="commandes">Construire et tester</h2>
+
+<pre class="term"><code><span class="p">$</span> make build   <span class="c"># go build -o bin/lazyshell ./cmd/lazyshell</span>
+<span class="p">$</span> make test    <span class="c"># go test -race ./...</span>
+<span class="p">$</span> make lint    <span class="c"># golangci-lint run</span></code></pre>
+
+<p>
+  L'intégration continue exécute les mêmes commandes sur <code>ubuntu-latest</code> et
+  <code>macos-latest</code>, plus un budget de performance
+  (<code>go test -run TestPerfBudget ./...</code>). La version de <code>golangci-lint</code> est
+  épinglée dans le workflow, pour que la CI et <code>make lint</code> ne puissent pas diverger.
+</p>
+
+<h2 id="paquets">Structure des paquets</h2>
+
+<pre><code>cmd/
+  lazyshell/      point d'entrée
+  spike-pty/      spike pty de la phase 1 (référence, hors binaire livré)
+pkg/
+  app/            amorçage : charge la config, construit le SessionManager, lance gui.Run()
+  session/        SessionManager : CRUD (New, Kill, List) ; Session{cmd, ptmx, scrollback,
+                  status} ; Env() (au lancement) et Stats() (CPU/RSS/disque par OS)
+  screen/         émulateur de terminal derrière le panneau de sortie (vim/htop/less)
+  gui/            init gocui, layout, raccourcis, souris, panneaux, onglets, aide, thème,
+                  notifications, stats
+  tasks/          TaskManager (goroutines d'affichage et de lecture uniquement)
+  agent/          détection d'état des agents IA (sans config + par hooks)
+  hook/           canal de hooks autoritaire pour les sessions d'agent
+  config/         config utilisateur et config de projet (lazyshell.yml)
+  keys/           définition des raccourcis
+  i18n/           chaînes et traductions
+  version/        métadonnées --version (injectées par goreleaser)
+docs/
+  adr/            décisions d'architecture
+  repports/       rapports d'analyse historiques</code></pre>
+
+<h2 id="decisions">Décisions d'architecture</h2>
+
+<ul>
+  <li>
+    <strong>Bibliothèque de base :</strong> <code>github.com/jesseduffield/gocui</code>, avec
+    <code>lazycore/pkg/boxlayout</code> pour la découpe liste / sortie et l'empilement en mode
+    portrait.
+  </li>
+  <li>
+    <strong>Raccourcis :</strong> des <code>Binding{ViewName, Key, Modifier, Handler}</code> plats
+    passés à <code>g.SetKeybinding</code>, à la manière de lazydocker — pas de pile de contextes et
+    de contrôleurs à la lazygit.
+  </li>
+  <li>
+    <strong>Tâches asynchrones :</strong> <code>pkg/tasks</code> ne possède que les goroutines
+    d'<em>affichage et de lecture</em>, jamais le process shell sous-jacent. Changer de sélection
+    annule le lecteur de la session précédente, pas son pty : le shell continue de tourner quoi
+    qu'il y ait à l'écran.
+  </li>
+  <li>
+    <strong>Pty :</strong> <code>github.com/creack/pty</code>, un pty par session,
+    <code>pty.Setsize</code> propagé depuis la taille calculée du panneau au redimensionnement, et
+    un véritable émulateur de terminal — pas un simple filtrage ANSI — pour que les applications
+    plein écran fonctionnent réellement.
+  </li>
+  <li>
+    <strong>Cycle de vie des process :</strong> <code>pkg/session.Manager</code> possède la
+    <code>map[sessionID]*Session</code> et garde les shells vivants à travers les changements de
+    sélection, découplé de <code>pkg/tasks</code>.
+  </li>
+  <li>
+    <strong>Couplage agent contenu :</strong> hors de <code>notify.go</code> et
+    <code>stats.go</code>, rien dans <code>pkg/session</code> ni <code>pkg/gui</code> ne connaît de
+    format propre à un agent — tout est dans <code>pkg/agent</code> et <code>pkg/hook</code>.
+  </li>
+</ul>
+
+<h2 id="adr">ADR</h2>
+
+<ul>
+  <li><a href="https://github.com/thomas-gleizes/lazyshell/blob/main/docs/adr/0001-rendu-ansi-et-clavier.md">0001 — Rendu ANSI et clavier</a></li>
+  <li><a href="https://github.com/thomas-gleizes/lazyshell/blob/main/docs/adr/0002-rendu-multi-panneaux.md">0002 — Rendu multi-panneaux</a></li>
+  <li><a href="https://github.com/thomas-gleizes/lazyshell/blob/main/docs/adr/0003-souris.md">0003 — Souris</a></li>
+</ul>
+
+<p>
+  <a href="https://github.com/thomas-gleizes/lazyshell/blob/main/ROADMAP.md">ROADMAP.md</a> raconte
+  l'histoire phase par phase : ce qui est construit, ce qui reste ouvert, et pourquoi.
+</p>
+
+<h2 id="contribuer">Contribuer</h2>
+
+<ul>
+  <li>
+    <strong>Périmètre.</strong> Windows est hors périmètre assumé (pas de pty Unix). Le mode
+    détaché / démon (« les agents continuent avec le portable fermé ») l'est aussi, sauf demande
+    réelle.
+  </li>
+  <li>
+    <strong>API de contrôle par les agents</strong> (un agent qui crée des panneaux ou lit la
+    sortie d'autres sessions via une socket) : écartée pour l'instant. La socket de hooks est
+    entrante et déclarative uniquement ; un verbe sortant serait une décision séparée, délibérément
+    pas encore prise.
+  </li>
+  <li>
+    Avant d'ouvrir une <em>pull request</em> : <code>make test</code> et <code>make lint</code>
+    doivent passer, et la course (<code>-race</code>) doit rester verte.
+  </li>
+</ul>
+
+<footer class="pagefoot">
+  <span>lazyshell — licence du dépôt</span>
+  <a href="https://github.com/thomas-gleizes/lazyshell">Code source</a>
+  <a href="https://github.com/thomas-gleizes/lazyshell/issues">Signaler un problème</a>
+  <a href="../en/development.html">English</a>
+</footer>
+
+</main>
+</div>
+</body>
+</html>

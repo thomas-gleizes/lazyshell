@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Installation — lazyshell</title>
+<meta name="description" content="Installer lazyshell : binaire précompilé, go install, ou compilation depuis les sources.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❯</text></svg>">
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">lazyshell</a>
+  <span class="spacer"></span>
+  <nav class="toplinks">
+    <a href="https://github.com/thomas-gleizes/lazyshell">GitHub</a>
+    <a href="https://github.com/thomas-gleizes/lazyshell/releases">Releases</a>
+    <a class="langswitch" href="../en/installation.html">EN</a>
+  </nav>
+</header>
+
+<div class="shell">
+
+<aside class="sidebar">
+  <h2>Documentation</h2>
+  <ul>
+    <li><a href="index.html">Accueil</a></li>
+    <li><a class="current" href="installation.html">Installation</a></li>
+    <li><a href="utilisation.html">Utilisation</a></li>
+    <li><a href="configuration.html">Configuration</a></li>
+    <li><a href="agents.html">Sessions d'agents IA</a></li>
+    <li><a href="projet.html">Configuration de projet</a></li>
+    <li><a href="developpement.html">Développement</a></li>
+  </ul>
+  <h2>Sur cette page</h2>
+  <ul>
+    <li><a href="#prerequis">Prérequis</a></li>
+    <li><a href="#binaire">Binaire précompilé</a></li>
+    <li><a href="#go-install">Avec Go</a></li>
+    <li><a href="#sources">Depuis les sources</a></li>
+    <li><a href="#verifier">Vérifier l'installation</a></li>
+  </ul>
+</aside>
+
+<main>
+
+<h1>Installation</h1>
+<p class="lede">
+  Trois chemins, du plus court au plus impliquant. Aucun ne demande de dépendance système :
+  lazyshell est un binaire statique unique.
+</p>
+
+<h2 id="prerequis">Prérequis</h2>
+
+<ul>
+  <li><strong>macOS ou Linux.</strong> Windows est hors périmètre : pas de pty Unix.</li>
+  <li>Un terminal qui gère les couleurs 256 (la valeur annoncée aux sessions est
+    <code>xterm-256color</code> par défaut, et se change).</li>
+  <li>Pour compiler soi-même : Go, à la version indiquée dans <code>go.mod</code>.</li>
+</ul>
+
+<h2 id="binaire">Binaire précompilé</h2>
+
+<p>
+  Sans toolchain Go : télécharger l'archive correspondant à son OS et à son architecture depuis la
+  <a href="https://github.com/thomas-gleizes/lazyshell/releases">page des releases</a>, vérifier
+  <code>checksums.txt</code>, puis extraire <code>lazyshell</code> dans un dossier de son
+  <code>PATH</code>.
+</p>
+
+<pre class="term"><code><span class="p">$</span> tar xzf lazyshell_&lt;os&gt;_&lt;arch&gt;.tar.gz
+<span class="p">$</span> sudo mv lazyshell /usr/local/bin/
+<span class="p">$</span> lazyshell --version</code></pre>
+
+<div class="note">
+  <p>
+    <strong>macOS.</strong> Un binaire téléchargé hors App Store est mis en quarantaine par
+    Gatekeeper. Si le lancement est refusé, autoriser l'exécutable dans
+    <em>Réglages Système → Confidentialité et sécurité</em>, ou retirer l'attribut :
+    <code>xattr -d com.apple.quarantine /usr/local/bin/lazyshell</code>.
+  </p>
+</div>
+
+<h2 id="go-install">Avec Go</h2>
+
+<pre class="term"><code><span class="p">$</span> go install github.com/thomas-gleizes/lazyshell/cmd/lazyshell@latest</code></pre>
+
+<p>
+  Le binaire atterrit dans <code>$(go env GOPATH)/bin</code> — s'assurer que ce dossier est dans le
+  <code>PATH</code>. Cette voie ne renseigne pas les métadonnées de version injectées à la release :
+  <code>lazyshell --version</code> sera moins bavard qu'avec une archive officielle.
+</p>
+
+<h2 id="sources">Depuis les sources</h2>
+
+<pre class="term"><code><span class="p">$</span> git clone https://github.com/thomas-gleizes/lazyshell.git
+<span class="p">$</span> cd lazyshell
+<span class="p">$</span> make build   <span class="c"># produit ./bin/lazyshell</span></code></pre>
+
+<p>
+  <code>make build</code> n'est qu'un raccourci pour
+  <code>go build -o bin/lazyshell ./cmd/lazyshell</code>. Voir la page
+  <a href="developpement.html">Développement</a> pour les tests et le linter.
+</p>
+
+<h2 id="verifier">Vérifier l'installation</h2>
+
+<pre class="term"><code><span class="p">$</span> lazyshell --version
+<span class="p">$</span> lazyshell config init   <span class="c"># écrit un fichier de config commenté</span>
+<span class="p">$</span> lazyshell               <span class="c"># ouvre l'interface</span></code></pre>
+
+<p>
+  Au premier lancement, l'interface s'ouvre sans aucune session : <kbd>n</kbd> en crée une.
+  Si vous lancez lazyshell dans un dépôt qui contient un <code>lazyshell.yml</code>, il vous
+  demandera d'abord d'approuver ce fichier — voir
+  <a href="projet.html#approbation">Approuver un fichier de projet</a>.
+</p>
+
+<footer class="pagefoot">
+  <span>lazyshell — licence du dépôt</span>
+  <a href="https://github.com/thomas-gleizes/lazyshell">Code source</a>
+  <a href="https://github.com/thomas-gleizes/lazyshell/issues">Signaler un problème</a>
+  <a href="../en/installation.html">English</a>
+</footer>
+
+</main>
+</div>
+</body>
+</html>

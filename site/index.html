@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lazyshell — documentation</title>
+<meta name="description" content="lazyshell — a tmux-like TUI shell session manager with a lazygit-style two-pane interface.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❯</text></svg>">
+<link rel="stylesheet" href="assets/styles.css">
+<script>
+  // Send a visitor straight to the version matching their browser, but only
+  // on a bare load: a link that deliberately points here keeps the picker.
+  (function () {
+    if (document.referrer && new URL(document.referrer).host === location.host) return;
+    var lang = (navigator.language || "en").toLowerCase();
+    location.replace(lang.indexOf("fr") === 0 ? "fr/" : "en/");
+  })();
+</script>
+</head>
+<body>
+<div class="picker">
+  <h1>lazyshell</h1>
+  <p class="tagline">Gestionnaire de sessions shell en TUI — TUI shell session manager.</p>
+  <div class="choices">
+    <a class="btn primary" href="fr/">Documentation en français</a>
+    <a class="btn" href="en/">Documentation in English</a>
+  </div>
+  <p style="margin-top:2.5rem"><a href="https://github.com/thomas-gleizes/lazyshell">github.com/thomas-gleizes/lazyshell</a></p>
+</div>
+</body>
+</html>

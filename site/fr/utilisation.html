@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Utilisation — lazyshell</title>
+<meta name="description" content="Panneaux, raccourcis clavier, lecture de la liste des sessions, onglets, diffusion, souris, recherche et copie dans lazyshell.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❯</text></svg>">
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">lazyshell</a>
+  <span class="spacer"></span>
+  <nav class="toplinks">
+    <a href="https://github.com/thomas-gleizes/lazyshell">GitHub</a>
+    <a href="https://github.com/thomas-gleizes/lazyshell/releases">Releases</a>
+    <a class="langswitch" href="../en/usage.html">EN</a>
+  </nav>
+</header>
+
+<div class="shell">
+
+<aside class="sidebar">
+  <h2>Documentation</h2>
+  <ul>
+    <li><a href="index.html">Accueil</a></li>
+    <li><a href="installation.html">Installation</a></li>
+    <li><a class="current" href="utilisation.html">Utilisation</a></li>
+    <li><a href="configuration.html">Configuration</a></li>
+    <li><a href="agents.html">Sessions d'agents IA</a></li>
+    <li><a href="projet.html">Configuration de projet</a></li>
+    <li><a href="developpement.html">Développement</a></li>
+  </ul>
+  <h2>Sur cette page</h2>
+  <ul>
+    <li><a href="#panneaux">Les deux panneaux</a></li>
+    <li><a href="#touches-sessions">Touches — panneau des sessions</a></li>
+    <li><a href="#touches-sortie">Touches — panneau de sortie</a></li>
+    <li><a href="#focus">Qui a le clavier</a></li>
+    <li><a href="#liste">Lire la liste des sessions</a></li>
+    <li><a href="#onglets">Onglets du panneau de sortie</a></li>
+    <li><a href="#recherche">Recherche et copie</a></li>
+    <li><a href="#diffusion">Diffusion (broadcast)</a></li>
+    <li><a href="#souris">Souris</a></li>
+  </ul>
+</aside>
+
+<main>
+
+<h1>Utilisation</h1>
+<p class="lede">
+  Lancez <code>lazyshell</code> dans un terminal. <kbd>Tab</kbd> bascule le focus entre le panneau
+  des sessions et le panneau de sortie ; <kbd>?</kbd> ouvre à tout moment une aide listant chaque
+  raccourci en vigueur, y compris ceux que vous avez remappés.
+</p>
+
+<h2 id="panneaux">Les deux panneaux</h2>
+
+<p>
+  À gauche, la <strong>liste des sessions</strong> : une ligne par session, avec son état. À droite,
+  le <strong>panneau de sortie</strong> : l'écran vivant de la session sélectionnée. Sur un terminal
+  étroit, la disposition passe en <em>mode portrait</em> et empile les deux panneaux au lieu de les
+  juxtaposer (seuils réglables : <code>portrait_max_width</code> et
+  <code>portrait_min_height</code>).
+</p>
+
+<p>
+  Chaque panneau affiche ses touches les plus utiles sur la ligne basse de son cadre. La liste se
+  raccourcit à ce que la largeur permet, et celle du panneau de sortie s'adapte à ce qu'il est en
+  train de faire : uniquement la sortie du pass-through quand le pass-through est actif, aucun
+  indice de défilement quand une application plein écran tient la session.
+</p>
+
+<h2 id="touches-sessions">Touches — panneau des sessions</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Touche</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td><kbd>q</kbd> / <kbd>Ctrl+C</kbd></td><td>Quitter lazyshell</td></tr>
+    <tr><td><kbd>Tab</kbd></td><td>Changer de panneau actif</td></tr>
+    <tr><td><kbd>?</kbd></td><td>Afficher l'aide</td></tr>
+    <tr><td><kbd>j</kbd> / <kbd>↓</kbd></td><td>Session suivante</td></tr>
+    <tr><td><kbd>k</kbd> / <kbd>↑</kbd></td><td>Session précédente</td></tr>
+    <tr><td><kbd>n</kbd></td><td>Nouvelle session</td></tr>
+    <tr><td><kbd>N</kbd></td><td>Nouvelle session dans un dossier choisi</td></tr>
+    <tr><td><kbd>c</kbd></td><td>Dupliquer la session sélectionnée</td></tr>
+    <tr><td><kbd>r</kbd></td><td>Renommer la session sélectionnée</td></tr>
+    <tr><td><kbd>R</kbd></td><td>Relancer une session sortie</td></tr>
+    <tr><td><kbd>x</kbd> / <kbd>d</kbd></td><td>Tuer la session sélectionnée</td></tr>
+    <tr><td><kbd>D</kbd></td><td>Supprimer définitivement la session (retirée du panneau)</td></tr>
+    <tr><td><kbd>w</kbd></td><td>Exporter l'historique de la session vers un fichier</td></tr>
+    <tr><td><kbd>b</kbd></td><td>Marquer / démarquer la session pour la diffusion</td></tr>
+    <tr><td><kbd>B</kbd></td><td>Sauter à la prochaine session d'agent <em>bloquée</em></td></tr>
+    <tr><td><kbd>/</kbd></td><td>Filtrer la liste des sessions</td></tr>
+    <tr><td><kbd>z</kbd></td><td>Zoom : le panneau de sortie prend tout l'écran</td></tr>
+    <tr><td><kbd>[</kbd> / <kbd>]</kbd></td><td>Onglet précédent / suivant du panneau de sortie</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="touches-sortie">Touches — panneau de sortie</h2>
+
+<p>Quand le <strong>panneau de sortie</strong> a le focus, ces touches s'appliquent à la place :</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Touche</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td><kbd>i</kbd> / <kbd>Entrée</kbd></td><td>Donner le clavier au shell (mode pass-through)</td></tr>
+    <tr><td><kbd>Ctrl+B</kbd> <span style="color:var(--text-faint)">(configurable)</span></td><td>Reprendre le clavier depuis le pass-through</td></tr>
+    <tr><td><kbd>PgUp</kbd> / <kbd>PgDn</kbd></td><td>Défiler d'un écran dans l'historique</td></tr>
+    <tr><td><kbd>Ctrl+U</kbd> / <kbd>Ctrl+D</kbd></td><td>Défiler d'un demi-écran</td></tr>
+    <tr><td><kbd>/</kbd></td><td>Rechercher dans l'historique ; <kbd>n</kbd> / <kbd>N</kbd> pour l'occurrence suivante / précédente</td></tr>
+    <tr><td><kbd>v</kbd></td><td>Démarrer (ou étendre) une sélection de lignes — mode copie</td></tr>
+    <tr><td><kbd>y</kbd> ou un second <kbd>v</kbd></td><td>Copier la sélection (OSC 52, ou la commande de repli configurée)</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Quitter la recherche ou annuler la sélection en cours</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="focus">Qui a le clavier</h2>
+
+<p>
+  C'est la question centrale de l'interface, et lazyshell ne change jamais de mode tout seul —
+  sauf aux deux moments où l'intention est sans ambiguïté :
+</p>
+
+<ul>
+  <li>
+    <strong>Démarrer une session</strong> (<kbd>n</kbd>, <kbd>N</kbd>, <kbd>c</kbd>) ou en
+    <strong>relancer</strong> une (<kbd>R</kbd>) vous dépose dedans : le panneau de sortie prend le
+    focus et le pass-through est armé, vous pouvez taper immédiatement. <kbd>Ctrl+B</kbd> reprend
+    le clavier.
+  </li>
+  <li>
+    <strong>Un shell qui se termine seul</strong> — <code>exit</code>, <kbd>Ctrl+D</kbd>, ou la
+    commande qu'il exécutait qui se finit — emporte l'interface avec lui : le pass-through est
+    désarmé et le focus revient au panneau des sessions, sur cette même session. Elle reste
+    sélectionnée et listée, sortie : <kbd>R</kbd> la relance, <kbd>x</kbd> / <kbd>D</kbd> s'en
+    débarrasse.
+  </li>
+</ul>
+
+<p>
+  Déplacer la sélection avec <kbd>j</kbd> / <kbd>k</kbd> est de la navigation, et ne donne
+  <em>jamais</em> le clavier au shell. Rien ne se produit derrière une popup : une confirmation ou
+  l'aide garde le focus qu'elle a.
+</p>
+
+<h2 id="liste">Lire la liste des sessions</h2>
+
+<p>
+  Chaque session tient sur une ligne : une gouttière de quatre colonnes, puis son nom, son état,
+  son PID, et soit le titre de terminal que le shell a posé (en général la commande en cours), soit
+  son répertoire de travail.
+</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Marqueur</th><th>Signification</th></tr></thead>
+  <tbody>
+    <tr><td><code>!</code></td><td>La session a sonné (bell) pendant que vous regardiez ailleurs. Effacé à la sélection.</td></tr>
+    <tr><td><code>#</code></td><td>Une application plein écran (<code>vim</code>, <code>htop</code>, <code>less</code>) tient la session. Affiché <code>[ALT]</code> dans la barre d'état pour la session sélectionnée.</td></tr>
+    <tr><td><code>●</code></td><td>La session a produit de la sortie alors qu'elle n'était pas à l'écran. Effacé à la sélection.</td></tr>
+    <tr><td><code>+</code></td><td>La session est marquée pour la diffusion — voir plus bas.</td></tr>
+    <tr><td><code>·</code> <code>…</code> <code>‼</code> <code>✓</code></td><td>État d'une session d'<a href="agents.html">agent IA</a> : au repos, en travail, bloquée (elle vous attend), terminée.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Tous ces marqueurs sont configurables, et un marqueur mis à <code>""</code> disparaît — voir
+<a href="configuration.html#reference">la référence</a>.</p>
+
+<h2 id="onglets">Onglets du panneau de sortie</h2>
+
+<p>
+  Le panneau de sortie porte trois onglets, changés avec <kbd>[</kbd> / <kbd>]</kbd> ou d'un clic
+  sur la barre de titre :
+</p>
+
+<h3><code>terminal</code></h3>
+<p>L'écran vivant de la session : c'est l'onglet par défaut, et le seul où le pass-through existe.</p>
+
+<h3><code>ressources</code></h3>
+<p>
+  Ce que la session consomme : pourcentage CPU, mémoire résidente, threads, I/O disque — avec une
+  sparkline collée à chaque chiffre et un graphe braille de quatre lignes pour le CPU du process
+  d'avant-plan. La portée mesurée est le shell <strong>plus</strong> le leader du groupe
+  d'avant-plan, jamais tout l'arbre : ce que vous regardez, c'est <code>claude</code> ou
+  <code>vim</code>, pas <code>bash</code>.
+</p>
+<p>
+  L'échantillonnage tourne <strong>en arrière-plan pour toutes les sessions</strong>, que l'onglet
+  soit ouvert ou non (<code>perf.refresh_interval_ms</code>) : une courbe ne vaut d'être regardée
+  que si elle remonte plus loin que l'instant où vous l'avez ouverte. Ce qu'un système ne sait pas
+  répondre est marqué <em>indisponible</em>, jamais rapporté à zéro — sur macOS, le nombre de
+  threads et l'I/O disque en font partie.
+</p>
+
+<h3><code>environnement</code></h3>
+<p>
+  L'environnement <strong>au lancement</strong> de la session, trié et défilable. Par défaut, la
+  valeur des variables dont le <em>nom</em> ressemble à un identifiant (<code>TOKEN</code>,
+  <code>SECRET</code>, <code>PASSWORD</code>, <code>AUTH</code>, <code>..._KEY</code>) est masquée :
+  le panneau est aussi partageable qu'une capture d'écran de lui-même. <code>env_tab.mask_secrets:
+  false</code> montre les vraies valeurs.
+</p>
+
+<div class="note">
+  <p>
+    Quitter l'onglet <code>terminal</code> désarme le pass-through et le mode copie. L'offset de
+    défilement, lui, n'est pas remis à zéro : un aller-retour vous ramène là où vous en étiez.
+  </p>
+</div>
+
+<div class="warn">
+  <p>
+    <strong>Limite connue.</strong> On ne peut pas cliquer un onglet depuis le pass-through :
+    gocui consulte la gestion souris de la vue avant d'arriver à la barre d'onglets. Sortir du
+    pass-through d'abord (<kbd>Ctrl+B</kbd>) est de toute façon le préalable.
+  </p>
+</div>
+
+<h2 id="recherche">Recherche et copie</h2>
+
+<p>
+  <kbd>/</kbd> dans le panneau de sortie cherche dans l'historique, <kbd>n</kbd> et <kbd>N</kbd>
+  parcourent les occurrences, <kbd>Esc</kbd> sort. <kbd>v</kbd> démarre une sélection de lignes,
+  <kbd>y</kbd> (ou un second <kbd>v</kbd>) la copie.
+</p>
+
+<p>
+  La copie passe par <strong>OSC 52</strong>, c'est-à-dire par le terminal hôte : elle fonctionne
+  donc aussi à travers une connexion SSH. Il n'existe aucun moyen de détecter si un terminal
+  comprend OSC 52, donc pour ceux qui ne le comprennent pas, <code>clipboard.fallback_command</code>
+  est un interrupteur manuel : la commande est exécutée avec le texte sur son entrée standard.
+</p>
+
+<p>
+  Pendant qu'une application plein écran est aux commandes, le défilement dans l'historique — et
+  donc le mode copie, qui sélectionne dans ce même historique — est désactivé : l'écran alterné
+  n'alimente pas l'historique, et ces touches appartiennent à l'application.
+</p>
+
+<h2 id="diffusion">Diffusion (broadcast)</h2>
+
+<p>
+  Marquez deux sessions ou plus avec <kbd>b</kbd>, puis attachez-vous à l'une d'elles
+  (<kbd>i</kbd> / <kbd>Entrée</kbd>) : chaque frappe part désormais vers toutes à la fois, pas
+  seulement vers celle que vous regardez.
+</p>
+
+<div class="warn">
+  <p>
+    La barre d'état porte un avertissement <code>⚠ BROADCAST → N sessions</code> tant que le mode
+    est armé, devant tout ce qu'elle dirait autrement. C'est le seul état où une frappe anodine
+    peut atteindre plusieurs shells dans votre dos, donc il reste visible quoi qu'il arrive.
+  </p>
+</div>
+
+<p>
+  Démarquer une session (<kbd>b</kbd> à nouveau) la sort du lot ; la diffusion s'arrête d'elle-même
+  dès qu'il en reste moins de deux marquées.
+</p>
+
+<h2 id="souris">Souris</h2>
+
+<p>
+  Activée par défaut. Un clic sélectionne une session — c'est de la navigation, donc cela ne donne
+  <em>pas</em> le clavier au shell ; un double-clic, si. La molette fait défiler le contenu du
+  panneau de sortie, et jamais l'historique de commandes du shell : lazyshell traite la molette
+  lui-même au lieu de laisser le terminal la transformer en flèches, ce qui, à une invite,
+  rappellerait la commande précédente au lieu de défiler. Cliquer-glisser sélectionne des lignes,
+  puis <kbd>y</kbd> copie — relâcher le bouton ne copie rien tout seul.
+</p>
+
+<p>
+  Un programme dans une session ne reçoit la souris qu'une fois qu'il l'a demandée
+  (<code>vim</code> avec <code>set mouse=a</code>, <code>htop</code>) ; un shell ou une CLI d'agent
+  IA ne la demande jamais, donc la molette continue de faire défiler l'historique.
+  <code>mouse.forward_to_app: false</code> garde la souris pour lazyshell quoi qu'il arrive.
+</p>
+
+<div class="warn">
+  <p>
+    <strong>Le prix de la souris :</strong> <kbd>Shift+↑</kbd> et <kbd>Shift+↓</kbd> ne sont plus
+    transmis à une session. gocui donne à ces touches et aux boutons de la souris les mêmes
+    valeurs, donc les deux ne peuvent pas fonctionner ensemble — voir
+    <a href="https://github.com/thomas-gleizes/lazyshell/blob/main/docs/adr/0003-souris.md">l'ADR 0003</a>.
+    <code>mouse.enabled: false</code> les récupère, au prix des gestes ci-dessus.
+  </p>
+</div>
+
+<footer class="pagefoot">
+  <span>lazyshell — licence du dépôt</span>
+  <a href="https://github.com/thomas-gleizes/lazyshell">Code source</a>
+  <a href="https://github.com/thomas-gleizes/lazyshell/issues">Signaler un problème</a>
+  <a href="../en/usage.html">English</a>
+</footer>
+
+</main>
+</div>
+</body>
+</html>

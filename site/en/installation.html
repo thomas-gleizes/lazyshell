@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Installation — lazyshell</title>
+<meta name="description" content="Install lazyshell: prebuilt binary, go install, or building from source.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❯</text></svg>">
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">lazyshell</a>
+  <span class="spacer"></span>
+  <nav class="toplinks">
+    <a href="https://github.com/thomas-gleizes/lazyshell">GitHub</a>
+    <a href="https://github.com/thomas-gleizes/lazyshell/releases">Releases</a>
+    <a class="langswitch" href="../fr/installation.html">FR</a>
+  </nav>
+</header>
+
+<div class="shell">
+
+<aside class="sidebar">
+  <h2>Documentation</h2>
+  <ul>
+    <li><a href="index.html">Home</a></li>
+    <li><a class="current" href="installation.html">Installation</a></li>
+    <li><a href="usage.html">Usage</a></li>
+    <li><a href="configuration.html">Configuration</a></li>
+    <li><a href="agents.html">AI agent sessions</a></li>
+    <li><a href="project.html">Project configuration</a></li>
+    <li><a href="development.html">Development</a></li>
+  </ul>
+  <h2>On this page</h2>
+  <ul>
+    <li><a href="#requirements">Requirements</a></li>
+    <li><a href="#binary">Prebuilt binary</a></li>
+    <li><a href="#go-install">With Go</a></li>
+    <li><a href="#source">From source</a></li>
+    <li><a href="#verify">Verify the install</a></li>
+  </ul>
+</aside>
+
+<main>
+
+<h1>Installation</h1>
+<p class="lede">
+  Three routes, shortest first. None of them needs a system dependency: lazyshell is a single
+  self-contained binary.
+</p>
+
+<h2 id="requirements">Requirements</h2>
+
+<ul>
+  <li><strong>macOS or Linux.</strong> Windows is out of scope: no Unix pty.</li>
+  <li>A terminal with 256-colour support (sessions are told <code>xterm-256color</code> by default,
+    and that is configurable).</li>
+  <li>To build it yourself: Go, at the version pinned in <code>go.mod</code>.</li>
+</ul>
+
+<h2 id="binary">Prebuilt binary</h2>
+
+<p>
+  No Go toolchain needed: download the archive for your OS and architecture from the
+  <a href="https://github.com/thomas-gleizes/lazyshell/releases">releases page</a>, check it against
+  <code>checksums.txt</code>, then extract <code>lazyshell</code> into a directory on your
+  <code>PATH</code>.
+</p>
+
+<pre class="term"><code><span class="p">$</span> tar xzf lazyshell_&lt;os&gt;_&lt;arch&gt;.tar.gz
+<span class="p">$</span> sudo mv lazyshell /usr/local/bin/
+<span class="p">$</span> lazyshell --version</code></pre>
+
+<div class="note">
+  <p>
+    <strong>macOS.</strong> A binary downloaded outside the App Store is quarantined by Gatekeeper.
+    If launching is refused, allow the executable under <em>System Settings → Privacy &amp;
+    Security</em>, or clear the attribute:
+    <code>xattr -d com.apple.quarantine /usr/local/bin/lazyshell</code>.
+  </p>
+</div>
+
+<h2 id="go-install">With Go</h2>
+
+<pre class="term"><code><span class="p">$</span> go install github.com/thomas-gleizes/lazyshell/cmd/lazyshell@latest</code></pre>
+
+<p>
+  The binary lands in <code>$(go env GOPATH)/bin</code> — make sure that directory is on your
+  <code>PATH</code>. This route does not fill in the version metadata injected at release time, so
+  <code>lazyshell --version</code> will say less than it does for an official archive.
+</p>
+
+<h2 id="source">From source</h2>
+
+<pre class="term"><code><span class="p">$</span> git clone https://github.com/thomas-gleizes/lazyshell.git
+<span class="p">$</span> cd lazyshell
+<span class="p">$</span> make build   <span class="c"># produces ./bin/lazyshell</span></code></pre>
+
+<p>
+  <code>make build</code> is just shorthand for
+  <code>go build -o bin/lazyshell ./cmd/lazyshell</code>. See the
+  <a href="development.html">development page</a> for tests and the linter.
+</p>
+
+<h2 id="verify">Verify the install</h2>
+
+<pre class="term"><code><span class="p">$</span> lazyshell --version
+<span class="p">$</span> lazyshell config init   <span class="c"># writes a fully commented config file</span>
+<span class="p">$</span> lazyshell               <span class="c"># opens the interface</span></code></pre>
+
+<p>
+  On a first run the interface opens with no sessions at all: <kbd>n</kbd> creates one. If you
+  start lazyshell in a repository that carries a <code>lazyshell.yml</code>, it will first ask you
+  to approve that file — see <a href="project.html#approval">approving a project file</a>.
+</p>
+
+<footer class="pagefoot">
+  <span>lazyshell — see the repository for its licence</span>
+  <a href="https://github.com/thomas-gleizes/lazyshell">Source code</a>
+  <a href="https://github.com/thomas-gleizes/lazyshell/issues">Report an issue</a>
+  <a href="../fr/installation.html">Français</a>
+</footer>
+
+</main>
+</div>
+</body>
+</html>

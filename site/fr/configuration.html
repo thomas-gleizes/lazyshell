@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuration — lazyshell</title>
+<meta name="description" content="Fichier de configuration de lazyshell : emplacement, précédence, référence complète des options, thème et raccourcis remappables.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❯</text></svg>">
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">lazyshell</a>
+  <span class="spacer"></span>
+  <nav class="toplinks">
+    <a href="https://github.com/thomas-gleizes/lazyshell">GitHub</a>
+    <a href="https://github.com/thomas-gleizes/lazyshell/releases">Releases</a>
+    <a class="langswitch" href="../en/configuration.html">EN</a>
+  </nav>
+</header>
+
+<div class="shell">
+
+<aside class="sidebar">
+  <h2>Documentation</h2>
+  <ul>
+    <li><a href="index.html">Accueil</a></li>
+    <li><a href="installation.html">Installation</a></li>
+    <li><a href="utilisation.html">Utilisation</a></li>
+    <li><a class="current" href="configuration.html">Configuration</a></li>
+    <li><a href="agents.html">Sessions d'agents IA</a></li>
+    <li><a href="projet.html">Configuration de projet</a></li>
+    <li><a href="developpement.html">Développement</a></li>
+  </ul>
+  <h2>Sur cette page</h2>
+  <ul>
+    <li><a href="#ou">Où vit le fichier</a></li>
+    <li><a href="#precedence">Précédence</a></li>
+    <li><a href="#reference">Référence des options</a></li>
+    <li><a href="#touches">Spécifications de touches</a></li>
+    <li><a href="#couleurs">Couleurs</a></li>
+    <li><a href="#exemple">Exemple complet</a></li>
+  </ul>
+</aside>
+
+<main>
+
+<h1>Configuration</h1>
+<p class="lede">
+  <code>lazyshell config init</code> écrit un fichier entièrement commenté au bon endroit, et
+  <code>lazyshell config show</code> affiche la configuration réellement en vigueur — après que
+  chaque couche a eu son mot à dire — avec les sources dont elle provient. Cette seconde commande
+  est la réponse à « pourquoi mon réglage ne prend pas ».
+</p>
+
+<h2 id="ou">Où vit le fichier</h2>
+
+<p>lazyshell lit son fichier YAML au premier emplacement trouvé :</p>
+
+<ol>
+  <li><code>$LAZYSHELL_CONFIG</code>, s'il est défini</li>
+  <li><code>$XDG_CONFIG_HOME/lazyshell/config.yml</code></li>
+  <li><code>~/.config/lazyshell/config.yml</code></li>
+</ol>
+
+<p>
+  Un fichier absent n'est pas une erreur : lazyshell tourne avec ses valeurs par défaut. Un fichier
+  partiel n'a besoin de mentionner que les champs qu'il veut surcharger ; tout le reste garde sa
+  valeur par défaut.
+</p>
+
+<h2 id="precedence">Précédence</h2>
+
+<pre><code>valeurs par défaut  &lt;  ~/.config/lazyshell/config.yml  &lt;  lazyshell.yml du projet
+                    &lt;  variables d'environnement  &lt;  options de ligne de commande</code></pre>
+
+<div class="note">
+  <p>
+    <strong>Rien dans un fichier de configuration ne peut empêcher lazyshell de démarrer.</strong>
+    Une clé inconnue, une valeur hors bornes, un raccourci illisible ou une couleur inconnue sont
+    signalés sur la sortie d'erreur avant l'ouverture de l'interface, et la valeur par défaut est
+    utilisée à la place — jamais un silence, jamais un refus de démarrer.
+  </p>
+</div>
+
+<h2 id="reference">Référence des options</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Clé</th><th>Type</th><th>Défaut</th><th>Effet</th></tr></thead>
+  <tbody>
+    <tr><td><code>language</code></td><td><code>fr</code> | <code>en</code></td><td><code>fr</code></td><td>Langue de l'interface : raccourcis, popups, barre d'état, pieds de panneau et messages de session. La sortie CLI (<code>lazyshell config …</code>) reste en français.</td></tr>
+    <tr><td><code>shell</code></td><td>chaîne</td><td><code>""</code></td><td>Commande lancée derrière le pty de chaque session. Vide signifie <code>$SHELL</code>, à défaut <code>/bin/bash</code>.</td></tr>
+    <tr><td><code>term</code></td><td>chaîne</td><td><code>xterm-256color</code></td><td><code>TERM</code> annoncé aux sessions. Le baisser fait volontairement dégrader les programmes.</td></tr>
+    <tr><td><code>scrollback_size</code></td><td>entier ≥ 0</td><td><code>10000</code></td><td>Lignes conservées par session une fois sorties de l'écran.</td></tr>
+    <tr><td><code>sessions_panel_width</code></td><td>entier ≥ 5</td><td><code>40</code></td><td>Largeur de la liste des sessions, en colonnes, en mode paysage.</td></tr>
+    <tr><td><code>sessions_panel_height</code></td><td>entier ≥ 5</td><td><code>10</code></td><td>Hauteur de la liste des sessions, en lignes, en mode portrait.</td></tr>
+    <tr><td><code>portrait_max_width</code></td><td>entier</td><td><code>84</code></td><td>Le mode portrait s'applique à cette largeur de terminal ou en dessous…</td></tr>
+    <tr><td><code>portrait_min_height</code></td><td>entier</td><td><code>45</code></td><td>…et au-dessus de cette hauteur. Le portrait empile les panneaux au lieu de les juxtaposer.</td></tr>
+    <tr><td><code>refresh_interval_ms</code></td><td>entier, 10–1000</td><td><code>30</code></td><td>Période de redessin. Un panneau inchangé n'est jamais poussé, donc le coût au repos reste proche de zéro quelle que soit la valeur.</td></tr>
+    <tr><td><code>kill_timeout_ms</code></td><td>entier ≥ 100</td><td><code>2000</code></td><td>Attente après <code>SIGTERM</code> avant d'escalader en <code>SIGKILL</code>, puis avant d'abandonner.</td></tr>
+    <tr><td><code>prefix_key</code></td><td>spéc. de touche</td><td><code>Ctrl+B</code></td><td>Préfixe de sortie du pass-through. Doit être une touche de contrôle. <code>$LAZYSHELL_PREFIX</code> le surcharge.</td></tr>
+    <tr><td><code>keybindings</code></td><td>table</td><td>voir <a href="#touches">plus bas</a></td><td>Associe un identifiant d'action à une spécification de touche. Une action absente garde sa touche par défaut.</td></tr>
+    <tr><td><code>markers.bell</code></td><td>0–1 caractère</td><td><code>!</code></td><td>Marqueur d'une session ayant sonné pendant qu'elle était masquée. <code>""</code> le désactive.</td></tr>
+    <tr><td><code>markers.alt_screen</code></td><td>0–1 caractère</td><td><code>#</code></td><td>Marqueur d'une session où tourne une application plein écran.</td></tr>
+    <tr><td><code>markers.activity</code></td><td>0–1 caractère</td><td><code>●</code></td><td>Marqueur d'une session ayant produit de la sortie pendant qu'elle était masquée.</td></tr>
+    <tr><td><code>markers.broadcast</code></td><td>0–1 caractère</td><td><code>+</code></td><td>Marqueur d'une session marquée pour recevoir les frappes diffusées.</td></tr>
+    <tr><td><code>markers.agent_idle</code></td><td>0–1 caractère</td><td><code>·</code></td><td>Marqueur d'une session d'agent IA détectée, au repos.</td></tr>
+    <tr><td><code>markers.agent_working</code></td><td>0–1 caractère</td><td><code>…</code></td><td>Marqueur d'une session d'agent IA en train de travailler.</td></tr>
+    <tr><td><code>markers.agent_blocked</code></td><td>0–1 caractère</td><td><code>‼</code></td><td>Marqueur d'une session d'agent IA qui vous attend.</td></tr>
+    <tr><td><code>markers.agent_done</code></td><td>0–1 caractère</td><td><code>✓</code></td><td>Marqueur d'une session d'agent IA ayant terminé son tour.</td></tr>
+    <tr><td><code>scroll.page_lines</code></td><td>entier ≥ 0</td><td><code>0</code></td><td>Lignes parcourues par <kbd>PgUp</kbd>/<kbd>PgDn</kbd>. <code>0</code> signifie une hauteur de panneau complète.</td></tr>
+    <tr><td><code>scroll.half_page_divisor</code></td><td>entier ≥ 1</td><td><code>2</code></td><td><kbd>Ctrl+U</kbd>/<kbd>Ctrl+D</kbd> parcourent la hauteur du panneau divisée par cette valeur.</td></tr>
+    <tr><td><code>theme.active_border_color</code></td><td>couleur</td><td><code>green</code></td><td>Bordure du panneau ayant le focus.</td></tr>
+    <tr><td><code>theme.inactive_border_color</code></td><td>couleur</td><td><code>default</code></td><td>Bordure de tous les autres panneaux.</td></tr>
+    <tr><td><code>theme.selected_bg_color</code></td><td>couleur</td><td><code>blue</code></td><td>Fond de la ligne sélectionnée dans la liste des sessions.</td></tr>
+    <tr><td><code>theme.pass_through_border_color</code></td><td>couleur</td><td><code>red</code></td><td>Bordure du panneau ayant le focus pendant le pass-through.</td></tr>
+    <tr><td><code>theme.tab_active_color</code></td><td>couleur</td><td><code>green</code></td><td>Onglet sélectionné dans la barre d'onglets du panneau de sortie.</td></tr>
+    <tr><td><code>clipboard.fallback_command</code></td><td>chaîne</td><td><code>""</code></td><td>Commande exécutée avec le texte copié sur son entrée standard, à la place d'OSC 52, pour un terminal qui ne le gère pas. Il n'existe aucun moyen de détecter ce support : c'est un interrupteur manuel, vide signifie OSC 52 seul.</td></tr>
+    <tr><td><code>notify.fallback_command</code></td><td>chaîne</td><td><code>""</code></td><td>Commande exécutée avec le texte de la notification sur son entrée standard, à la place d'OSC 9/777, quand une session d'agent IA passe <em>bloquée</em> ou <em>terminée</em>. Vide signifie OSC seul.</td></tr>
+    <tr><td><code>window_title.enabled</code></td><td>booléen</td><td><code>true</code></td><td>Le titre de fenêtre / d'onglet du terminal hôte suit la session ayant le focus (son nom, plus son titre OSC 0/2 vivant s'il y en a un), via OSC 0.</td></tr>
+    <tr><td><code>mouse.enabled</code></td><td>booléen</td><td><code>true</code></td><td>Clic, molette et glissé. L'activer coûte le pass-through de <kbd>Shift+↑</kbd>/<kbd>Shift+↓</kbd> : gocui donne à ces touches et aux boutons de souris les mêmes valeurs, les deux ne peuvent pas coexister.</td></tr>
+    <tr><td><code>mouse.wheel_lines</code></td><td>entier ≥ 1</td><td><code>3</code></td><td>Lignes parcourues par un cran de molette dans le panneau de sortie.</td></tr>
+    <tr><td><code>mouse.forward_to_app</code></td><td>booléen</td><td><code>true</code></td><td>Un programme dans une session peut recevoir la souris, et seulement une fois qu'il l'a demandée par un DECSET 9/1000/1002/1003 (<code>vim</code> avec <code>set mouse=a</code>, <code>htop</code>). Un shell ou une CLI d'agent ne la demande jamais.</td></tr>
+    <tr><td><code>perf.refresh_interval_ms</code></td><td><code>0</code>, ou entier ≥ 100</td><td><code>5000</code></td><td>Fréquence d'échantillonnage des process de chaque session pour l'onglet <em>ressources</em>. Tourne en arrière-plan que l'onglet soit ouvert ou non, en une seule passe pour toutes les sessions. <code>0</code> coupe l'échantillonnage : c'est le seul travail périodique qui lance un process.</td></tr>
+    <tr><td><code>env_tab.mask_secrets</code></td><td>booléen</td><td><code>true</code></td><td>L'onglet <em>environnement</em> masque la valeur des variables dont le nom ressemble à un identifiant (<code>TOKEN</code>, <code>SECRET</code>, <code>PASSWORD</code>, <code>AUTH</code>, <code>..._KEY</code>).</td></tr>
+    <tr><td><code>agent_stats_command</code></td><td>chaîne</td><td><code>""</code></td><td>Exécutée pour la session d'agent IA sélectionnée, avec <code>$LAZYSHELL_SESSION_ID</code> dans son environnement ; sa première ligne de sortie est affichée à côté de la durée du tour. Vide la désactive.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="touches">Spécifications de touches</h2>
+
+<p>
+  Les spécifications suivent la syntaxe de <code>gocui.Parse</code> : un caractère nu
+  (<code>n</code>), ou <code>Ctrl+N</code>, <code>Alt+Space</code>, <code>Tab</code>,
+  <code>Esc</code>.
+</p>
+
+<p>Les identifiants d'action remappables sont :</p>
+
+<p>
+  <code>new_session</code>, <code>new_session_in_dir</code>, <code>kill_session</code>,
+  <code>delete_session</code>, <code>rename_session</code>, <code>duplicate_session</code>,
+  <code>restart_session</code>, <code>zoom</code>, <code>next_tab</code>, <code>prev_tab</code>,
+  <code>filter_sessions</code>, <code>export_session</code>, <code>toggle_broadcast</code>,
+  <code>jump_next_blocked</code>, <code>select_next</code>, <code>select_prev</code>,
+  <code>cycle_focus</code>, <code>help</code>, <code>quit</code>.
+</p>
+
+<p>Un identifiant hors de cette liste est signalé plutôt qu'ignoré.</p>
+
+<h2 id="couleurs">Couleurs</h2>
+
+<p>Les couleurs acceptent l'une des trois formes :</p>
+
+<ul>
+  <li>
+    un <strong>nom de couleur ANSI</strong> — <code>black</code>, <code>red</code>,
+    <code>green</code>, <code>yellow</code>, <code>blue</code>, <code>magenta</code>,
+    <code>cyan</code>, <code>white</code>, et chacun préfixé de <code>bright</code>
+    (<code>brightblue</code>, …). Ils suivent la palette de votre terminal ;
+  </li>
+  <li>
+    un <strong>nom de couleur W3C/CSS</strong> (<code>navy</code>, <code>teal</code>,
+    <code>chartreuse</code>, …) ou <code>#rrggbb</code>, pour une couleur précise plutôt qu'un
+    emplacement de palette ;
+  </li>
+  <li><code>default</code>, pour la couleur par défaut du terminal.</li>
+</ul>
+
+<div class="note">
+  <p>
+    Les deux jeux de noms se recouvrent et se contredisent : en CSS, <code>blue</code> vaut
+    <code>#0000FF</code>, que le terminal montre comme du bleu <em>vif</em>. lazyshell résout
+    d'abord les noms ANSI, donc <code>blue</code> vous donne le bleu ordinaire ; écrivez
+    <code>navy</code> pour celui du CSS, ou <code>brightblue</code> pour l'emplacement vif du
+    terminal.
+  </p>
+</div>
+
+<h2 id="exemple">Exemple complet</h2>
+
+<p>
+  Voici ce qu'écrit <code>lazyshell config init</code> — chaque option à sa valeur par défaut, donc
+  vous pouvez supprimer tout ce que vous ne changez pas.
+</p>
+
+<pre><code># ~/.config/lazyshell/config.yml
+
+language: fr
+shell: ""
+term: xterm-256color
+scrollback_size: 10000
+
+sessions_panel_width: 40
+sessions_panel_height: 10
+portrait_max_width: 84
+portrait_min_height: 45
+
+refresh_interval_ms: 30
+kill_timeout_ms: 2000
+
+prefix_key: Ctrl+B
+
+keybindings:
+  new_session: "n"
+  new_session_in_dir: "N"
+  kill_session: "x"
+  delete_session: "D"
+  rename_session: "r"
+  duplicate_session: "c"
+  restart_session: "R"
+  zoom: "z"
+  next_tab: "]"
+  prev_tab: "["
+  filter_sessions: "/"
+  export_session: "w"
+  toggle_broadcast: "b"
+  jump_next_blocked: "B"
+  select_next: "j"
+  select_prev: "k"
+  cycle_focus: Tab
+  help: "?"
+  quit: "q"
+
+markers:
+  bell: "!"
+  alt_screen: "#"
+  activity: "●"
+  broadcast: "+"
+  agent_idle: "·"
+  agent_working: "…"
+  agent_blocked: "‼"
+  agent_done: "✓"
+
+scroll:
+  page_lines: 0
+  half_page_divisor: 2
+
+theme:
+  active_border_color: green
+  inactive_border_color: default
+  selected_bg_color: blue
+  pass_through_border_color: red
+  tab_active_color: green
+
+clipboard:
+  fallback_command: ""
+
+notify:
+  fallback_command: ""
+
+window_title:
+  enabled: true
+
+mouse:
+  enabled: true
+  wheel_lines: 3
+  forward_to_app: true
+
+perf:
+  refresh_interval_ms: 5000
+
+env_tab:
+  mask_secrets: true
+
+agent_stats_command: ""</code></pre>
+
+<footer class="pagefoot">
+  <span>lazyshell — licence du dépôt</span>
+  <a href="https://github.com/thomas-gleizes/lazyshell">Code source</a>
+  <a href="https://github.com/thomas-gleizes/lazyshell/issues">Signaler un problème</a>
+  <a href="../en/configuration.html">English</a>
+</footer>
+
+</main>
+</div>
+</body>
+</html>

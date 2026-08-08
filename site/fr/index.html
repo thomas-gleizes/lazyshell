@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lazyshell — gestionnaire de sessions shell en TUI</title>
+<meta name="description" content="lazyshell est un gestionnaire de sessions shell façon tmux, avec une interface à deux panneaux dans l'esprit de lazygit et lazydocker.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❯</text></svg>">
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">lazyshell</a>
+  <span class="spacer"></span>
+  <nav class="toplinks">
+    <a href="https://github.com/thomas-gleizes/lazyshell">GitHub</a>
+    <a href="https://github.com/thomas-gleizes/lazyshell/releases">Releases</a>
+    <a class="langswitch" href="../en/index.html">EN</a>
+  </nav>
+</header>
+
+<div class="shell">
+
+<aside class="sidebar">
+  <h2>Documentation</h2>
+  <ul>
+    <li><a class="current" href="index.html">Accueil</a></li>
+    <li><a href="installation.html">Installation</a></li>
+    <li><a href="utilisation.html">Utilisation</a></li>
+    <li><a href="configuration.html">Configuration</a></li>
+    <li><a href="agents.html">Sessions d'agents IA</a></li>
+    <li><a href="projet.html">Configuration de projet</a></li>
+    <li><a href="developpement.html">Développement</a></li>
+  </ul>
+  <h2>Sur cette page</h2>
+  <ul>
+    <li><a href="#pourquoi">Pourquoi lazyshell</a></li>
+    <li><a href="#demarrage">Démarrage rapide</a></li>
+    <li><a href="#points-cles">Points clés</a></li>
+    <li><a href="#suite">Pour aller plus loin</a></li>
+  </ul>
+</aside>
+
+<main>
+
+<section class="hero">
+  <h1>lazyshell</h1>
+  <p class="tagline">
+    Un gestionnaire de sessions shell dans le terminal, façon <code>tmux</code>, avec l'interface
+    à deux panneaux de <code>lazygit</code> : la liste de vos sessions à gauche, la sortie vivante
+    de celle qui est sélectionnée à droite.
+  </p>
+  <div class="cta">
+    <a class="btn primary" href="installation.html">Installer</a>
+    <a class="btn" href="utilisation.html">Prendre en main</a>
+    <a class="btn" href="agents.html">Sessions d'agents IA</a>
+  </div>
+</section>
+
+<figure>
+  <img src="../assets/demo.gif" alt="Démonstration animée de lazyshell : liste de sessions à gauche, sortie du shell à droite">
+  <figcaption>Deux panneaux, des sessions qui continuent de tourner en arrière-plan.</figcaption>
+</figure>
+
+<h2 id="pourquoi">Pourquoi lazyshell</h2>
+
+<p>
+  Les sessions continuent de tourner en arrière-plan — leur historique préservé — même pendant que
+  vous en regardez une autre. Le panneau de sortie est un <strong>véritable émulateur de
+  terminal</strong> : <code>vim</code>, <code>htop</code> et <code>less</code> tournent
+  à l'intérieur d'une session, curseur et couleurs compris.
+</p>
+
+<p>
+  La différence avec <code>tmux</code> tient en une phrase : ici on ne mémorise pas une grammaire
+  de préfixes, on lit une liste. Chaque session est une ligne, avec son état, son PID, son
+  répertoire ou le titre que le shell a posé — et, pour une session d'agent IA, le fait qu'elle
+  <em>attend une réponse de votre part</em>.
+</p>
+
+<h2 id="demarrage">Démarrage rapide</h2>
+
+<pre class="term"><code><span class="c"># avec Go installé</span>
+<span class="p">$</span> go install github.com/thomas-gleizes/lazyshell/cmd/lazyshell@latest
+<span class="p">$</span> lazyshell</code></pre>
+
+<p>
+  Dans l'interface : <kbd>n</kbd> ouvre une session, <kbd>Tab</kbd> change de panneau,
+  <kbd>i</kbd> ou <kbd>Entrée</kbd> donne le clavier au shell, <kbd>Ctrl+B</kbd> le reprend,
+  <kbd>?</kbd> affiche l'aide complète et <kbd>q</kbd> quitte.
+  Les autres méthodes d'installation sont sur la <a href="installation.html">page dédiée</a>.
+</p>
+
+<h2 id="points-cles">Points clés</h2>
+
+<div class="cards">
+  <div class="card">
+    <h3>Sessions persistantes</h3>
+    <p>Changer de sélection n'arrête rien : le pty et le shell survivent, seul l'affichage est
+    recyclé. Une session sortie reste listée, prête à être relancée.</p>
+  </div>
+  <div class="card">
+    <h3>Vrai émulateur de terminal</h3>
+    <p>Écran alterné, couleurs, curseur, redimensionnement propagé au pty : les applications
+    plein écran fonctionnent réellement dans le panneau.</p>
+  </div>
+  <div class="card">
+    <h3>Agents IA de première classe</h3>
+    <p><code>claude</code>, <code>codex</code>, <code>opencode</code> sont détectés sans
+    configuration, et l'état <em>bloqué</em> / <em>terminé</em> remonte jusqu'à une notification
+    du terminal hôte.</p>
+  </div>
+  <div class="card">
+    <h3>Onglets par session</h3>
+    <p><em>terminal</em>, <em>ressources</em> (CPU, RSS, courbes) et <em>environnement</em> :
+    ce que le process consomme et avec quel environnement il a démarré, sans quitter lazyshell.</p>
+  </div>
+  <div class="card">
+    <h3>Configuration de projet</h3>
+    <p>Un <code>lazyshell.yml</code> versionné démarre les sessions d'un dépôt — chacune dans son
+    dossier, avec sa commande et ses fichiers <code>.env</code>. Approuvé une fois, jamais
+    silencieusement.</p>
+  </div>
+  <div class="card">
+    <h3>Souris, copie, recherche</h3>
+    <p>Clic, molette et glissé par défaut, copie via OSC 52, recherche dans l'historique, diffusion
+    d'un même clavier vers plusieurs sessions.</p>
+  </div>
+</div>
+
+<h2 id="suite">Pour aller plus loin</h2>
+
+<ul>
+  <li><a href="utilisation.html">Utilisation</a> — panneaux, raccourcis, onglets, souris, diffusion.</li>
+  <li><a href="configuration.html">Configuration</a> — emplacement du fichier, précédence, référence complète des options.</li>
+  <li><a href="agents.html">Sessions d'agents IA</a> — détection, hooks autoritaires, notifications.</li>
+  <li><a href="projet.html">Configuration de projet</a> — <code>lazyshell.yml</code>, fichiers <code>.env</code>, approbation.</li>
+  <li><a href="developpement.html">Développement</a> — construire, tester, et la structure du code.</li>
+</ul>
+
+<div class="note">
+  <p>
+    <strong>Plateformes.</strong> macOS et Linux. Windows est hors périmètre assumé : il n'y a pas
+    de pty Unix, et tout le rendu du panneau de sortie repose dessus.
+  </p>
+</div>
+
+<footer class="pagefoot">
+  <span>lazyshell — licence du dépôt</span>
+  <a href="https://github.com/thomas-gleizes/lazyshell">Code source</a>
+  <a href="https://github.com/thomas-gleizes/lazyshell/issues">Signaler un problème</a>
+  <a href="../en/index.html">English</a>
+</footer>
+
+</main>
+</div>
+</body>
+</html>

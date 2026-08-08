@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sessions d'agents IA — lazyshell</title>
+<meta name="description" content="Détection d'état des agents IA (Claude Code, Codex, opencode) dans lazyshell : manifestes, hooks autoritaires, notifications et statistiques de tour.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❯</text></svg>">
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">lazyshell</a>
+  <span class="spacer"></span>
+  <nav class="toplinks">
+    <a href="https://github.com/thomas-gleizes/lazyshell">GitHub</a>
+    <a href="https://github.com/thomas-gleizes/lazyshell/releases">Releases</a>
+    <a class="langswitch" href="../en/agents.html">EN</a>
+  </nav>
+</header>
+
+<div class="shell">
+
+<aside class="sidebar">
+  <h2>Documentation</h2>
+  <ul>
+    <li><a href="index.html">Accueil</a></li>
+    <li><a href="installation.html">Installation</a></li>
+    <li><a href="utilisation.html">Utilisation</a></li>
+    <li><a href="configuration.html">Configuration</a></li>
+    <li><a class="current" href="agents.html">Sessions d'agents IA</a></li>
+    <li><a href="projet.html">Configuration de projet</a></li>
+    <li><a href="developpement.html">Développement</a></li>
+  </ul>
+  <h2>Sur cette page</h2>
+  <ul>
+    <li><a href="#pourquoi">Le problème</a></li>
+    <li><a href="#detection">Détection sans configuration</a></li>
+    <li><a href="#manifestes">Manifestes personnalisés</a></li>
+    <li><a href="#hooks">État autoritaire par hooks</a></li>
+    <li><a href="#notifications">Notifications</a></li>
+    <li><a href="#stats">Durée de tour et stats</a></li>
+    <li><a href="#limites">Ce que lazyshell ne fait pas</a></li>
+  </ul>
+</aside>
+
+<main>
+
+<h1>Sessions d'agents IA</h1>
+<p class="lede">
+  Une session dont le process d'avant-plan est une CLI d'agent de code connue reçoit un marqueur
+  indiquant son état détecté — <em>au repos</em>, <em>en travail</em>, <em>bloquée</em> (elle vous
+  attend) ou <em>terminée</em> — au lieu du seul marqueur d'activité générique.
+</p>
+
+<h2 id="pourquoi">Le problème</h2>
+
+<p>
+  Le marqueur d'activité générique (<code>●</code>) ne sait pas distinguer « ça a produit de la
+  sortie » de « ça veut une réponse ». Avec trois agents ouverts, c'est exactement la distinction
+  dont on a besoin : deux d'entre eux travaillent tranquillement, le troisième attend une
+  autorisation depuis dix minutes.
+</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Marqueur</th><th>État</th><th>Signification</th></tr></thead>
+  <tbody>
+    <tr><td><code>·</code></td><td><code>idle</code></td><td>Agent détecté, au repos.</td></tr>
+    <tr><td><code>…</code></td><td><code>working</code></td><td>Un tour est en cours.</td></tr>
+    <tr><td><code>‼</code></td><td><code>blocked</code></td><td>L'agent attend une réponse de votre part.</td></tr>
+    <tr><td><code>✓</code></td><td><code>done</code></td><td>L'agent a fini son tour.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="detection">Détection sans configuration</h2>
+
+<p>
+  Les CLI <code>claude</code>, <code>codex</code> et <code>opencode</code> sont reconnues sans
+  aucun réglage : lazyshell confronte les manifestes intégrés (sous
+  <code>pkg/agent/manifests</code>) à l'écran visible de la session et au titre de terminal qu'elle
+  pose. Rien à installer, rien à déclarer.
+</p>
+
+<h2 id="manifestes">Manifestes personnalisés</h2>
+
+<p>
+  Déposez un fichier <code>&lt;nom-du-process&gt;.yml</code> dans
+  <code>~/.config/lazyshell/agents/</code> (ou l'équivalent <code>$XDG_CONFIG_HOME</code>) pour
+  surcharger un manifeste intégré, ou pour en ajouter un pour un autre agent : le même nom de
+  fichier qu'un manifeste intégré le remplace purement et simplement, un nom différent s'ajoute au
+  lot. Voir les manifestes intégrés pour le format.
+</p>
+
+<div class="note">
+  <p>Les manifestes sont <strong>locaux uniquement</strong> : lazyshell n'en télécharge jamais un
+  depuis le réseau.</p>
+</div>
+
+<h2 id="hooks">État autoritaire par hooks</h2>
+
+<p>
+  La détection par manifeste est une <em>déduction</em> à partir de ce qui est affiché. Un second
+  canal permet à l'agent de déclarer son état directement. Chaque session dispose de sa propre
+  socket Unix, exposée au process qui tourne dedans sous <code>$LAZYSHELL_SOCK</code> (à côté de
+  <code>$LAZYSHELL_SESSION_ID</code>), et <code>lazyshell hook &lt;état&gt;</code> — parmi
+  <code>idle</code>, <code>working</code>, <code>blocked</code> et <code>done</code> — y écrit.
+</p>
+
+<p>
+  Ce n'est pas fait pour être tapé à la main, mais branché dans le mécanisme de hooks de l'agent :
+</p>
+
+<pre class="term"><code><span class="p">$</span> lazyshell init --agents   <span class="c"># affiche la config à coller dans Claude Code / Codex</span></code></pre>
+
+<h3>Claude Code</h3>
+<p>Un bloc <code>hooks</code> dans <code>settings.json</code> :</p>
+<ul>
+  <li><code>UserPromptSubmit</code> → <code>lazyshell hook working</code></li>
+  <li><code>Notification</code> → <code>lazyshell hook blocked</code></li>
+  <li><code>Stop</code> → <code>lazyshell hook done</code></li>
+</ul>
+
+<h3>Codex</h3>
+<p>
+  Une ligne <code>notify</code> dans <code>config.toml</code>. Codex n'a qu'un seul événement
+  (<code>agent-turn-complete</code>), il ne peut donc jamais rapporter que <code>done</code>.
+</p>
+
+<h3>opencode</h3>
+<p>
+  Pas encore branché : son signal le plus riche est un abonnement SSE plutôt que quelque chose
+  qu'il pousse de lui-même — une forme d'intégration différente, laissée pour plus tard.
+</p>
+
+<div class="note">
+  <p>
+    Dès qu'une session a reçu <strong>un seul</strong> événement de hook, la déduction par
+    manifeste s'arrête définitivement pour cette session : le hook fait autorité à partir de là,
+    et pas seulement jusqu'au prochain changement d'écran.
+  </p>
+</div>
+
+<h2 id="notifications">Notifications</h2>
+
+<p>
+  Une session qui passe <code>blocked</code> ou <code>done</code> déclenche une notification de
+  bureau : OSC 9 et OSC 777 vers le terminal hôte par défaut — les deux sont envoyés sans
+  condition, un terminal qui n'en comprend qu'un ignore l'autre — ou bien la commande de
+  <code>notify.fallback_command</code>, avec le texte de la notification sur son entrée standard,
+  pour un terminal qui en a besoin.
+</p>
+
+<p>
+  Au-delà de deux ou trois sessions d'agent ouvertes, <kbd>B</kbd> déplace la sélection directement
+  vers la prochaine session <code>blocked</code>, en boucle : c'est le point du marqueur et de la
+  notification réunis.
+</p>
+
+<h2 id="stats">Durée de tour et statistiques</h2>
+
+<p>
+  Une session en plein tour (<code>working</code>) affiche depuis combien de temps ce tour tourne,
+  dans la liste des sessions — par exemple <code>⏱ 1m32s</code>.
+</p>
+
+<p>
+  Renseigner <code>agent_stats_command</code> exécute cette commande pour la session
+  <strong>sélectionnée seulement</strong> (au plus une fois toutes les 5 secondes : c'est prévu
+  pour une recherche de coût ou de tokens, pas pour quelque chose d'assez léger pour tourner par
+  session à chaque tick), avec <code>$LAZYSHELL_SESSION_ID</code> dans son environnement, et
+  affiche sa première ligne de sortie à côté de la durée — la même forme « commande externe, on
+  montre sa ligne » que le <code>statusLine</code> de Claude Code.
+</p>
+
+<pre><code># ~/.config/lazyshell/config.yml
+agent_stats_command: "~/bin/mon-compteur-de-tokens.sh"</code></pre>
+
+<h2 id="limites">Ce que lazyshell ne fait pas</h2>
+
+<ul>
+  <li>
+    <strong>Il ne compte pas les tokens.</strong> Aucun format d'agent n'est analysé pour cela ;
+    <code>agent_stats_command</code> est le point d'extension prévu.
+  </li>
+  <li>
+    <strong>Il n'appelle jamais l'agent par la socket.</strong> Le canal est entrant et déclaratif
+    uniquement : lazyshell écoute, et la seule chose qu'un événement de hook peut faire est de
+    fixer cet unique état.
+  </li>
+  <li>
+    <strong>Il n'y a pas d'API de contrôle.</strong> Un agent ne peut pas créer de panneau ni lire
+    la sortie d'une autre session — décision délibérée : le process à l'autre bout n'est pas de
+    confiance, et un verbe sortant serait une surface d'exécution.
+  </li>
+</ul>
+
+<footer class="pagefoot">
+  <span>lazyshell — licence du dépôt</span>
+  <a href="https://github.com/thomas-gleizes/lazyshell">Code source</a>
+  <a href="https://github.com/thomas-gleizes/lazyshell/issues">Signaler un problème</a>
+  <a href="../en/agents.html">English</a>
+</footer>
+
+</main>
+</div>
+</body>
+</html>

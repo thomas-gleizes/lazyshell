@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuration de projet — lazyshell</title>
+<meta name="description" content="Déclarer les sessions d'un dépôt dans un lazyshell.yml : commandes, répertoires, fichiers .env et approbation.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❯</text></svg>">
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">lazyshell</a>
+  <span class="spacer"></span>
+  <nav class="toplinks">
+    <a href="https://github.com/thomas-gleizes/lazyshell">GitHub</a>
+    <a href="https://github.com/thomas-gleizes/lazyshell/releases">Releases</a>
+    <a class="langswitch" href="../en/project.html">EN</a>
+  </nav>
+</header>
+
+<div class="shell">
+
+<aside class="sidebar">
+  <h2>Documentation</h2>
+  <ul>
+    <li><a href="index.html">Accueil</a></li>
+    <li><a href="installation.html">Installation</a></li>
+    <li><a href="utilisation.html">Utilisation</a></li>
+    <li><a href="configuration.html">Configuration</a></li>
+    <li><a href="agents.html">Sessions d'agents IA</a></li>
+    <li><a class="current" href="projet.html">Configuration de projet</a></li>
+    <li><a href="developpement.html">Développement</a></li>
+  </ul>
+  <h2>Sur cette page</h2>
+  <ul>
+    <li><a href="#principe">Principe</a></li>
+    <li><a href="#exemple">Exemple</a></li>
+    <li><a href="#perimetre">Ce qui est lu, ce qui ne l'est pas</a></li>
+    <li><a href="#env">Fichiers .env</a></li>
+    <li><a href="#fichier">Quel fichier est utilisé</a></li>
+    <li><a href="#approbation">Approuver un fichier de projet</a></li>
+  </ul>
+</aside>
+
+<main>
+
+<h1>Configuration de projet</h1>
+<p class="lede">
+  Lancez <code>lazyshell</code> dans un dossier contenant un <code>lazyshell.yml</code> et il
+  démarre les sessions que ce fichier déclare — chacune dans son répertoire, avec son environnement
+  et sa commande — au lieu de s'ouvrir vide.
+</p>
+
+<h2 id="principe">Principe</h2>
+
+<p>
+  <code>lazyshell init</code> écrit un point de départ commenté dans le répertoire courant. Les
+  sessions démarrent dans l'ordre du fichier, et la première est sélectionnée. Une entrée qui ne
+  valide pas (<code>name</code> vide ou dupliqué, <code>cwd</code> manquant) est ignorée et
+  signalée dans la barre d'état — les autres démarrent quand même.
+</p>
+
+<h2 id="exemple">Exemple</h2>
+
+<pre><code># ./lazyshell.yml
+
+# Optionnel : surcharge le shell de la config utilisateur, pour ce projet seulement.
+shell: /bin/zsh
+
+# Optionnel : fichiers .env chargés pour toutes les sessions ci-dessous, dans
+# l'ordre — un fichier plus loin surcharge une clé posée par un précédent.
+env_files:
+  - .env
+  - .env.local
+
+sessions:
+  - name: api
+    # Relatif à *ce fichier*, pas au dossier depuis lequel vous avez lancé
+    # lazyshell. « ~ » est développé. Absent, il vaut le dossier de ce fichier.
+    cwd: ./services/api
+    # Tapée dans le shell une fois qu'il est prêt, pas exécutée à sa place :
+    # quand la commande se termine (ou que vous faites Ctrl-C), le shell est
+    # toujours là.
+    command: make dev
+    env:
+      PORT: "3000"
+    # Optionnel : en plus des env_files ci-dessus, pour cette session seulement.
+    env_files:
+      - .env.api
+
+  - name: web
+    cwd: ./web
+    command: npm run dev
+
+  - name: shell          # sans commande : un shell nu dans le dossier du projet</code></pre>
+
+<h2 id="perimetre">Ce qui est lu, ce qui ne l'est pas</h2>
+
+<div class="warn">
+  <p>
+    <strong>Seuls <code>shell</code>, <code>env_files</code>, <code>no_default_env</code> et
+    <code>sessions</code> sont lus dans un fichier de projet.</strong> <code>theme</code>,
+    <code>keybindings</code>, <code>prefix_key</code> et le reste restent sous votre seul
+    contrôle : un dépôt que vous avez cloné ne doit pas pouvoir remapper votre clavier. Les autres
+    clés sont ignorées, avec un avertissement sur la sortie d'erreur.
+  </p>
+</div>
+
+<h2 id="env">Fichiers .env</h2>
+
+<p>
+  Toute session — déclarée dans un fichier de projet ou non — charge automatiquement un
+  <code>.env</code> depuis son propre répertoire de travail, s'il y en a un. Par-dessus, chaque
+  couche surcharge celle d'avant :
+</p>
+
+<ol>
+  <li><code>&lt;cwd de la session&gt;/.env</code>, automatique, sauf désactivation (voir plus bas)</li>
+  <li><code>--env-file &lt;chemin&gt;</code> (répétable, s'applique à toutes les sessions démarrées par ce lancement)</li>
+  <li>les <code>env_files:</code> du projet (toutes les sessions déclarées)</li>
+  <li>les <code>env_files:</code> d'une session (cette session seulement)</li>
+  <li>la table <code>env:</code> de cette session — elle gagne toujours, sur tous les fichiers</li>
+</ol>
+
+<p>Pour couper la recherche automatique de <code>&lt;cwd&gt;/.env</code> :</p>
+
+<ul>
+  <li><code>--no-env-file</code> — toutes les sessions démarrées par ce lancement ;</li>
+  <li><code>no_default_env: true</code> en tête d'un fichier de projet — toutes les sessions qu'il déclare ;</li>
+  <li>ou sur une seule entrée de session — cette session seulement, ce qui surcharge le réglage du projet dans un sens comme dans l'autre.</li>
+</ul>
+
+<h2 id="fichier">Quel fichier est utilisé</h2>
+
+<ol>
+  <li><code>--config-file &lt;fichier&gt;</code> (<code>-f</code>)</li>
+  <li><code>$LAZYSHELL_PROJECT_CONFIG</code></li>
+  <li><code>./lazyshell.yml</code></li>
+  <li><code>./.lazyshell.yml</code></li>
+</ol>
+
+<p>
+  Seul le répertoire courant est fouillé — pas de remontée jusqu'à la racine du dépôt, de sorte que
+  le fichier qui s'exécute est toujours celui que vous voyez.
+</p>
+
+<h2 id="approbation">Approuver un fichier de projet</h2>
+
+<p>
+  Un <code>lazyshell.yml</code> est versionné dans un dépôt : sans garde-fou, il exécuterait des
+  commandes arbitraires à la seconde où vous entrez dans un clone. lazyshell demande donc une fois,
+  avant l'ouverture de l'interface, et retient la réponse par fichier — puis redemande dès que le
+  contenu du fichier change.
+</p>
+
+<pre class="term"><code><span class="p">$</span> lazyshell allow            <span class="c"># approuve le fichier du dossier courant, sans rien lancer</span>
+<span class="p">$</span> lazyshell allow ./x.yml    <span class="c"># approuve un fichier précis</span>
+<span class="p">$</span> lazyshell --no-autostart   <span class="c"># ouvre l'interface sans rien démarrer</span>
+<span class="p">$</span> lazyshell --env-file .env.prod   <span class="c"># fichier .env supplémentaire, pour ce lancement</span>
+<span class="p">$</span> lazyshell --no-env-file          <span class="c"># ignore le « &lt;cwd&gt;/.env » automatique</span></code></pre>
+
+<p>
+  Les approbations vivent dans un <code>trust.yml</code> à côté de votre configuration
+  utilisateur. Quand l'entrée standard n'est pas un terminal, l'approbation est
+  <strong>refusée</strong> plutôt que supposée.
+</p>
+
+<footer class="pagefoot">
+  <span>lazyshell — licence du dépôt</span>
+  <a href="https://github.com/thomas-gleizes/lazyshell">Code source</a>
+  <a href="https://github.com/thomas-gleizes/lazyshell/issues">Signaler un problème</a>
+  <a href="../en/project.html">English</a>
+</footer>
+
+</main>
+</div>
+</body>
+</html>

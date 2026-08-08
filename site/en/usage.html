@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Usage — lazyshell</title>
+<meta name="description" content="Panels, keybindings, reading the session list, tabs, broadcast, mouse, search and copy in lazyshell.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❯</text></svg>">
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">lazyshell</a>
+  <span class="spacer"></span>
+  <nav class="toplinks">
+    <a href="https://github.com/thomas-gleizes/lazyshell">GitHub</a>
+    <a href="https://github.com/thomas-gleizes/lazyshell/releases">Releases</a>
+    <a class="langswitch" href="../fr/utilisation.html">FR</a>
+  </nav>
+</header>
+
+<div class="shell">
+
+<aside class="sidebar">
+  <h2>Documentation</h2>
+  <ul>
+    <li><a href="index.html">Home</a></li>
+    <li><a href="installation.html">Installation</a></li>
+    <li><a class="current" href="usage.html">Usage</a></li>
+    <li><a href="configuration.html">Configuration</a></li>
+    <li><a href="agents.html">AI agent sessions</a></li>
+    <li><a href="project.html">Project configuration</a></li>
+    <li><a href="development.html">Development</a></li>
+  </ul>
+  <h2>On this page</h2>
+  <ul>
+    <li><a href="#panels">The two panels</a></li>
+    <li><a href="#keys-sessions">Keys — sessions panel</a></li>
+    <li><a href="#keys-output">Keys — output panel</a></li>
+    <li><a href="#focus">Who holds the keyboard</a></li>
+    <li><a href="#list">Reading the sessions list</a></li>
+    <li><a href="#tabs">Output panel tabs</a></li>
+    <li><a href="#search">Search and copy</a></li>
+    <li><a href="#broadcast">Broadcast</a></li>
+    <li><a href="#mouse">Mouse</a></li>
+  </ul>
+</aside>
+
+<main>
+
+<h1>Usage</h1>
+<p class="lede">
+  Run <code>lazyshell</code> in a terminal. <kbd>Tab</kbd> switches focus between the sessions
+  panel and the output panel; <kbd>?</kbd> opens, at any time, a help popup listing every binding
+  in effect — including the ones you have remapped.
+</p>
+
+<h2 id="panels">The two panels</h2>
+
+<p>
+  On the left, the <strong>sessions list</strong>: one line per session, with its state. On the
+  right, the <strong>output panel</strong>: the live screen of the selected session. On a narrow
+  terminal the layout switches to <em>portrait mode</em> and stacks the two panels instead of
+  splitting them side by side (thresholds: <code>portrait_max_width</code> and
+  <code>portrait_min_height</code>).
+</p>
+
+<p>
+  Each panel also carries its most-used keys on the bottom line of its frame. The list shortens to
+  whatever fits the panel's width, and the output panel's adapts to what it is doing: only the way
+  out of pass-through while pass-through is on, no scrolling hint while a full-screen application
+  has the session.
+</p>
+
+<h2 id="keys-sessions">Keys — sessions panel</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Key</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td><kbd>q</kbd> / <kbd>Ctrl+C</kbd></td><td>Quit lazyshell</td></tr>
+    <tr><td><kbd>Tab</kbd></td><td>Switch the active panel</td></tr>
+    <tr><td><kbd>?</kbd></td><td>Show the help</td></tr>
+    <tr><td><kbd>j</kbd> / <kbd>↓</kbd></td><td>Next session</td></tr>
+    <tr><td><kbd>k</kbd> / <kbd>↑</kbd></td><td>Previous session</td></tr>
+    <tr><td><kbd>n</kbd></td><td>New session</td></tr>
+    <tr><td><kbd>N</kbd></td><td>New session in a chosen directory</td></tr>
+    <tr><td><kbd>c</kbd></td><td>Duplicate the selected session</td></tr>
+    <tr><td><kbd>r</kbd></td><td>Rename the selected session</td></tr>
+    <tr><td><kbd>R</kbd></td><td>Restart an exited session</td></tr>
+    <tr><td><kbd>x</kbd> / <kbd>d</kbd></td><td>Kill the selected session</td></tr>
+    <tr><td><kbd>D</kbd></td><td>Delete the session for good (removed from the panel)</td></tr>
+    <tr><td><kbd>w</kbd></td><td>Export the session's scrollback to a file</td></tr>
+    <tr><td><kbd>b</kbd></td><td>Mark / unmark the session for broadcast</td></tr>
+    <tr><td><kbd>B</kbd></td><td>Jump to the next <em>blocked</em> agent session</td></tr>
+    <tr><td><kbd>/</kbd></td><td>Filter the sessions list</td></tr>
+    <tr><td><kbd>z</kbd></td><td>Zoom: the output panel takes the whole screen</td></tr>
+    <tr><td><kbd>[</kbd> / <kbd>]</kbd></td><td>Previous / next output panel tab</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="keys-output">Keys — output panel</h2>
+
+<p>While the <strong>output panel</strong> is focused, these apply instead:</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Key</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td><kbd>i</kbd> / <kbd>Enter</kbd></td><td>Hand the keyboard to the shell (pass-through mode)</td></tr>
+    <tr><td><kbd>Ctrl+B</kbd> <span style="color:var(--text-faint)">(configurable)</span></td><td>Take the keyboard back from pass-through</td></tr>
+    <tr><td><kbd>PgUp</kbd> / <kbd>PgDn</kbd></td><td>Scroll one screen through the scrollback</td></tr>
+    <tr><td><kbd>Ctrl+U</kbd> / <kbd>Ctrl+D</kbd></td><td>Scroll half a screen</td></tr>
+    <tr><td><kbd>/</kbd></td><td>Search the scrollback; <kbd>n</kbd> / <kbd>N</kbd> for the next / previous match</td></tr>
+    <tr><td><kbd>v</kbd></td><td>Start (or extend) a line selection — copy mode</td></tr>
+    <tr><td><kbd>y</kbd> or a second <kbd>v</kbd></td><td>Copy the selection (OSC 52, or the configured fallback command)</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Leave the search, or cancel the selection in progress</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="focus">Who holds the keyboard</h2>
+
+<p>
+  That is the central question of the interface, and lazyshell never switches mode on its own —
+  except at the two moments where the intent is unambiguous:
+</p>
+
+<ul>
+  <li>
+    <strong>Starting a session</strong> (<kbd>n</kbd>, <kbd>N</kbd>, <kbd>c</kbd>) or
+    <strong>restarting</strong> one (<kbd>R</kbd>) lands you straight inside it: the output panel
+    takes the focus and pass-through is armed, so you can type immediately. <kbd>Ctrl+B</kbd> gets
+    the keyboard back.
+  </li>
+  <li>
+    <strong>A shell that ends on its own</strong> — <code>exit</code>, <kbd>Ctrl+D</kbd>, or
+    whatever it was running finishing — takes the interface with it: pass-through is disarmed and
+    focus goes back to the sessions panel, on that same session. It stays selected and listed,
+    exited, so <kbd>R</kbd> restarts it and <kbd>x</kbd> / <kbd>D</kbd> disposes of it.
+  </li>
+</ul>
+
+<p>
+  Moving the selection with <kbd>j</kbd> / <kbd>k</kbd> is navigation and <em>never</em> does this.
+  Nothing happens behind a popup: a confirmation or the help keeps the focus it has.
+</p>
+
+<h2 id="list">Reading the sessions list</h2>
+
+<p>
+  Each session is one line: a four-column gutter, then its name, status, PID, and either the
+  terminal title the shell set (usually the running command) or its working directory.
+</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Marker</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>!</code></td><td>The session rang the bell while you were looking elsewhere. Cleared when you select it.</td></tr>
+    <tr><td><code>#</code></td><td>A full-screen application (<code>vim</code>, <code>htop</code>, <code>less</code>) has the session. Shown as <code>[ALT]</code> in the status bar for the selected one.</td></tr>
+    <tr><td><code>●</code></td><td>The session produced output while it wasn't the one on screen. Cleared when you select it.</td></tr>
+    <tr><td><code>+</code></td><td>The session is marked for broadcast — see below.</td></tr>
+    <tr><td><code>·</code> <code>…</code> <code>‼</code> <code>✓</code></td><td>State of an <a href="agents.html">AI agent</a> session: idle, working, blocked (waiting on you), done.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Every marker is configurable, and one set to <code>""</code> disappears — see
+<a href="configuration.html#reference">the reference</a>.</p>
+
+<h2 id="tabs">Output panel tabs</h2>
+
+<p>
+  The output panel carries three tabs, switched with <kbd>[</kbd> / <kbd>]</kbd> or by clicking the
+  title bar:
+</p>
+
+<h3><code>terminal</code></h3>
+<p>The session's live screen: the default tab, and the only one where pass-through exists.</p>
+
+<h3><code>resources</code></h3>
+<p>
+  What the session is consuming: CPU percentage, resident memory, threads, disk I/O — with a
+  sparkline next to each number and a four-line braille graph for the foreground process's CPU.
+  The measured scope is the shell <strong>plus</strong> the foreground process group leader, never
+  the whole tree: what you are looking at is <code>claude</code> or <code>vim</code>, not
+  <code>bash</code>.
+</p>
+<p>
+  Sampling runs <strong>in the background for every session</strong>, whether the tab is open or
+  not (<code>perf.refresh_interval_ms</code>): a curve is only worth looking at if it goes back
+  further than the moment you opened it. Whatever an OS cannot answer is marked
+  <em>unavailable</em>, never reported as zero — on macOS, thread count and disk I/O are in that
+  category.
+</p>
+
+<h3><code>environment</code></h3>
+<p>
+  The session's environment <strong>at launch time</strong>, sorted and scrollable. By default the
+  value of variables whose <em>name</em> looks like a credential (<code>TOKEN</code>,
+  <code>SECRET</code>, <code>PASSWORD</code>, <code>AUTH</code>, <code>..._KEY</code>) is masked:
+  the panel is as shareable as a screenshot of it. <code>env_tab.mask_secrets: false</code> shows
+  the real values.
+</p>
+
+<div class="note">
+  <p>
+    Leaving the <code>terminal</code> tab disarms pass-through and copy mode. The scrollback offset
+    is <em>not</em> reset, though: a round trip returns you where you left off.
+  </p>
+</div>
+
+<div class="warn">
+  <p>
+    <strong>Known limitation.</strong> You cannot click a tab from pass-through: gocui consults the
+    view's mouse handling before reaching the tab bar. Leaving pass-through first
+    (<kbd>Ctrl+B</kbd>) is a prerequisite anyway.
+  </p>
+</div>
+
+<h2 id="search">Search and copy</h2>
+
+<p>
+  <kbd>/</kbd> in the output panel searches the scrollback, <kbd>n</kbd> and <kbd>N</kbd> walk the
+  matches, <kbd>Esc</kbd> leaves. <kbd>v</kbd> starts a line selection and <kbd>y</kbd> (or a
+  second <kbd>v</kbd>) copies it.
+</p>
+
+<p>
+  Copying goes through <strong>OSC 52</strong>, that is, through the host terminal — so it works
+  across an SSH connection too. There is no way to detect whether a terminal supports OSC 52, so
+  for the ones that don't, <code>clipboard.fallback_command</code> is a manual switch: the command
+  is run with the yanked text on its stdin.
+</p>
+
+<p>
+  While a full-screen application is in control, scrolling back through history — and copy mode,
+  which selects out of that same history — is disabled: the alternate screen does not feed the
+  scrollback, and those keys belong to the application.
+</p>
+
+<h2 id="broadcast">Broadcast</h2>
+
+<p>
+  Mark two or more sessions with <kbd>b</kbd>, then attach to any one of them (<kbd>i</kbd> /
+  <kbd>Enter</kbd>): every keystroke now goes to all of them at once, not just the one you're
+  looking at.
+</p>
+
+<div class="warn">
+  <p>
+    The status bar carries a <code>⚠ BROADCAST → N sessions</code> warning the whole time it is
+    armed, in front of whatever else it would otherwise say. This is the one state where a
+    keystroke you don't expect to matter can reach several shells behind your back, so it stays
+    visible no matter what.
+  </p>
+</div>
+
+<p>
+  Unmark a session (<kbd>b</kbd> again) to drop it out; broadcasting stops on its own once fewer
+  than two remain marked.
+</p>
+
+<h2 id="mouse">Mouse</h2>
+
+<p>
+  On by default. Click a session to select it — that's navigation, so it does <em>not</em> hand the
+  keyboard to the shell; double-click does. The wheel scrolls the output panel's content, and never
+  the shell's command history: lazyshell handles the wheel itself instead of letting the terminal
+  turn it into arrow keys, which at a prompt would recall the previous command instead of
+  scrolling. Click and drag to select lines, then <kbd>y</kbd> to copy — releasing the button
+  copies nothing on its own.
+</p>
+
+<p>
+  A program inside a session gets the mouse only once it asks for it (<code>vim</code> with
+  <code>set mouse=a</code>, <code>htop</code>); a shell or an AI agent CLI never asks, so the wheel
+  keeps scrolling the scrollback. Set <code>mouse.forward_to_app: false</code> to keep the mouse
+  for lazyshell regardless.
+</p>
+
+<div class="warn">
+  <p>
+    <strong>What the mouse costs:</strong> <kbd>Shift+↑</kbd> and <kbd>Shift+↓</kbd> are no longer
+    forwarded to a session. gocui gives those keys and the mouse buttons the same values, so they
+    cannot both work — see
+    <a href="https://github.com/thomas-gleizes/lazyshell/blob/main/docs/adr/0003-souris.md">ADR 0003</a>.
+    Set <code>mouse.enabled: false</code> to get them back, at the price of the gestures above.
+  </p>
+</div>
+
+<footer class="pagefoot">
+  <span>lazyshell — see the repository for its licence</span>
+  <a href="https://github.com/thomas-gleizes/lazyshell">Source code</a>
+  <a href="https://github.com/thomas-gleizes/lazyshell/issues">Report an issue</a>
+  <a href="../fr/utilisation.html">Français</a>
+</footer>
+
+</main>
+</div>
+</body>
+</html>
