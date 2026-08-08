@@ -172,7 +172,12 @@ func (gui *Gui) layout(g *gocui.Gui) error {
 	gui.propagateResize(g)
 	gui.reflowOutputOnResize()
 
-	return nil
+	// Last, and after every layout view has been placed: the debug overlay is
+	// not a box in the tree, it is drawn on top of the output panel and reads
+	// that panel's freshly computed frame to know where to sit. Creating it
+	// here also puts it last in gocui's view list, which is what keeps it
+	// above the output panel on every subsequent frame.
+	return gui.renderDebugPanel(g)
 }
 
 // reflowOutputOnResize restarts the output render task when the panel's width
@@ -187,6 +192,12 @@ func (gui *Gui) reflowOutputOnResize() {
 	if width == gui.lastOutputWidth {
 		return
 	}
+
+	// Logged from here rather than from propagateResize, which runs on every
+	// layout pass: this is the one place that already knows the panel's width
+	// actually changed, so the log gets one line per resize instead of ~33 a
+	// second.
+	gui.debug.Event("output panel width %d → %d", gui.lastOutputWidth, width)
 
 	gui.lastOutputWidth = width
 
@@ -203,6 +214,8 @@ func (gui *Gui) reflowOutputOnResize() {
 // longer exists to receive its own binding once zoomed).
 func (gui *Gui) toggleZoom(g *gocui.Gui, _ *gocui.View) error {
 	gui.zoomed = !gui.zoomed
+
+	gui.debug.Event("zoom now %t", gui.zoomed)
 
 	if gui.zoomed {
 		_, err := g.SetCurrentView(outputViewName)

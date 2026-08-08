@@ -360,6 +360,21 @@ func AgentsDir() string {
 	return filepath.Join(dir, "agents")
 }
 
+// DebugLogPath resolves the file --debug appends to:
+// $XDG_CONFIG_HOME/lazyshell/debug.log, else ~/.config/lazyshell/debug.log —
+// next to config.yml, so there is a single lazyshell directory to know about.
+// Shares AgentsDir's reasoning for ignoring $LAZYSHELL_CONFIG: that variable
+// names one file, not a directory to derive others from. Empty when the home
+// directory cannot be determined, which pkg/debug reports as an error.
+func DebugLogPath() string {
+	dir := configDir()
+	if dir == "" {
+		return ""
+	}
+
+	return filepath.Join(dir, "debug.log")
+}
+
 // configDir is lazyshell's config directory, shared by Path and AgentsDir:
 // $XDG_CONFIG_HOME/lazyshell, else ~/.config/lazyshell.
 func configDir() string {

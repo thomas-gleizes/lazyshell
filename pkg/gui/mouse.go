@@ -102,7 +102,10 @@ func (gui *Gui) setMouseBindings(g *gocui.Gui) error {
 	}
 
 	for _, binding := range gui.mouseBindings() {
-		if err := g.SetViewClickBinding(binding); err != nil {
+		// Same instrumentation point as setKeybindings' loop, for the other
+		// registry — loggedMouse hands the binding straight back when --debug
+		// is off.
+		if err := g.SetViewClickBinding(gui.loggedMouse(binding)); err != nil {
 			return err
 		}
 	}

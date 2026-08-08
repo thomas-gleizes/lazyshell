@@ -85,6 +85,10 @@ var messages = map[string]map[string]string{
 		"fr": "Sauter à la prochaine session bloquée",
 		"en": "Jump to the next blocked session",
 	},
+	"action.toggle_debug": {
+		"fr": "Afficher ou masquer le panneau de debug",
+		"en": "Show or hide the debug panel",
+	},
 	"action.next_tab": {
 		"fr": "Onglet suivant du panneau de sortie",
 		"en": "Next output panel tab",
@@ -197,6 +201,14 @@ var messages = map[string]map[string]string{
 		"en": "No environment variables",
 	},
 
+	"debug.title": {
+		"fr": " debug ",
+		"en": " debug ",
+	},
+	"debug.empty": {
+		"fr": "aucun évènement pour l'instant",
+		"en": "no events yet",
+	},
 	"help.title": {
 		"fr": " aide ",
 		"en": " help ",

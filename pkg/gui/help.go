@@ -12,15 +12,48 @@ import (
 
 const helpViewName = "help"
 
-// keyDisplayNames renders the non-printable keys used in bindings() as short
-// human labels for the help popup. Only covers what bindings() actually uses
-// plus Ctrl-A..Z (reachable through config-driven remaps) — this is a display
-// helper, not a general key-naming table like pkg/keys'.
+// keyDisplayNames renders non-printable keys as short human labels, for the
+// help popup and for --debug's key log (pkg/gui/debug_trace.go). It covers
+// what bindings() uses, what a config-driven remap can reach (Ctrl-A..Z is
+// handled by the range test in keyLabel rather than listed here), and the keys
+// a user actually presses at a terminal — the debug log is the one caller that
+// sees arbitrary keys, and "key(32)" for the space bar is not an answer.
+//
+// Three of these share a value with a Ctrl key (Tab/Ctrl-I, Enter/Ctrl-M,
+// Esc/Ctrl-[) and win over it, which is the right way round: those are the
+// names of the keys people press.
+//
+// Still a display helper, not a general key-naming table like pkg/keys'.
 var keyDisplayNames = map[gocui.Key]string{
-	gocui.KeyCtrlC:     "Ctrl-C",
-	gocui.KeyTab:       "Tab",
-	gocui.KeyArrowUp:   "↑",
-	gocui.KeyArrowDown: "↓",
+	gocui.KeyCtrlC:      "Ctrl-C",
+	gocui.KeyTab:        "Tab",
+	gocui.KeyEnter:      "Enter",
+	gocui.KeyEsc:        "Esc",
+	gocui.KeySpace:      "Space",
+	gocui.KeyBackspace:  "Backspace",
+	gocui.KeyBackspace2: "Backspace",
+	gocui.KeyDelete:     "Delete",
+	gocui.KeyInsert:     "Insert",
+	gocui.KeyHome:       "Home",
+	gocui.KeyEnd:        "End",
+	gocui.KeyPgup:       "PgUp",
+	gocui.KeyPgdn:       "PgDn",
+	gocui.KeyArrowUp:    "↑",
+	gocui.KeyArrowDown:  "↓",
+	gocui.KeyArrowLeft:  "←",
+	gocui.KeyArrowRight: "→",
+	gocui.KeyF1:         "F1",
+	gocui.KeyF2:         "F2",
+	gocui.KeyF3:         "F3",
+	gocui.KeyF4:         "F4",
+	gocui.KeyF5:         "F5",
+	gocui.KeyF6:         "F6",
+	gocui.KeyF7:         "F7",
+	gocui.KeyF8:         "F8",
+	gocui.KeyF9:         "F9",
+	gocui.KeyF10:        "F10",
+	gocui.KeyF11:        "F11",
+	gocui.KeyF12:        "F12",
 }
 
 // keyLabel renders a Binding's resolved key/modifier as a short human label,

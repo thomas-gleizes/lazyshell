@@ -270,6 +270,23 @@ func (gui *Gui) staticBindings() []Binding {
 			Description: gui.tr.T("action.jump_next_blocked"),
 			Enabled:     hasSessions,
 		},
+		// Global, and declared whether or not --debug was given: bindings() has
+		// to be a constant list, since the help popup, knownActions() and the
+		// README doc-tests all read it. Enabled is what keeps it out of the
+		// help popup when the mode is off, and the handler no-ops there.
+		//
+		// A global binding with ch == 0 fires even while the output view is
+		// Editable, so F12 also works during pass-through — wanted, that is
+		// when you most need to get the output panel back. The cost, stated in
+		// the README: F12 no longer reaches the session.
+		{
+			Action:      "toggle_debug",
+			Key:         gocui.KeyF12,
+			Modifier:    gocui.ModNone,
+			Handler:     gui.toggleDebugPanel,
+			Description: gui.tr.T("action.toggle_debug"),
+			Enabled:     func(gui *Gui) bool { return gui.debug != nil },
+		},
 	}
 }
 
@@ -355,7 +372,20 @@ func (gui *Gui) setKeybindings(g *gocui.Gui) error {
 	for _, b := range gui.bindings() {
 		key, mod := gui.resolveBinding(b)
 
-		if err := g.SetKeybinding(b.ViewName, key, mod, b.Handler); err != nil {
+		// This loop is the single place every declared handler is registered,
+		// which makes it the one place --debug can instrument all of them at
+		// once — see logged.
+		name := b.Action
+		if name == "" {
+			// The fixed alternates (arrows, Ctrl-C, the second key of a pair)
+			// carry no action id, so the description is the only thing that
+			// identifies them in a log.
+			name = b.Description
+		}
+
+		handler := gui.logged(name, b.ViewName, keyLabel(key, mod), b.Handler)
+
+		if err := g.SetKeybinding(b.ViewName, key, mod, handler); err != nil {
 			return err
 		}
 	}

@@ -70,6 +70,7 @@ les raccourcis ci-dessous.
 | `N` | Nouvelle session dans un dossier choisi |
 | `w` | Exporter le scrollback de la session sélectionnée vers un fichier |
 | `b` | Marquer/démarquer la session pour la diffusion (broadcast) |
+| `F12` | Afficher/masquer le panneau de debug (ne fait quelque chose qu'avec `--debug`) |
 
 Quand c'est le **panneau de sortie** qui a le focus, ce sont ces touches-ci qui
 s'appliquent :
@@ -249,7 +250,8 @@ ou `brightblue` pour l'emplacement vif du terminal.
 Les identifiants d'action remappables sont `new_session`, `new_session_in_dir`,
 `kill_session`, `delete_session`, `rename_session`, `duplicate_session`,
 `restart_session`, `zoom`, `filter_sessions`, `export_session`,
-`toggle_broadcast`, `jump_next_blocked`, `select_next`, `select_prev`,
+`toggle_broadcast`, `jump_next_blocked`, `next_tab`, `prev_tab`,
+`toggle_debug`, `select_next`, `select_prev`,
 `cycle_focus`, `help` et `quit`. Un identifiant hors de cette liste est signalé
 plutôt qu'ignoré.
 
@@ -291,6 +293,7 @@ keybindings:
   export_session: "w"
   toggle_broadcast: "b"
   jump_next_blocked: "B"
+  toggle_debug: F12
   select_next: "j"
   select_prev: "k"
   cycle_focus: Tab
@@ -503,6 +506,44 @@ lazyshell --no-env-file          # ignore le "<cwd>/.env" automatique de chaque 
 
 Les approbations vivent dans `trust.yml` à côté de la config utilisateur. Quand
 stdin n'est pas un terminal, l'approbation est refusée plutôt que supposée.
+
+## Mode debug
+
+Une fois que lazyshell tient le terminal, il n'y a plus nulle part où écrire :
+stderr est inutilisable et la barre de statut fait une ligne. `--debug` est le
+moyen de voir ce que l'interface croit qu'il se passe.
+
+```sh
+lazyshell --debug
+```
+
+Il fait deux choses à la fois. Il écrit à la suite de
+`~/.config/lazyshell/debug.log` — à côté de `config.yml`, en `0600`, jamais
+tronqué, pour pouvoir comparer deux lancements — et il ouvre un petit panneau
+en haut à droite du panneau de sortie qui affiche les derniers évènements en
+direct. `F12` masque et réaffiche ce panneau ; le fichier continue d'être écrit
+dans les deux cas.
+
+Trois sortes de lignes sont enregistrées :
+
+| Étiquette | Ce que c'est |
+| --- | --- |
+| `KEY` | Une frappe telle que le panneau de sortie l'a reçue : son nom, les valeurs brutes `key`/`ch`/`mod`, ce que `Normalize` en a fait quand les deux diffèrent, et le mode dans lequel elle a atterri (pass-through, défilement, mode copie, recherche, un onglet) |
+| `ACT` | Une action qui est partie — un raccourci clavier, un geste souris, ou une des branches que l'éditeur du panneau de sortie traite lui-même |
+| `EVT` | Session créée / tuée / terminée, transitions d'état d'un agent, changements de sélection et d'onglet, redimensionnements |
+
+Deux choses à savoir avant de lire un log :
+
+- **Les touches ne sont enregistrées que pour le panneau de sortie.** gocui
+  n'offre aucun hook clavier global : une touche pressée sur le panneau des
+  sessions apparaît en ligne `ACT` si elle est liée, et pas du tout sinon.
+- **`F12` n'atteint plus la session** tant que lazyshell tourne, mode debug ou
+  non — c'est un raccourci global. Remapper `toggle_debug` dans la config si
+  quelque chose que vous lancez en a besoin.
+
+Le fichier contient toutes les frappes tapées dans un shell, y compris à
+l'invite de mot de passe d'un programme qui ne coupe pas l'écho. C'est la
+raison du `0600` ; le supprimer une fois qu'on n'en a plus besoin.
 
 ## Développement
 

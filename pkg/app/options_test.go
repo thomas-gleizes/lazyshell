@@ -12,7 +12,7 @@ func TestParseArgsDefaults(t *testing.T) {
 		t.Fatalf("ParseArgs: %v", err)
 	}
 
-	if inv.Command != CommandRun || inv.ConfigFile != "" || inv.NoAutostart {
+	if inv.Command != CommandRun || inv.ConfigFile != "" || inv.NoAutostart || inv.Debug {
 		t.Errorf("ParseArgs(nil) = %+v, want the plain run invocation", inv)
 	}
 }
@@ -46,6 +46,31 @@ func TestParseArgsNoAutostart(t *testing.T) {
 
 	if !inv.NoAutostart {
 		t.Error("NoAutostart = false, want true")
+	}
+}
+
+func TestParseArgsDebug(t *testing.T) {
+	inv, err := ParseArgs([]string{"--debug"})
+	if err != nil {
+		t.Fatalf("ParseArgs: %v", err)
+	}
+
+	if !inv.Debug {
+		t.Error("Debug = false, want true")
+	}
+}
+
+// The flag alone must not be enough to open a log file: openDebugLog is what
+// decides that, and it has to stay a no-op when the flag is absent so a normal
+// run never touches ~/.config.
+func TestOpenDebugLogIsOffWithoutTheFlag(t *testing.T) {
+	dbg, err := openDebugLog(Options{})
+	if err != nil {
+		t.Fatalf("openDebugLog: %v", err)
+	}
+
+	if dbg != nil {
+		t.Errorf("openDebugLog(Options{}) = %v, want nil", dbg)
 	}
 }
 

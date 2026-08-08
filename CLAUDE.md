@@ -61,10 +61,14 @@ pkg/
   session/        SessionManager: CRUD (New, Kill, List); Session{cmd, ptmx, scrollback, status};
                   Env() (launch-time) and Stats() (per-OS CPU/RSS/disk sampling)
   screen/         terminal emulator backing the output panel (vim/htop/less support)
-  gui/            gocui init, layout, keybindings, mouse, panels, tabs, help, theme, notify, stats
+  gui/            gocui init, layout, keybindings, mouse, panels, tabs, help, theme, notify, stats,
+                  debug_panel/debug_trace (the --debug overlay and its instrumentation points)
   tasks/          TaskManager (display/reading goroutines only)
   agent/          AI agent state detection (config-free + hooks-driven)
   hook/           authoritative hooks channel for agent sessions
+  debug/          --debug's recorder: append-only log file + ring of recent entries. A nil
+                  *Logger is the "off" state and every method is nil-safe, which is what lets
+                  pkg/gui call gui.debug.Key/Action/Event with no guard at the call site
   config/         user config + project config (`lazyshell.yml`) loading
   keys/           keybinding definitions
   i18n/           strings/translations

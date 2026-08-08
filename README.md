@@ -69,6 +69,7 @@ to open an in-app help popup listing every binding below.
 | `N` | New session in a directory you pick |
 | `w` | Export the selected session's scrollback to a file |
 | `b` | Mark/unmark the session for broadcast |
+| `F12` | Show/hide the debug panel (only does something under `--debug`) |
 
 While the **output panel** is focused, these apply instead:
 
@@ -243,7 +244,8 @@ terminal shows as *bright* blue. lazyshell resolves the ANSI names first, so
 The remappable action ids are `new_session`, `new_session_in_dir`,
 `kill_session`, `delete_session`, `rename_session`, `duplicate_session`,
 `restart_session`, `zoom`, `filter_sessions`, `export_session`,
-`toggle_broadcast`, `jump_next_blocked`, `select_next`, `select_prev`,
+`toggle_broadcast`, `jump_next_blocked`, `next_tab`, `prev_tab`,
+`toggle_debug`, `select_next`, `select_prev`,
 `cycle_focus`, `help` and `quit`. An id outside
 that list is reported rather than ignored.
 
@@ -285,6 +287,7 @@ keybindings:
   export_session: "w"
   toggle_broadcast: "b"
   jump_next_blocked: "B"
+  toggle_debug: F12
   select_next: "j"
   select_prev: "k"
   cycle_focus: Tab
@@ -492,6 +495,43 @@ lazyshell --no-env-file          # skip every session's automatic "<cwd>/.env"
 
 Approvals live in `trust.yml` next to your user config. When stdin is not a
 terminal, approval is refused rather than assumed.
+
+## Debug mode
+
+Once lazyshell owns the terminal there is nowhere left to print: stderr is
+gone and the status bar is one line. `--debug` is the way to see what the
+interface thinks is happening.
+
+```sh
+lazyshell --debug
+```
+
+It does two things at once. It appends to
+`~/.config/lazyshell/debug.log` — next to `config.yml`, `0600`, never
+truncated, so two runs can be compared — and it opens a small panel in the
+output panel's top-right corner showing the last events live. `F12` hides and
+shows that panel; the file keeps being written either way.
+
+Three kinds of line are recorded:
+
+| Tag | What it is |
+| --- | --- |
+| `KEY` | A keystroke as the output panel received it: its name, the raw `key`/`ch`/`mod` values, what `Normalize` made of them when the two differ, and which mode it landed in (pass-through, scroll, copy-mode, search, a tab) |
+| `ACT` | An action that fired — a keybinding, a mouse gesture, or one of the branches the output panel's editor handles itself |
+| `EVT` | Session created / killed / exited, agent state transitions, selection and tab changes, panel resizes |
+
+Two things worth knowing before you read a log:
+
+- **Keys are only recorded for the output panel.** gocui offers no global
+  keyboard hook, so a key pressed on the sessions panel shows up as an `ACT`
+  line if it is bound, and not at all if it is not.
+- **`F12` no longer reaches the session** while lazyshell is running, debug
+  mode or not — it is a global binding. Remap `toggle_debug` in your config if
+  something you run needs it.
+
+The log contains every keystroke typed into a shell, including at a password
+prompt of a program that does not turn echo off. It is written `0600` for that
+reason; delete it when you are done with it.
 
 ## Development
 

@@ -4,7 +4,9 @@ package gui
 
 import (
 	"fmt"
-	"runtime/debug"
+	// Aliased so the name "debug" stays free for lazyshell's own pkg/debug,
+	// which this file references far more often than it does a panic stack.
+	rtdebug "runtime/debug"
 	"sync"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 
 	"github.com/thomas-gleizes/lazyshell/pkg/agent"
 	"github.com/thomas-gleizes/lazyshell/pkg/config"
+	"github.com/thomas-gleizes/lazyshell/pkg/debug"
 	"github.com/thomas-gleizes/lazyshell/pkg/i18n"
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 	"github.com/thomas-gleizes/lazyshell/pkg/tasks"
@@ -234,6 +237,20 @@ type Gui struct {
 	// a new one of the other kind.
 	lastInfo string
 
+	// debug is --debug's recorder (pkg/debug), nil when the flag was not
+	// given — which is the "debug mode off" state, not a missing dependency.
+	// Every method on it is nil-safe, so call sites all through the input path
+	// write gui.debug.Key(...) with no guard, the same way gui.tr.T is used.
+	// Set once by SetDebug before Run and never written again, so it needs no
+	// mutex even though it is read from every goroutine.
+	debug *debug.Logger
+	// debugPanelVisible is whether the floating debug panel is currently
+	// drawn (F12 / the toggle_debug action). Independent from gui.debug being
+	// set: hiding the panel does not stop the file from being written. Same
+	// concurrency rule as passThroughActive above — only ever touched from
+	// gocui's own goroutine.
+	debugPanelVisible bool
+
 	// PauseBackgroundThreads stops the periodic tasks started by goEvery, for
 	// when the terminal is handed over to another process.
 	PauseBackgroundThreads bool
@@ -317,6 +334,16 @@ func (gui *Gui) SetStartupError(msg string) {
 	gui.lastError = msg
 }
 
+// SetDebug turns the debug mode on with the recorder pkg/app opened for
+// --debug, and shows its panel straight away — a flag whose effect you have to
+// go and find is a flag that gets passed twice. Must be called before Run,
+// like SetStartupError; passing nil (the flag was not given) leaves everything
+// off. Hiding the panel afterwards does not stop the recording.
+func (gui *Gui) SetDebug(logger *debug.Logger) {
+	gui.debug = logger
+	gui.debugPanelVisible = logger != nil
+}
+
 // StartupError reports what SetStartupError recorded, so pkg/app's bootstrap
 // tests can assert on what the user will be told without standing up a
 // terminal.
@@ -376,7 +403,7 @@ func (gui *Gui) Run() (err error) {
 	// print on a sane terminal.
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("panic: %v\n\n%s", r, debug.Stack())
+			err = fmt.Errorf("panic: %v\n\n%s", r, rtdebug.Stack())
 		}
 	}()
 	defer g.Close()

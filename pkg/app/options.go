@@ -57,6 +57,12 @@ type Options struct {
 	// NoEnvFile is --no-env-file: skip the automatic "<cwd>/.env" lookup
 	// entirely, for every session this run creates.
 	NoEnvFile bool
+	// Debug is --debug: record every keystroke, action and lifecycle event to
+	// config.DebugLogPath() and show the last of them in a floating panel over
+	// the output panel (F12 toggles it). Off by default and deliberately not a
+	// config key: it is a "I am chasing something right now" switch, not a
+	// preference, and the log holds everything typed into a shell.
+	Debug bool
 }
 
 // envFileFlag collects every occurrence of the repeatable --env-file flag, in
@@ -101,6 +107,8 @@ Options :
       --env-file <fichier>      charge un fichier .env supplémentaire (répétable, le dernier gagne)
       --no-env-file             ne charge pas automatiquement le .env du dossier courant
       --agents                  avec init : affiche la config de hooks au lieu du fichier de projet
+      --debug                   journalise touches, actions et évènements et affiche un panneau
+                                 de debug (F12 pour le masquer)
       --version                 affiche la version et quitte
 `
 
@@ -133,6 +141,7 @@ func ParseArgs(args []string) (Invocation, error) {
 	fs.BoolVar(&inv.NoEnvFile, "no-env-file", false, "ne charge pas automatiquement le .env du dossier courant")
 	fs.BoolVar(&inv.Version, "version", false, "affiche la version et quitte")
 	fs.BoolVar(&inv.Agents, "agents", false, "avec init : affiche la config de hooks des agents IA")
+	fs.BoolVar(&inv.Debug, "debug", false, "journalise touches et actions dans un fichier et un panneau")
 
 	if err := fs.Parse(args); err != nil {
 		return inv, fmt.Errorf("%w\n\n%s", err, usage)

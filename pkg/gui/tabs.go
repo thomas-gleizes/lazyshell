@@ -1,6 +1,8 @@
 package gui
 
 import (
+	"fmt"
+
 	"github.com/jesseduffield/gocui"
 	"github.com/rivo/uniseg"
 )
@@ -33,6 +35,23 @@ const (
 	// it counts so adding a fourth tab is one edit, not two.
 	outputTabCount = 3
 )
+
+// String names a tab for the debug log (pkg/gui/debug_trace.go). Deliberately
+// not translated and not routed through tabLabels: a log is read against the
+// source, so it wants the constant's own name, at full length, whatever
+// language the interface is in and however narrow the panel currently is.
+func (t outputTab) String() string {
+	switch t {
+	case tabTerminal:
+		return "terminal"
+	case tabResources:
+		return "resources"
+	case tabEnvironment:
+		return "environment"
+	default:
+		return fmt.Sprintf("tab(%d)", int(t))
+	}
+}
 
 // tabSeparator is what gocui joins the strip with. Not configurable — it is
 // hardcoded in drawTitle — but tabLabels has to know its width to work out
@@ -133,6 +152,8 @@ func (gui *Gui) setTab(tab outputTab) {
 	if tab == gui.outputTab {
 		return
 	}
+
+	gui.debug.Event("tab %s → %s", gui.outputTab, tab)
 
 	gui.outputTab = tab
 	gui.tabOffset = 0

@@ -44,6 +44,7 @@
     <li><a href="#recherche">Recherche et copie</a></li>
     <li><a href="#diffusion">Diffusion (broadcast)</a></li>
     <li><a href="#souris">Souris</a></li>
+    <li><a href="#debug">Mode debug</a></li>
   </ul>
 </aside>
 
@@ -97,6 +98,7 @@
     <tr><td><kbd>/</kbd></td><td>Filtrer la liste des sessions</td></tr>
     <tr><td><kbd>z</kbd></td><td>Zoom : le panneau de sortie prend tout l'écran</td></tr>
     <tr><td><kbd>[</kbd> / <kbd>]</kbd></td><td>Onglet précédent / suivant du panneau de sortie</td></tr>
+    <tr><td><kbd>F12</kbd></td><td>Afficher / masquer le panneau de debug (ne fait quelque chose qu'avec <code>--debug</code>)</td></tr>
   </tbody>
 </table>
 </div>
@@ -291,6 +293,52 @@
     valeurs, donc les deux ne peuvent pas fonctionner ensemble — voir
     <a href="https://github.com/thomas-gleizes/lazyshell/blob/main/docs/adr/0003-souris.md">l'ADR 0003</a>.
     <code>mouse.enabled: false</code> les récupère, au prix des gestes ci-dessus.
+  </p>
+</div>
+
+<h2 id="debug">Mode debug</h2>
+
+<p>
+  Une fois que lazyshell tient le terminal, il n'y a plus nulle part où écrire : stderr est
+  inutilisable et la barre de statut fait une ligne. <code>--debug</code> est le moyen de voir ce
+  que l'interface croit qu'il se passe.
+</p>
+
+<pre><code>lazyshell --debug</code></pre>
+
+<p>
+  Il fait deux choses à la fois. Il écrit à la suite de
+  <code>~/.config/lazyshell/debug.log</code> — à côté de <code>config.yml</code>, en
+  <code>0600</code>, jamais tronqué, pour pouvoir comparer deux lancements — et il ouvre un petit
+  panneau en haut à droite du panneau de sortie qui affiche les derniers évènements en direct.
+  <kbd>F12</kbd> le masque et le réaffiche ; le fichier continue d'être écrit dans les deux cas.
+</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Étiquette</th><th>Ce que c'est</th></tr></thead>
+  <tbody>
+    <tr><td><code>KEY</code></td><td>Une frappe telle que le panneau de sortie l'a reçue : son nom, les valeurs brutes <code>key</code>/<code>ch</code>/<code>mod</code>, ce que la normalisation en a fait quand les deux diffèrent, et le mode dans lequel elle a atterri</td></tr>
+    <tr><td><code>ACT</code></td><td>Une action qui est partie — un raccourci clavier, un geste souris, ou une des branches que l'éditeur du panneau de sortie traite lui-même</td></tr>
+    <tr><td><code>EVT</code></td><td>Session créée / tuée / terminée, transitions d'état d'un agent, changements de sélection et d'onglet, redimensionnements</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  Deux choses à savoir avant de lire un log. <strong>Les touches ne sont enregistrées que pour le
+  panneau de sortie</strong> : gocui n'offre aucun hook clavier global, donc une touche pressée sur
+  le panneau des sessions apparaît en ligne <code>ACT</code> si elle est liée, et pas du tout
+  sinon. Et <strong><kbd>F12</kbd> n'atteint plus la session</strong> tant que lazyshell tourne,
+  mode debug ou non — c'est un raccourci global ; remapper <code>toggle_debug</code> si quelque
+  chose que vous lancez en a besoin.
+</p>
+
+<div class="warn">
+  <p>
+    Le fichier contient toutes les frappes tapées dans un shell, y compris à l'invite de mot de
+    passe d'un programme qui ne coupe pas l'écho. C'est la raison du <code>0600</code> ; le
+    supprimer une fois qu'on n'en a plus besoin.
   </p>
 </div>
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/thomas-gleizes/lazyshell/pkg/agent"
 	"github.com/thomas-gleizes/lazyshell/pkg/config"
+	"github.com/thomas-gleizes/lazyshell/pkg/debug"
 	"github.com/thomas-gleizes/lazyshell/pkg/gui"
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 	"github.com/thomas-gleizes/lazyshell/pkg/version"
@@ -22,6 +23,9 @@ import (
 type App struct {
 	sessions *session.Manager
 	gui      *gui.Gui
+	// debug is --debug's recorder, nil when the flag was not given. Every
+	// method of *debug.Logger is nil-safe, so nothing downstream tests it.
+	debug *debug.Logger
 }
 
 // Main is the whole command: parse the arguments, then either run a
@@ -89,6 +93,11 @@ func newApp(opts Options, approve approver, errOut io.Writer) *App {
 
 	startupErrs := checkConfig(&cfg, errOut)
 
+	dbg, debugErr := openDebugLog(opts)
+	if debugErr != nil {
+		startupErrs = append(startupErrs, debugErr)
+	}
+
 	cfg, pcfg, projectErrs := loadProject(opts, cfg, errOut)
 	startupErrs = append(startupErrs, projectErrs...)
 
@@ -129,9 +138,29 @@ func newApp(opts Options, approve approver, errOut io.Writer) *App {
 	}
 
 	g := gui.New(sessions, cfg)
+	g.SetDebug(dbg)
 	g.SetStartupError(joinErrors(startupErrs))
 
-	return &App{sessions: sessions, gui: g}
+	return &App{sessions: sessions, gui: g, debug: dbg}
+}
+
+// openDebugLog honours --debug. A log file that cannot be opened is reported
+// like every other bootstrap problem and lazyshell starts anyway, without the
+// debug mode: an unwritable ~/.config must not be the reason a session manager
+// refuses to run.
+func openDebugLog(opts Options) (*debug.Logger, error) {
+	if !opts.Debug {
+		return nil, nil
+	}
+
+	dbg, err := debug.New(config.DebugLogPath())
+	if err != nil {
+		return nil, fmt.Errorf("--debug : %w", err)
+	}
+
+	dbg.Event("lazyshell %s started — debug log at %s", version.Version, dbg.Path())
+
+	return dbg, nil
 }
 
 // checkConfig runs every validation the user configuration is subject to, in
@@ -217,6 +246,9 @@ func joinErrors(errs []error) string {
 // before Run returns: there is no detach in the MVP, everything dies with
 // lazyshell.
 func (a *App) Run() error {
+	// Registered before Shutdown so LIFO runs it last: anything the teardown
+	// logs still lands in the file. No-op when --debug was not given.
+	defer func() { _ = a.debug.Close() }()
 	defer a.sessions.Shutdown()
 
 	return a.gui.Run()

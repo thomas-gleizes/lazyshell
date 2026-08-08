@@ -43,6 +43,8 @@ func (gui *Gui) watchSelectedExit() error {
 		return nil
 	}
 
+	gui.debug.Event("session %s (%s) exited on its own", sess.Name(), sess.ID)
+
 	gui.g.Update(gui.backOutOfExitedSession)
 
 	return nil

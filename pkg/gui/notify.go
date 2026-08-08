@@ -37,6 +37,8 @@ func (gui *Gui) checkAgentNotifications() error {
 			continue
 		}
 
+		gui.debug.Event("agent state %s: %v → %v", sess.Name(), last, state)
+
 		if state == agent.StateBlocked || state == agent.StateDone {
 			gui.notifyAgentState(sess, state)
 		}

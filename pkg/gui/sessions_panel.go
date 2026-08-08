@@ -456,6 +456,8 @@ func (gui *Gui) onSelectionChanged() {
 	gui.clearSearch()
 
 	if sess := gui.selectedSession(); sess != nil {
+		gui.debug.Event("selection → %s (%s)", sess.Name(), sess.ID)
+
 		// Looking at a session is what acknowledges its bell and its activity:
 		// both markers exist to say "this one moved while you were elsewhere".
 		sess.Screen().ClearBell()
@@ -477,6 +479,8 @@ func (gui *Gui) newSession(*gocui.Gui, *gocui.View) error {
 		return gui.reportSessionError(err)
 	}
 
+	gui.debug.Event("session %s created (%s)", name, gui.defaultShell())
+
 	gui.lastError = ""
 	gui.lastInfo = ""
 
@@ -491,6 +495,8 @@ func (gui *Gui) killSession(*gocui.Gui, *gocui.View) error {
 	}
 
 	return gui.showConfirm(gui.tr.T("sessions.kill_confirm", sess.Name()), func() error {
+		gui.debug.Event("session %s (%s) killed", sess.Name(), sess.ID)
+
 		return gui.sessions.Kill(sess.ID)
 	})
 }

@@ -115,8 +115,18 @@ func (gui *Gui) editOutput(view *gocui.View, key gocui.Key, ch rune, mod gocui.M
 	// no mouse event at all, so a MouseLeft-valued key can only be a genuine
 	// Shift-Down and must go through.
 	if gui.mouse.Enabled && gocui.IsMouseKey(key) {
+		// Logged separately and not through logKeyEvent: naming this value is
+		// exactly what must not happen here (it is MouseLeft *and*
+		// KeyShiftArrowDown), and the interesting fact is that it was dropped.
+		gui.debug.Key("mouse event dropped by the Editor (key=%d mod=%d)", key, mod)
+
 		return false
 	}
+
+	// Before Normalize, so the log shows what the terminal actually sent
+	// alongside what lazyshell made of it — the two disagreeing is the usual
+	// reason a combination does not do what it should.
+	gui.logKeyEvent(key, ch, mod)
 
 	key, ch, mod = keys.Normalize(key, ch, mod)
 
@@ -151,6 +161,7 @@ func (gui *Gui) editDuringPassThrough(key gocui.Key, ch rune, mod gocui.Modifier
 	// pass-through on the first keystroke. Validate rejects a non-control
 	// prefix_key, but $LAZYSHELL_PREFIX does not go through it.
 	if key == gui.prefixKey && ch == 0 {
+		gui.debug.Action("editor exit_pass_through (prefix %s)", prefixName(gui.prefixKey))
 		gui.exitPassThrough()
 
 		return true
@@ -217,6 +228,11 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 		return gui.editOnSecondaryTab(view, key, ch)
 	}
 
+	// Every branch below announces itself to the debug log. These actions are
+	// invoked from inside the Editor and so never pass through
+	// setKeybindings' wrapper — without a line per case, the log would show
+	// the keystroke arriving and nothing happening. Spelled out rather than
+	// derived, because "which case matched" is the exact question being asked.
 	switch {
 	// Copy-mode's own keys come first and win over everything below: while
 	// selecting, j/k/arrows extend the selection instead of doing nothing,
@@ -224,65 +240,79 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 	// Esc handler (searchActive() and copyModeActive are not expected to
 	// overlap, but the order settles it either way).
 	case gui.copyModeActive && key == gocui.KeyEsc && ch == 0:
+		gui.debug.Action("editor cancel_copy_mode")
 		gui.cancelCopyMode()
 
 		return true
 	case gui.copyModeActive && (ch == 'y' || ch == 'v'):
+		gui.debug.Action("editor yank_copy_selection")
 		gui.yankCopySelection()
 
 		return true
 	case gui.copyModeActive && (ch == 'j' || key == gocui.KeyArrowDown):
+		gui.debug.Action("editor move_copy_cursor +1")
 		gui.moveCopyCursor(1, rows)
 
 		return true
 	case gui.copyModeActive && (ch == 'k' || key == gocui.KeyArrowUp):
+		gui.debug.Action("editor move_copy_cursor -1")
 		gui.moveCopyCursor(-1, rows)
 
 		return true
 
 	case (ch == 'i' || key == gocui.KeyEnter) && !gui.copyModeActive:
+		gui.debug.Action("editor enter_pass_through")
 		gui.enterPassThrough()
 
 		return true
 
 	case ch == 'v' && !gui.copyModeActive:
+		gui.debug.Action("editor enter_copy_mode")
 		gui.enterCopyMode()
 
 		return true
 
 	case key == gocui.KeyPgup && !gui.copyModeActive:
+		gui.debug.Action("editor scroll page_up")
 		gui.scrollBy(gui.pageStep(rows))
 
 		return true
 	case key == gocui.KeyCtrlU && !gui.copyModeActive:
+		gui.debug.Action("editor scroll half_page_up")
 		gui.scrollBy(gui.halfPageStep(rows))
 
 		return true
 
 	case key == gocui.KeyPgdn && !gui.copyModeActive:
+		gui.debug.Action("editor scroll page_down")
 		gui.scrollBy(-gui.pageStep(rows))
 
 		return true
 	case key == gocui.KeyCtrlD && !gui.copyModeActive:
+		gui.debug.Action("editor scroll half_page_down")
 		gui.scrollBy(-gui.halfPageStep(rows))
 
 		return true
 
 	case ch == '/' && !gui.copyModeActive:
+		gui.debug.Action("editor show_search")
 		_ = gui.showSearch(gui.g, view)
 
 		return true
 
 	case gui.searchActive() && ch == 'n':
+		gui.debug.Action("editor next_match +1")
 		gui.nextMatch(1)
 
 		return true
 	case gui.searchActive() && ch == 'N':
+		gui.debug.Action("editor next_match -1")
 		gui.nextMatch(-1)
 
 		return true
 
 	case gui.searchActive() && key == gocui.KeyEsc && ch == 0:
+		gui.debug.Action("editor clear_search")
 		gui.clearSearch()
 		gui.restartOutput()
 		gui.refreshSearchStatus()
@@ -290,6 +320,7 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 		return true
 
 	case ch == 'q':
+		gui.debug.Action("editor quit")
 		// A plain 'q' global keybinding can never fire as a fallback while
 		// the current view is Editable — gocui excludes printable-character
 		// global bindings from that path unconditionally. So quitting from
@@ -303,6 +334,7 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 		// Same reasoning as 'q' above: the global "help" binding cannot fire
 		// as a fallback while this view is Editable, so it is matched and
 		// triggered here by hand instead.
+		gui.debug.Action("editor help")
 		_ = gui.showHelp(gui.g, view)
 
 		return true
@@ -313,6 +345,7 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 		// consulted for it regardless of scope. This is also the only way
 		// back out of a zoomed output view — the sessions view that would
 		// otherwise own this key does not exist while zoomed.
+		gui.debug.Action("editor zoom")
 		_ = gui.toggleZoom(gui.g, view)
 
 		return true
@@ -320,10 +353,12 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 	case gui.matchesAction("next_tab", key, ch):
 		// Same reasoning again: these are scoped to sessionsViewName, and this
 		// view being Editable means SetKeybinding is never consulted for it.
+		gui.debug.Action("editor next_tab")
 		gui.switchTab(1)
 
 		return true
 	case gui.matchesAction("prev_tab", key, ch):
+		gui.debug.Action("editor prev_tab")
 		gui.switchTab(-1)
 
 		return true
@@ -343,29 +378,36 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 func (gui *Gui) editOnSecondaryTab(view *gocui.View, key gocui.Key, ch rune) bool {
 	_, rows := view.InnerSize()
 
+	// Same reason as editDuringScroll's switch for the per-branch debug lines.
 	switch {
 	case key == gocui.KeyPgup:
+		gui.debug.Action("editor scroll page_up")
 		gui.scrollBy(gui.pageStep(rows))
 
 		return true
 	case key == gocui.KeyPgdn:
+		gui.debug.Action("editor scroll page_down")
 		gui.scrollBy(-gui.pageStep(rows))
 
 		return true
 	case key == gocui.KeyCtrlU:
+		gui.debug.Action("editor scroll half_page_up")
 		gui.scrollBy(gui.halfPageStep(rows))
 
 		return true
 	case key == gocui.KeyCtrlD:
+		gui.debug.Action("editor scroll half_page_down")
 		gui.scrollBy(-gui.halfPageStep(rows))
 
 		return true
 
 	case gui.matchesAction("next_tab", key, ch):
+		gui.debug.Action("editor next_tab")
 		gui.switchTab(1)
 
 		return true
 	case gui.matchesAction("prev_tab", key, ch):
+		gui.debug.Action("editor prev_tab")
 		gui.switchTab(-1)
 
 		return true
@@ -373,16 +415,19 @@ func (gui *Gui) editOnSecondaryTab(view *gocui.View, key gocui.Key, ch rune) boo
 	case ch == 'q':
 		// Same reasoning as editDuringScroll's own 'q': a printable-key global
 		// binding never fires as a fallback while this view is Editable.
+		gui.debug.Action("editor quit")
 		gui.g.Update(func(*gocui.Gui) error { return gocui.ErrQuit })
 
 		return true
 
 	case gui.matchesAction("help", key, ch):
+		gui.debug.Action("editor help")
 		_ = gui.showHelp(gui.g, view)
 
 		return true
 
 	case gui.matchesAction("zoom", key, ch):
+		gui.debug.Action("editor zoom")
 		_ = gui.toggleZoom(gui.g, view)
 
 		return true
