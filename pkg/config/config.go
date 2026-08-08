@@ -32,9 +32,10 @@ const (
 	// (pkg/gui/layout.go's isPortrait).
 	defaultPortraitMaxWidth  = 84
 	defaultPortraitMinHeight = 45
-	// defaultPrefixKey is the tmux-style pass-through escape prefix, in
-	// gocui.Parse syntax (pkg/gui/input.go's defaultPrefixKey).
-	defaultPrefixKey = "Ctrl+B"
+	// defaultPrefixKey is the pass-through escape key, in gocui.Parse syntax
+	// (pkg/gui/input.go's defaultPrefixKey, which explains why it is not the
+	// tmux-style Ctrl+B any more).
+	defaultPrefixKey = "Ctrl+O"
 	// defaultRefreshIntervalMs is the UI's redraw tick (pkg/gui/gui.go's
 	// reRenderInterval), in milliseconds.
 	defaultRefreshIntervalMs = 30
@@ -121,7 +122,7 @@ type Config struct {
 	// SIGTERM before escalating to SIGKILL, and again after that before giving
 	// up.
 	KillTimeoutMs int `yaml:"kill_timeout_ms"`
-	// PrefixKey is the pass-through escape prefix, in gocui.Parse syntax
+	// PrefixKey is the pass-through escape key, in gocui.Parse syntax
 	// ("Ctrl+A", "Ctrl+Space", ...). Overridable at runtime via
 	// $LAZYSHELL_PREFIX, which wins over this value.
 	PrefixKey string `yaml:"prefix_key"`

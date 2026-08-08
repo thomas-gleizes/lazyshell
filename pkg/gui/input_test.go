@@ -98,27 +98,47 @@ func TestEditOutputForwardsKeystrokesDuringPassThrough(t *testing.T) {
 	waitForSessionScreen(t, gui, "lazyshell-ok")
 }
 
+// One press is the whole contract: no second key confirms it, nothing is left
+// armed afterwards. This is what the old two-step automaton got wrong — see
+// editDuringPassThrough.
 func TestEditOutputPrefixAloneExitsPassThrough(t *testing.T) {
 	gui, view := newOutputTestGui(t)
 
 	typeIntoOutput(gui, view, "i")
 	pressOutputKey(gui, view, gui.prefixKey)
-	typeIntoOutput(gui, view, "x") // anything other than the prefix disarms
 
 	if gui.passThroughActive {
-		t.Error("prefix followed by another key did not leave pass-through")
+		t.Error("a single press of the escape key did not leave pass-through")
 	}
 }
 
-func TestEditOutputDoubledPrefixStaysInPassThrough(t *testing.T) {
+// The key that used to be the escape prefix must now reach the shell like any
+// other: Claude Code binds Ctrl-B, and getting it through is half the reason
+// the default moved to Ctrl-O.
+func TestEditOutputForwardsFormerPrefixToSession(t *testing.T) {
 	gui, view := newOutputTestGui(t)
 
 	typeIntoOutput(gui, view, "i")
-	pressOutputKey(gui, view, gui.prefixKey)
-	pressOutputKey(gui, view, gui.prefixKey)
+	pressOutputKey(gui, view, gocui.KeyCtrlB)
 
 	if !gui.passThroughActive {
-		t.Error("a doubled prefix left pass-through, it should send a literal byte instead")
+		t.Error("Ctrl-B left pass-through, it must be forwarded to the session now")
+	}
+}
+
+// A printable character must never be mistaken for the escape key, whatever
+// the escape key is: they arrive with key 0 and the rune set, and a prefix of
+// key 0 (Ctrl-Space, NUL for tcell) would otherwise match every one of them.
+func TestEditOutputPrintableKeyIsNotTheEscapeKey(t *testing.T) {
+	gui, view := newOutputTestGui(t)
+
+	gui.prefixKey = 0
+
+	typeIntoOutput(gui, view, "i")
+	typeIntoOutput(gui, view, "a")
+
+	if !gui.passThroughActive {
+		t.Error("a printable key was taken for the escape key and left pass-through")
 	}
 }
 

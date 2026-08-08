@@ -75,7 +75,7 @@ While the **output panel** is focused, these apply instead:
 | Key | Action |
 | --- | --- |
 | `i` / `Enter` | Hand the keyboard to the shell (pass-through mode) |
-| `Ctrl+B` (configurable) | Take the keyboard back, out of pass-through mode |
+| `Ctrl+O` (configurable) | Take the keyboard back, out of pass-through mode |
 | `PgUp` / `PgDn` | Scroll one screen through the history |
 | `Ctrl+U` / `Ctrl+D` | Scroll half a screen |
 | `/` | Search the history; `n` / `N` for the next/previous match |
@@ -85,7 +85,7 @@ While the **output panel** is focused, these apply instead:
 
 Starting a session (`n`, `N`, `c`) or restarting one (`R`) lands you straight
 inside it: the output panel takes the focus and pass-through is armed, so you
-can type immediately. `Ctrl+B` gets the keyboard back. Moving the selection
+can type immediately. `Ctrl+O` gets the keyboard back. Moving the selection
 with `j` / `k` is navigation and never does this.
 
 A shell that ends on its own — `exit`, `Ctrl+D`, or whatever it was running
@@ -195,7 +195,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `portrait_min_height` | int | `45` | …and above this terminal height. Portrait stacks the panels instead of splitting them side by side. |
 | `refresh_interval_ms` | int, 10–1000 | `30` | Redraw period. An unchanged panel is never pushed, so idle cost stays near zero at any value. |
 | `kill_timeout_ms` | int ≥ 100 | `2000` | Wait after `SIGTERM` before escalating to `SIGKILL`, and again before giving up. |
-| `prefix_key` | key spec | `Ctrl+B` | Pass-through escape prefix. Must be a control key. `$LAZYSHELL_PREFIX` overrides it. |
+| `prefix_key` | key spec | `Ctrl+O` | Pass-through escape key: one press, out. Must be a control key, and it can no longer be typed into a session. `$LAZYSHELL_PREFIX` overrides it. |
 | `keybindings` | map | see below | Remaps an action id to a key spec. An action left out keeps its default key. |
 | `markers.bell` | 0–1 char | `!` | Gutter marker for a session that rang while hidden. `""` turns it off. |
 | `markers.alt_screen` | 0–1 char | `#` | Gutter marker for a session running a full-screen application. `""` turns it off. |
@@ -268,7 +268,7 @@ portrait_min_height: 45
 refresh_interval_ms: 30
 kill_timeout_ms: 2000
 
-prefix_key: Ctrl+B
+prefix_key: Ctrl+O
 
 keybindings:
   new_session: "n"

@@ -17,7 +17,7 @@ import (
 //
 // It reports, it does not repair: every consumer here already falls back to its
 // built-in default on an unparseable value — resolveBinding keeps the default
-// key, resolveColor keeps the default color, prefixFrom keeps Ctrl-B. That
+// key, resolveColor keeps the default color, prefixFrom keeps Ctrl-O. That
 // graceful degradation is precisely the problem this function exists for: it is
 // silent, so the user sees a keybinding that simply does not take and has no way
 // to learn why.
@@ -35,7 +35,7 @@ func ValidateConfig(cfg config.Config) []error {
 			// Parseable but not a gocui.Key: a plain rune like "a" would leave
 			// pass-through with no way out, since every printable key goes to
 			// the shell.
-			errs = append(errs, fmt.Errorf("prefix_key %q doit être une touche de contrôle (ex. Ctrl+B), retour à %s",
+			errs = append(errs, fmt.Errorf("prefix_key %q doit être une touche de contrôle (ex. Ctrl+O), retour à %s",
 				cfg.PrefixKey, prefixName(defaultPrefixKey)))
 		}
 	}

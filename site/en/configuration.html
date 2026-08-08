@@ -99,7 +99,7 @@
     <tr><td><code>portrait_min_height</code></td><td>int</td><td><code>45</code></td><td>…and above this terminal height. Portrait stacks the panels instead of splitting them side by side.</td></tr>
     <tr><td><code>refresh_interval_ms</code></td><td>int, 10–1000</td><td><code>30</code></td><td>Redraw period. An unchanged panel is never pushed, so idle cost stays near zero at any value.</td></tr>
     <tr><td><code>kill_timeout_ms</code></td><td>int ≥ 100</td><td><code>2000</code></td><td>Wait after <code>SIGTERM</code> before escalating to <code>SIGKILL</code>, and again before giving up.</td></tr>
-    <tr><td><code>prefix_key</code></td><td>key spec</td><td><code>Ctrl+B</code></td><td>Pass-through escape prefix. Must be a control key. <code>$LAZYSHELL_PREFIX</code> overrides it.</td></tr>
+    <tr><td><code>prefix_key</code></td><td>key spec</td><td><code>Ctrl+O</code></td><td>Pass-through escape key: one press, out. Must be a control key, and it can no longer be typed into a session. <code>$LAZYSHELL_PREFIX</code> overrides it.</td></tr>
     <tr><td><code>keybindings</code></td><td>map</td><td>see <a href="#keys">below</a></td><td>Remaps an action id to a key spec. An action left out keeps its default key.</td></tr>
     <tr><td><code>markers.bell</code></td><td>0–1 char</td><td><code>!</code></td><td>Gutter marker for a session that rang while hidden. <code>""</code> turns it off.</td></tr>
     <tr><td><code>markers.alt_screen</code></td><td>0–1 char</td><td><code>#</code></td><td>Gutter marker for a session running a full-screen application.</td></tr>
@@ -199,7 +199,7 @@ portrait_min_height: 45
 refresh_interval_ms: 30
 kill_timeout_ms: 2000
 
-prefix_key: Ctrl+B
+prefix_key: Ctrl+O
 
 keybindings:
   new_session: "n"

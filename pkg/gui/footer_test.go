@@ -66,8 +66,8 @@ func TestOutputFooterInPassThroughShowsOnlyTheWayOut(t *testing.T) {
 
 	gui.passThroughActive = true
 
-	if got := gui.panelFooter(outputViewName, 60); got != "Ctrl-B:sortir" {
-		t.Errorf("panelFooter(output) in pass-through = %q, want Ctrl-B:sortir", got)
+	if got := gui.panelFooter(outputViewName, 60); got != "Ctrl-O:sortir" {
+		t.Errorf("panelFooter(output) in pass-through = %q, want Ctrl-O:sortir", got)
 	}
 }
 

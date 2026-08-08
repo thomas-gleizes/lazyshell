@@ -100,7 +100,7 @@
     <tr><td><code>portrait_min_height</code></td><td>entier</td><td><code>45</code></td><td>…et au-dessus de cette hauteur. Le portrait empile les panneaux au lieu de les juxtaposer.</td></tr>
     <tr><td><code>refresh_interval_ms</code></td><td>entier, 10–1000</td><td><code>30</code></td><td>Période de redessin. Un panneau inchangé n'est jamais poussé, donc le coût au repos reste proche de zéro quelle que soit la valeur.</td></tr>
     <tr><td><code>kill_timeout_ms</code></td><td>entier ≥ 100</td><td><code>2000</code></td><td>Attente après <code>SIGTERM</code> avant d'escalader en <code>SIGKILL</code>, puis avant d'abandonner.</td></tr>
-    <tr><td><code>prefix_key</code></td><td>spéc. de touche</td><td><code>Ctrl+B</code></td><td>Préfixe de sortie du pass-through. Doit être une touche de contrôle. <code>$LAZYSHELL_PREFIX</code> le surcharge.</td></tr>
+    <tr><td><code>prefix_key</code></td><td>spéc. de touche</td><td><code>Ctrl+O</code></td><td>Touche de sortie du pass-through : une pression, on sort. Doit être une touche de contrôle, et elle ne peut plus être tapée dans une session. <code>$LAZYSHELL_PREFIX</code> le surcharge.</td></tr>
     <tr><td><code>keybindings</code></td><td>table</td><td>voir <a href="#touches">plus bas</a></td><td>Associe un identifiant d'action à une spécification de touche. Une action absente garde sa touche par défaut.</td></tr>
     <tr><td><code>markers.bell</code></td><td>0–1 caractère</td><td><code>!</code></td><td>Marqueur d'une session ayant sonné pendant qu'elle était masquée. <code>""</code> le désactive.</td></tr>
     <tr><td><code>markers.alt_screen</code></td><td>0–1 caractère</td><td><code>#</code></td><td>Marqueur d'une session où tourne une application plein écran.</td></tr>
@@ -202,7 +202,7 @@ portrait_min_height: 45
 refresh_interval_ms: 30
 kill_timeout_ms: 2000
 
-prefix_key: Ctrl+B
+prefix_key: Ctrl+O
 
 keybindings:
   new_session: "n"

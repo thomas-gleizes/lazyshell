@@ -77,7 +77,7 @@ s'appliquent :
 | Touche | Action |
 | --- | --- |
 | `i` / `Enter` | Donner le clavier au shell (mode pass-through) |
-| `Ctrl+B` (configurable) | Reprendre le clavier, depuis le mode pass-through |
+| `Ctrl+O` (configurable) | Reprendre le clavier, depuis le mode pass-through |
 | `PgUp` / `PgDn` | Défiler d'un écran dans l'historique |
 | `Ctrl+U` / `Ctrl+D` | Défiler d'un demi-écran |
 | `/` | Rechercher dans l'historique ; `n` / `N` pour l'occurrence suivante/précédente |
@@ -87,7 +87,7 @@ s'appliquent :
 
 Démarrer une session (`n`, `N`, `c`) ou en relancer une (`R`) vous dépose
 directement dedans : le panneau de sortie prend le focus et le pass-through est
-armé, on peut taper tout de suite. `Ctrl+B` reprend le clavier. Déplacer la
+armé, on peut taper tout de suite. `Ctrl+O` reprend le clavier. Déplacer la
 sélection avec `j` / `k` est de la navigation et ne fait jamais ça.
 
 Un shell qui se termine de lui-même — `exit`, `Ctrl+D`, ou ce qu'il faisait
@@ -201,7 +201,7 @@ refus de tourner.
 | `portrait_min_height` | entier | `45` | …et au-dessus de cette hauteur. Le portrait empile les panneaux au lieu de les mettre côte à côte. |
 | `refresh_interval_ms` | entier, 10–1000 | `30` | Période de redessin. Un panneau inchangé n'est jamais poussé, donc le coût au repos reste proche de zéro quelle que soit la valeur. |
 | `kill_timeout_ms` | entier ≥ 100 | `2000` | Attente après `SIGTERM` avant de passer à `SIGKILL`, puis à nouveau avant d'abandonner. |
-| `prefix_key` | spec de touche | `Ctrl+B` | Préfixe d'échappement du pass-through. Doit être une touche de contrôle. `$LAZYSHELL_PREFIX` la surcharge. |
+| `prefix_key` | spec de touche | `Ctrl+O` | Touche de sortie du pass-through : une pression, on sort. Doit être une touche de contrôle, et elle ne peut plus être tapée dans une session. `$LAZYSHELL_PREFIX` la surcharge. |
 | `keybindings` | map | voir plus bas | Remappe un identifiant d'action vers une spec de touche. Une action omise garde sa touche par défaut. |
 | `markers.bell` | 0–1 caractère | `!` | Marqueur de gouttière pour une session qui a sonné pendant qu'elle était cachée. `""` le désactive. |
 | `markers.alt_screen` | 0–1 caractère | `#` | Marqueur pour une session faisant tourner une application plein écran. `""` le désactive. |
@@ -274,7 +274,7 @@ portrait_min_height: 45
 refresh_interval_ms: 30
 kill_timeout_ms: 2000
 
-prefix_key: Ctrl+B
+prefix_key: Ctrl+O
 
 keybindings:
   new_session: "n"

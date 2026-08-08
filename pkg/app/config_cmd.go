@@ -75,8 +75,8 @@ kill_timeout_ms: 2000
 
 # Préfixe d'échappement du mode pass-through (syntaxe gocui.Parse).
 # $LAZYSHELL_PREFIX le surcharge à l'exécution — utile si un multiplexeur
-# au-dessus de lazyshell mange déjà Ctrl-B.
-prefix_key: Ctrl+B
+# au-dessus de lazyshell mange déjà Ctrl-O.
+prefix_key: Ctrl+O
 
 # Remappage des actions. Une action absente garde sa touche par défaut.
 keybindings:

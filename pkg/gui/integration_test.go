@@ -171,16 +171,14 @@ func TestPassThroughDogfoodingFlow(t *testing.T) {
 
 	waitForOutput(t, g, "dogfooding-ok")
 
-	// Leave pass-through: the prefix arms, any other key confirms the exit —
-	// the same two-step automaton input_test.go exercises directly.
+	// Leave pass-through: one press of the escape key, no confirmation.
 	g.Update(func(*gocui.Gui) error {
 		gui.editOutput(outputView, gui.prefixKey, 0, gocui.ModNone)
-		gui.editOutput(outputView, gocui.KeyEsc, 0, gocui.ModNone)
 
 		return nil
 	})
 
-	waitForCondition(t, func() bool { return !gui.passThroughActive }, "the prefix did not leave pass-through")
+	waitForCondition(t, func() bool { return !gui.passThroughActive }, "the escape key did not leave pass-through")
 
 	// Tab must work again now that we are not in pass-through — Tab itself
 	// is swallowed by editOutput while pass-through is armed.

@@ -46,7 +46,7 @@ type Gui struct {
 	// pkg/config's Theme at construction time.
 	theme Theme
 
-	// prefixKey is the pass-through escape prefix, see prefixFrom.
+	// prefixKey is the pass-through escape key, see prefixFrom.
 	prefixKey gocui.Key
 	// configuredShell is pkg/config's Shell, used by newSession when
 	// non-empty instead of falling back to $SHELL/bash.
@@ -108,10 +108,9 @@ type Gui struct {
 	// promptOnSubmit is the callback showPrompt is currently waiting on,
 	// captured at open time and consumed (then cleared) by submitPrompt.
 	promptOnSubmit func(string) error
-	// prefixPending and passThroughActive are only ever touched from
-	// editOutput, called synchronously from gocui's own event dispatch —
-	// always the same goroutine, no mutex needed.
-	prefixPending     bool
+	// passThroughActive is only ever touched from editOutput, called
+	// synchronously from gocui's own event dispatch — always the same
+	// goroutine, no mutex needed.
 	passThroughActive bool
 	// zoomed hides the sessions panel and gives the output panel the whole
 	// screen. Only ever touched from gocui's own goroutine (toggleZoom, a

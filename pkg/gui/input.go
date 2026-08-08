@@ -10,17 +10,21 @@ import (
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
-// defaultPrefixKey is the tmux-style escape prefix that leaves pass-through
-// mode. Every other key reaches the shell while pass-through is active, so
-// this is the only way back — overridable through LAZYSHELL_PREFIX, because a
-// terminal multiplexer running above lazyshell may well eat Ctrl-B before
-// lazyshell ever sees it. Ported from cmd/spike-pty/main.go, which validated
-// this mechanism in phase 1; duplicated rather than imported since that
-// command is package main.
-const defaultPrefixKey = gocui.KeyCtrlB
+// defaultPrefixKey is the escape key that leaves pass-through mode. Every
+// other key reaches the shell while pass-through is active, so this is the
+// only way back on the keyboard — overridable through LAZYSHELL_PREFIX,
+// because a terminal multiplexer running above lazyshell may well eat it
+// before lazyshell ever sees it.
+//
+// Ctrl-O, not the tmux-style Ctrl-B phase 1 shipped (cmd/spike-pty, ADR 0001
+// decision 3): Ctrl-B turned out to be a key the sessions themselves want.
+// Claude Code binds it to "run this bash command in the background", so a user
+// pressing it inside an agent session was pressing a key that means something
+// on both sides at once. See docs/adr/0004-sortie-du-pass-through.md.
+const defaultPrefixKey = gocui.KeyCtrlO
 
-// prefixFrom resolves the pass-through escape prefix: $LAZYSHELL_PREFIX wins
-// if set (a terminal multiplexer running above lazyshell may well eat Ctrl-B
+// prefixFrom resolves the pass-through escape key: $LAZYSHELL_PREFIX wins
+// if set (a terminal multiplexer running above lazyshell may well eat the key
 // before lazyshell ever sees it, so the env var has to be able to override a
 // config file too), then cfgValue (pkg/config's PrefixKey), then the
 // built-in default. Both are in gocui.Parse syntax: "Ctrl+A", "Ctrl+Space"...
@@ -123,24 +127,31 @@ func (gui *Gui) editOutput(view *gocui.View, key gocui.Key, ch rune, mod gocui.M
 	return gui.editDuringScroll(view, key, ch)
 }
 
-// editDuringPassThrough forwards everything to the selected session except
-// the escape prefix: alone, it leaves pass-through; doubled, it sends one
-// literal prefix byte (the same two-step automaton cmd/spike-pty validated).
+// editDuringPassThrough forwards everything to the selected session except the
+// escape key, which leaves pass-through on the spot.
+//
+// One press, one effect: phase 1's two-step automaton (prefix arms, the next
+// key confirms) is deliberately gone. It made the exit unusable in practice —
+// the first press changed nothing visible, so the natural reaction was to press
+// again, which was precisely the sequence that stayed in pass-through and typed
+// a literal control byte into the session instead. Any second key also had to
+// be swallowed to end the sequence, so a user who pressed the prefix by mistake
+// lost the next keystroke as well.
+//
+// The cost, stated plainly: the escape key can no longer be typed into a
+// session at all, since there is no sequence left that means "send it
+// literally". That is what makes it a config value (prefix_key,
+// $LAZYSHELL_PREFIX) — a user who needs Ctrl-O in their shell moves the escape
+// key elsewhere rather than losing the exit.
 func (gui *Gui) editDuringPassThrough(key gocui.Key, ch rune, mod gocui.Modifier) bool {
-	if gui.prefixPending {
-		gui.prefixPending = false
-
-		if key == gui.prefixKey {
-			gui.dispatchKey(key, ch, mod)
-		} else {
-			gui.exitPassThrough()
-		}
-
-		return true
-	}
-
-	if key == gui.prefixKey {
-		gui.prefixPending = true
+	// ch == 0 matters: a control key arrives with no rune, while every
+	// printable character arrives as key 0 with the rune set. Without this
+	// test a prefix that happens to be key 0 (Ctrl-Space, which tcell encodes
+	// as NUL) would match every letter typed and drop the user out of
+	// pass-through on the first keystroke. Validate rejects a non-control
+	// prefix_key, but $LAZYSHELL_PREFIX does not go through it.
+	if key == gui.prefixKey && ch == 0 {
+		gui.exitPassThrough()
 
 		return true
 	}
