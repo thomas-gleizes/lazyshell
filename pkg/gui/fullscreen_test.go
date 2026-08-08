@@ -136,7 +136,11 @@ func TestThemeSurvivesOutputTrue(t *testing.T) {
 func TestOutputFrameCarriesTheCursorOnlyWhenTypedInto(t *testing.T) {
 	gui, _ := newHeadlessGui(t)
 
-	sess := newTestSession(t, gui, "s")
+	// Silent for the same reason as TestOutputFrameIsStableWhileNothingHappens:
+	// this asserts an exact cursor position, and a real shell's prompt lands
+	// asynchronously and moves the cursor as it writes. Not observed failing —
+	// but it is the same race, won rather than lost.
+	sess := newSilentTestSession(t, gui, "s")
 	feed(t, sess, "\x1b[5;9H")
 
 	frame := buildOutputFrame(sess, 0, true, "", -1, -1)
@@ -391,7 +395,13 @@ func TestSessionsPanelSkipsUnchangedRedraws(t *testing.T) {
 func TestOutputFrameIsStableWhileNothingHappens(t *testing.T) {
 	gui, _ := newHeadlessGui(t)
 
-	sess := newTestSession(t, gui, "s")
+	// A silent session, because "nothing happens" has to be literally true: a
+	// real shell prints its prompt from the drain goroutine at an unpredictable
+	// moment after creation, and measured over 200 samples the screen still
+	// differed from its first render in 197 of them. The two frames below are
+	// microseconds apart, so on macOS they usually land in the same gap and on
+	// Linux CI they did not — this test failed there and nowhere else.
+	sess := newSilentTestSession(t, gui, "s")
 	feed(t, sess, "un prompt$ ")
 
 	first := buildOutputFrame(sess, 0, true, "", -1, -1)
