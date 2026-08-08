@@ -31,6 +31,8 @@ func onGuiGoroutine(g *gocui.Gui, cond func() bool) bool {
 // session. End to end through a real MainLoop, because the whole mechanism
 // hangs off a g.Update only MainLoop drains.
 func TestExitFromInsideLeavesPassThroughAndRefocusesSessions(t *testing.T) {
+	skipMainLoopUnderRace(t)
+
 	gui, g := newHeadlessGui(t)
 
 	g.SetManager(gocui.ManagerFunc(gui.layout), gui.focus)

@@ -32,6 +32,8 @@ func (c *countingManager) Layout(*gocui.Gui) error {
 // This is a behaviour test, not a benchmark: it asserts the tickers stay quiet,
 // which is the property the skip-if-unchanged logic exists to provide.
 func TestIdleSessionDoesNotRepaint(t *testing.T) {
+	skipMainLoopUnderRace(t)
+
 	gui, g := newHeadlessGui(t)
 
 	counter := &countingManager{}

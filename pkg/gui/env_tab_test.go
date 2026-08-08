@@ -81,7 +81,7 @@ func TestEnvTabIsSorted(t *testing.T) {
 	mike := strings.Index(got, "MIKE=")
 	zed := strings.Index(got, "ZED=")
 
-	if !(alpha < mike && mike < zed) {
+	if alpha >= mike || mike >= zed {
 		t.Errorf("entries are not sorted:\n%s", got)
 	}
 }

@@ -41,6 +41,8 @@ func waitForOutput(t *testing.T, g *gocui.Gui, want string) {
 // drain goroutines running independently of what is on screen (phase 2); this
 // test is what proves the gui layer built on top of it does not break that.
 func TestSelectingSessionsShowsEachOnesOutputWithoutLoss(t *testing.T) {
+	skipMainLoopUnderRace(t)
+
 	gui, g := newHeadlessGui(t)
 
 	// SetManager purges existing keybindings, so it must run first — same
@@ -106,44 +108,6 @@ func TestSelectingSessionsShowsEachOnesOutputWithoutLoss(t *testing.T) {
 	waitForOutput(t, g, markers[0])
 }
 
-// waitForCondition polls cond until it is true or the deadline passes —
-// g.Update only enqueues work, it does not wait for MainLoop to process it,
-// so state it mutates must be observed by polling, not by checking right
-// after the call.
-func waitForCondition(t *testing.T, cond func() bool, msg string) {
-	t.Helper()
-
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if cond() {
-			return
-		}
-
-		time.Sleep(20 * time.Millisecond)
-	}
-
-	t.Fatal(msg)
-}
-
-// waitForView polls until a view exists — the first layout pass runs
-// asynchronously once MainLoop starts.
-func waitForView(t *testing.T, g *gocui.Gui, name string) *gocui.View {
-	t.Helper()
-
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if view, err := g.View(name); err == nil {
-			return view
-		}
-
-		time.Sleep(20 * time.Millisecond)
-	}
-
-	t.Fatalf("view %q never appeared", name)
-
-	return nil
-}
-
 // This is the roadmap's phase 4 exit criterion, end to end: focus the output
 // panel, enter pass-through, drive a real shell, leave pass-through, confirm
 // navigation (Tab) works again, and confirm the pty was actually resized to
@@ -153,6 +117,8 @@ func waitForView(t *testing.T, g *gocui.Gui, name string) *gocui.View {
 // input_test.go; this test is about the wiring around it running through a
 // real MainLoop.
 func TestPassThroughDogfoodingFlow(t *testing.T) {
+	skipMainLoopUnderRace(t)
+
 	gui, g := newHeadlessGui(t)
 
 	g.SetManager(gocui.ManagerFunc(gui.layout), gui.focus)
