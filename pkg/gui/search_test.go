@@ -47,7 +47,10 @@ func seedScrollback(t *testing.T, gui *Gui) {
 	// a search for it is guaranteed to require an actual scroll — unlike
 	// une-ligne-bavarde-1, which (as a substring) also matches -10..-199 and
 	// so, at the highest of those indices, can still land on the live screen.
-	script := "echo unique-anchor; for i in $(seq 1 200); do echo une-ligne-bavarde-$i; done; echo done-marker\n"
+	// done-''marker for the same reason as input_test.go's: the pty echoes the
+	// typed line, so a marker spelled literally would be matched before any
+	// output exists.
+	script := "echo unique-anchor; for i in $(seq 1 200); do echo une-ligne-bavarde-$i; done; echo done-''marker\n"
 	if _, err := sess.Write([]byte(script)); err != nil {
 		t.Fatalf("Write: %v", err)
 	}

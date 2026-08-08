@@ -92,7 +92,7 @@ func TestEditOutputForwardsKeystrokesDuringPassThrough(t *testing.T) {
 	gui, view := newOutputTestGui(t)
 
 	typeIntoOutput(gui, view, "i") // arm pass-through
-	typeIntoOutput(gui, view, "echo lazyshell-ok")
+	typeIntoOutput(gui, view, "echo lazyshell-''ok")
 	pressOutputKey(gui, view, gocui.KeyEnter)
 
 	waitForSessionScreen(t, gui, "lazyshell-ok")
@@ -128,8 +128,14 @@ func TestEditOutputScrollKeysAdjustOffsetOutsidePassThrough(t *testing.T) {
 	// Produce enough scrollback to have somewhere to scroll to, then wait for
 	// a trailing marker so the shell has fully caught up — otherwise
 	// ScrollbackLen() keeps growing underneath the assertions below.
+	//
+	// The marker is written as done-''marker so the shell prints "done-marker"
+	// while the *typed* line, which the pty echoes back onto the screen, does
+	// not contain it. Without that split the wait below returns on the echo,
+	// before a single line of output exists, and the assertions run against an
+	// empty scrollback — the same trap hook_test.go's readSockEnv documents.
 	sess := gui.selectedSession()
-	if _, err := sess.Write([]byte("for i in $(seq 1 200); do echo une-ligne-bavarde; done; echo done-marker\n")); err != nil {
+	if _, err := sess.Write([]byte("for i in $(seq 1 200); do echo une-ligne-bavarde; done; echo done-''marker\n")); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 	waitForSessionScreen(t, gui, "done-marker")
@@ -187,7 +193,7 @@ func TestEditOutputForwardsDigitsDuringPassThrough(t *testing.T) {
 	before := gui.getSelectedIndex()
 
 	typeIntoOutput(gui, view, "i") // arm pass-through
-	typeIntoOutput(gui, view, "echo 42\r")
+	typeIntoOutput(gui, view, "echo 4''2\r")
 
 	waitForSessionScreen(t, gui, "42")
 

@@ -24,6 +24,20 @@ func newTestSession(t testing.TB, gui *Gui, name string) *session.Session {
 	return sess
 }
 
+// newSilentTestSession is newTestSession for a session that must be able to
+// prove it has produced *nothing*. It runs cat rather than a shell, since a
+// shell's prompt is output like any other and would set the activity latch.
+func newSilentTestSession(t testing.TB, gui *Gui, name string) *session.Session {
+	t.Helper()
+
+	sess, err := gui.sessions.New(name, "/bin/cat")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	return sess
+}
+
 // feed writes bytes straight into a session's emulator, bypassing the shell:
 // these tests are about how the GUI reacts to emulator state, not about
 // getting a real program to produce it.
@@ -252,7 +266,12 @@ func TestSessionsPanelGutterMarkers(t *testing.T) {
 func TestSessionsPanelActivityMarker(t *testing.T) {
 	gui, _ := newHeadlessGui(t)
 
-	quiet := newTestSession(t, gui, "quiet")
+	// quiet runs cat, not a shell: a shell prints a prompt, a prompt is output,
+	// and output is exactly what this test needs this session never to have
+	// produced. With /bin/sh the prompt arrives from the drain goroutine at an
+	// unpredictable moment and gives "quiet" the activity marker roughly one
+	// run in three. cat holds the pty open and says nothing.
+	quiet := newSilentTestSession(t, gui, "quiet")
 	busy := newTestSession(t, gui, "busy")
 	watched := newTestSession(t, gui, "watched")
 

@@ -54,7 +54,7 @@ term: xterm-256color
 scrollback_size: 10000
 
 # Largeur (en colonnes) de la liste des sessions en mode paysage.
-sessions_panel_width: 30
+sessions_panel_width: 40
 
 # Hauteur (en lignes) de la liste des sessions en mode portrait.
 sessions_panel_height: 10

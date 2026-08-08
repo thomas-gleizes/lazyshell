@@ -55,6 +55,31 @@ func waitForScreen(t *testing.T, sess *Session, want string) string {
 	return ""
 }
 
+// waitForUnwrappedScreen is waitForScreen for a value that can be wider than
+// the 80-column test screen — a temp directory path, typically.
+//
+// The emulator hard-wraps such a value across two rows with no marker, so a
+// plain Contains never matches it: the test then fails for a reason that has
+// nothing to do with what it is checking, and only on machines whose TMPDIR
+// happens to be long. Joining the rows back together is what makes the check
+// about the value rather than about the terminal's width.
+func waitForUnwrappedScreen(t *testing.T, sess *Session, want string) {
+	t.Helper()
+
+	unwrap := func(s string) string { return strings.ReplaceAll(s, "\n", "") }
+
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(unwrap(sess.Screen().Render()), unwrap(want)) {
+			return
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatalf("timed out waiting for %q on screen (unwrapped):\n%s", want, sess.Screen().Render())
+}
+
 // waitForStatus polls until the session reaches want, bounded by a deadline.
 func waitForStatus(t *testing.T, sess *Session, want Status) {
 	t.Helper()

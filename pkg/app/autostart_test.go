@@ -42,7 +42,15 @@ var nonInteractive = approver{in: strings.NewReader(""), out: io.Discard, intera
 func projectDir(t *testing.T, content string, subdirs ...string) string {
 	t.Helper()
 
-	dir := t.TempDir()
+	// Resolved, not t.TempDir()'s raw answer: on macOS TMPDIR sits under
+	// /var, which is a symlink to /private/var, and the moment this helper
+	// chdir's into it every path the app reports back comes from os.Getwd —
+	// i.e. resolved. A test comparing its own unresolved string against that
+	// fails on a difference that means nothing: both name the same directory.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
 
 	for _, sub := range subdirs {
 		if err := os.MkdirAll(filepath.Join(dir, sub), 0o755); err != nil {

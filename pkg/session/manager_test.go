@@ -63,7 +63,7 @@ func TestManagerNewInDirUsesGivenCwd(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	waitForScreen(t, sess, resolved)
+	waitForUnwrappedScreen(t, sess, resolved)
 }
 
 // New is documented as a thin wrapper around NewInDir using the process's own
