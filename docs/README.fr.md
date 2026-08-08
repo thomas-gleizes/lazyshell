@@ -240,6 +240,7 @@ refus de tourner.
 | `mouse.forward_to_app` | booléen | `true` | Si un programme dans une session peut recevoir la souris lui-même, et seulement une fois qu'il l'a demandée avec un DECSET 9/1000/1002/1003 (`vim` avec `set mouse=a`, `htop`). Un shell ou une CLI d'agent IA ne la demande jamais, donc la molette continue de faire défiler le scrollback de lazyshell. |
 | `perf.refresh_interval_ms` | `0`, ou entier ≥ 100 | `5000` | Fréquence d'échantillonnage des processus de chaque session pour l'onglet ressources. Ça tourne en arrière-plan que l'onglet soit ouvert ou non, donc ses courbes remontent déjà plus loin que le moment où vous l'avez ouvert ; toutes les sessions sont échantillonnées en une passe, donc le coût ne croît pas avec leur nombre. `0` coupe complètement l'échantillonnage — c'est le seul travail périodique qui lance un processus, donc qui n'ouvre jamais l'onglet n'a pas à le payer. |
 | `env_tab.mask_secrets` | booléen | `true` | Si l'onglet env du panneau de sortie masque la valeur des variables dont le nom ressemble à un identifiant (`TOKEN`, `SECRET`, `PASSWORD`, `AUTH`, `..._KEY`). Le panneau est aussi partageable qu'une capture d'écran ; à `false` pour voir les vraies valeurs. |
+| `control.enabled` | booléen | `false` | Si l'API de contrôle par les agents est ouverte — le socket que `lazyshell ctl` pilote. Désactivée par défaut, et lire [API de contrôle par les agents](#api-de-contrôle-par-les-agents) avant de l'activer : elle permet à tout processus tournant sous votre compte de créer des sessions, d'y taper et de lire leur sortie. |
 | `agent_stats_command` | chaîne | `""` | Lancée pour la session d'agent IA sélectionnée, avec `$LAZYSHELL_SESSION_ID` dans son environnement ; la première ligne de sa sortie standard est affichée à côté de la durée du tour. Vide la désactive. |
 
 Les specs de touches utilisent la syntaxe de `gocui.Parse` : un caractère seul
@@ -355,6 +356,9 @@ perf:
 env_tab:
   mask_secrets: true
 
+control:
+  enabled: false
+
 agent_stats_command: ""
 ```
 
@@ -400,7 +404,50 @@ Dès qu'une session a reçu un seul événement de hook, la supposition par
 manifeste s'arrête définitivement pour cette session : le hook fait autorité à
 partir de là, et pas seulement jusqu'au prochain changement d'écran. lazyshell
 n'appelle jamais l'agent par ce socket — il ne fait qu'écouter, et la seule chose
-qu'un événement de hook peut faire est de fixer cet unique état.
+qu'un événement de hook peut faire est de fixer cet unique état. Laisser un agent
+faire autre chose que se décrire est une fonctionnalité distincte, désactivée par
+défaut : voir [API de contrôle par les agents](#api-de-contrôle-par-les-agents).
+
+#### API de contrôle par les agents
+
+`control.enabled: true` ouvre un second socket — un par processus lazyshell, pas
+un par session — que `lazyshell ctl` utilise pour piloter un lazyshell en cours.
+C'est ce dont un agent « chef d'orchestre » a besoin : lister les autres
+sessions, lire ce qu'elles ont affiché, en démarrer de nouvelles, y taper.
+
+```sh
+lazyshell ctl list                                # id, nom, statut, état d'agent
+lazyshell ctl read session-2 --tail 40            # texte brut, sans séquences d'échappement
+lazyshell ctl new --name build --cwd ./api --command 'make test'
+lazyshell ctl send build 'echo bonjour' --enter   # comme si c'était tapé
+lazyshell ctl kill build
+lazyshell ctl rename build tests
+```
+
+Une session se désigne par son id (`session-2`, la valeur de
+`$LAZYSHELL_SESSION_ID`) ou par son nom exact. `--json` affiche la réponse brute
+au lieu du rendu lisible. Contrairement à `lazyshell hook`, qui sort toujours en
+0 pour ne jamais casser le tour d'un agent, `ctl` sort en code non nul au moindre
+échec : celui qui a demandé une session sans l'obtenir doit pouvoir le savoir.
+
+`ctl new` ne vole ni la sélection ni le clavier, contrairement à la touche `n` :
+un agent en tâche de fond qui crée une session ne doit pas arracher le curseur à
+ce que vous étiez en train de taper.
+
+**À lire avant d'activer.** Il n'y a ni jeton ni permission par session : les
+permissions `0600` du socket sont l'intégralité du contrôle d'accès. Activer
+signifie donc que *tout processus tournant sous votre compte* peut créer des
+sessions, y taper des commandes et lire leur sortie — pas seulement les agents
+que vous avez lancés dans lazyshell. `ctl read` rend le scrollback verbatim,
+secrets compris ; le masquage de l'onglet env n'a pas d'équivalent ici, parce
+qu'un identifiant affiché dans un shell est indiscernable de n'importe quel autre
+texte une fois à l'écran.
+
+C'est ce compromis qui justifie le défaut à `false`, et le choix d'un socket et
+d'un protocole distincts plutôt qu'une extension du canal de hooks ci-dessus —
+lequel reste ouvert par défaut précisément parce que tout ce qu'il peut faire est
+de déplacer un marqueur dans une liste. Le raisonnement complet, et les
+alternatives pesées, sont dans `docs/adr/0006-api-de-controle-par-les-agents.md`.
 
 #### Notifications, saut vers ce qui attend, et stats de tour
 

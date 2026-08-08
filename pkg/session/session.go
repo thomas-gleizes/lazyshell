@@ -211,9 +211,15 @@ func (s *Session) TurnDuration() (d time.Duration, ok bool) {
 
 // SetAgentState pushes an authoritative agent state — the pkg/hook socket's
 // only capability, called once per received event from its own
-// connection-handling goroutine. Declarative only: this is the one place
-// something outside lazyshell can affect a Session, and all it can affect is
-// this one value.
+// connection-handling goroutine. Declarative only: it is the whole of what the
+// *hook* channel can do to a Session, and all it can do is set this one value.
+//
+// It used to be the only way anything outside lazyshell could affect a Session
+// at all. That stopped being true with pkg/control, whose verbs can create,
+// write to and kill sessions — behind config.Control.Enabled, off by default,
+// and deliberately on another socket with another protocol precisely so this
+// channel can stay open without carrying that weight. See
+// docs/adr/0006-api-de-controle-par-les-agents.md.
 //
 // Once called, evaluateAgentState's manifest-based guesswork stops running
 // for the rest of this session's life (see hookDriven's field comment) —

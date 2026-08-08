@@ -90,6 +90,11 @@ type Gui struct {
 	// perf tab samples the process, deliberately much slower than the redraw
 	// tick above — see pkg/gui/perf_tab.go's perfSampler.
 	perfIntervalMs int
+	// controlEnabled is pkg/config's Control.Enabled: whether Run opens the
+	// agent control socket at all — see pkg/gui/control.go and pkg/control.
+	// False by default, and the only thing standing between an agent and the
+	// verbs in control.go.
+	controlEnabled bool
 	// agentStatsCommand is pkg/config's AgentStatsCommand — see
 	// pkg/gui/stats.go's refreshAgentStats.
 	agentStatsCommand string
@@ -305,6 +310,7 @@ func New(sessions *session.Manager, cfg config.Config) *Gui {
 		windowTitleEnabled:  cfg.WindowTitle.Enabled,
 		maskSecrets:         cfg.EnvTab.MaskSecrets,
 		perfIntervalMs:      cfg.Perf.RefreshIntervalMs,
+		controlEnabled:      cfg.Control.Enabled,
 		agentStatsCommand:   cfg.AgentStatsCommand,
 		keymap:              cfg.Keybindings,
 	}
@@ -356,6 +362,21 @@ func (gui *Gui) tick() time.Duration {
 // Run: renderStatus already gives lastError priority over everything else.
 func (gui *Gui) SetStartupError(msg string) {
 	gui.lastError = msg
+}
+
+// appendStartupError adds to what SetStartupError already recorded rather than
+// replacing it, with the same " · " separator pkg/app's joinErrors uses — a
+// control socket that failed to open must not be the reason the project file's
+// error disappears. For problems found in Run itself, after pkg/app has had
+// its say; same "before MainLoop" constraint as SetStartupError.
+func (gui *Gui) appendStartupError(msg string) {
+	if gui.lastError == "" {
+		gui.lastError = msg
+
+		return
+	}
+
+	gui.lastError += " · " + msg
 }
 
 // SetDebug turns the debug mode on with the recorder pkg/app opened for
@@ -497,6 +518,18 @@ func (gui *Gui) Run() (err error) {
 	// sampling is the one piece of periodic work here that spawns a process.
 	if interval := gui.perfInterval(); interval > 0 {
 		gui.goEvery(interval, gui.samplePerf)
+	}
+
+	// The agent control socket (pkg/control), off unless config.Control.Enabled
+	// says otherwise. Opened here rather than in pkg/app because gui is the
+	// control.Handler, and closed on the way out so no stale socket survives.
+	// g.Update is already usable at this point: it queues, and MainLoop below
+	// drains the queue — a verb arriving in that window waits, it does not
+	// deadlock.
+	if srv, err := gui.startControlServer(config.ControlSocketPath()); err != nil {
+		gui.appendStartupError(err.Error())
+	} else if srv != nil {
+		defer func() { _ = srv.Close() }()
 	}
 
 	// Sessions can already exist before the first keypress — pkg/app starts the

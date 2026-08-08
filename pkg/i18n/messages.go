@@ -115,28 +115,28 @@ var messages = map[string]map[string]string{
 	// them genuinely short: they exist for a panel of about 25 columns, and a
 	// "short" form as long as the full one defeats the whole mechanism.
 	"tab.terminal": {
-		"fr": "terminal",
-		"en": "terminal",
+		"fr": "Terminal",
+		"en": "Terminal",
 	},
 	"tab.terminal_short": {
-		"fr": "term.",
-		"en": "term.",
+		"fr": "Term.",
+		"en": "Term.",
 	},
 	"tab.resources": {
-		"fr": "ressources",
-		"en": "resources",
+		"fr": "Ressources",
+		"en": "Resources",
 	},
 	"tab.resources_short": {
-		"fr": "ress.",
-		"en": "res.",
+		"fr": "Ress.",
+		"en": "Res.",
 	},
 	"tab.environment": {
-		"fr": "environnement",
-		"en": "environment",
+		"fr": "Environnement",
+		"en": "Environment",
 	},
 	"tab.environment_short": {
-		"fr": "env",
-		"en": "env",
+		"fr": "Env",
+		"en": "Env",
 	},
 	"tab.placeholder": {
 		"fr": "  (à venir)",

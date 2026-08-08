@@ -234,6 +234,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `mouse.forward_to_app` | bool | `true` | Whether a program inside a session may receive the mouse itself, and only once it has asked for it with a DECSET 9/1000/1002/1003 (`vim` with `set mouse=a`, `htop`). A shell or an AI agent CLI never asks, so the wheel keeps scrolling lazyshell's scrollback. |
 | `perf.refresh_interval_ms` | `0`, or int ≥ 100 | `5000` | How often every session's processes are sampled for the resources tab. This runs in the background whether or not that tab is open, so its curves already go back further than the moment you opened them; all sessions are sampled in one pass, so the cost does not grow with their number. `0` turns sampling off entirely — it is the one periodic job that spawns a process, so someone who never opens the tab need not pay for it. |
 | `env_tab.mask_secrets` | bool | `true` | Whether the output panel's env tab masks the value of variables whose name looks like a credential (`TOKEN`, `SECRET`, `PASSWORD`, `AUTH`, `..._KEY`). The panel is as shareable as a screenshot of it; set to `false` to see the real values. |
+| `control.enabled` | bool | `false` | Whether the agent control API is open — the socket `lazyshell ctl` drives a running lazyshell over. Off by default, and read [Agent control API](#agent-control-api) before turning it on: it lets any process running as you create sessions, type into them and read their output. |
 | `agent_stats_command` | string | `""` | Run for the selected AI agent session, with `$LAZYSHELL_SESSION_ID` in its environment; its first line of stdout is shown next to the turn duration. Empty disables it. |
 
 Key specs use `gocui.Parse` syntax: a bare character (`n`), or `Ctrl+N`,
@@ -349,6 +350,9 @@ perf:
 env_tab:
   mask_secrets: true
 
+control:
+  enabled: false
+
 agent_stats_command: ""
 ```
 
@@ -393,7 +397,50 @@ Once a session has received a single hook event, the manifest-based guessing
 stops for that session for good: the hook is authoritative from then on, not
 just until the next screen change. lazyshell never calls the agent through
 this socket — it only ever listens, and the only thing a hook event can do is
-set that one state.
+set that one state. Letting an agent do more than describe itself is a
+separate feature, off by default: see [Agent control API](#agent-control-api).
+
+#### Agent control API
+
+`control.enabled: true` opens a second socket — one per lazyshell process,
+not one per session — over which `lazyshell ctl` drives a running lazyshell.
+It is what an "orchestrator" agent needs: list the other sessions, read what
+they printed, start new ones, type into them.
+
+```sh
+lazyshell ctl list                                # id, name, status, agent state
+lazyshell ctl read session-2 --tail 40            # plain text, no escape codes
+lazyshell ctl new --name build --cwd ./api --command 'make test'
+lazyshell ctl send build 'echo bonjour' --enter   # as if typed
+lazyshell ctl kill build
+lazyshell ctl rename build tests
+```
+
+A session is named by its id (`session-2`, the value of
+`$LAZYSHELL_SESSION_ID`) or by its exact name. `--json` prints the raw
+response instead of the human rendering. Unlike `lazyshell hook`, which
+always exits 0 so it can never break an agent's turn, `ctl` exits non-zero on
+any failure: a caller that asked for a session and did not get one has to
+find out.
+
+`ctl new` does not steal the selection or the keyboard, unlike pressing `n`:
+a background agent creating a worker session must not yank the cursor out of
+whatever you were typing.
+
+**Read this before enabling it.** There is no token and no per-session
+permission: the socket's `0600` file permissions are the entire access
+control. Turning this on therefore means *every process running under your
+account* can create sessions, type commands into them and read their output —
+not just the agents you started inside lazyshell. `ctl read` returns
+scrollback verbatim, secrets included; the env tab's masking has no
+equivalent here, because a credential echoed into a shell is
+indistinguishable from any other text once it is on screen.
+
+That trade is why the default is `false`, and why this is a separate socket
+with a separate protocol rather than an extension of the hook channel above —
+which stays open by default precisely because all it can ever do is move a
+marker in a list. The full reasoning, and the alternatives weighed against
+it, are in `docs/adr/0006-api-de-controle-par-les-agents.md`.
 
 #### Notifications, jumping to what's waiting, and turn stats
 

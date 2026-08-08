@@ -4,7 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
+
+	"github.com/thomas-gleizes/lazyshell/pkg/control"
 )
 
 // Sub-commands. They never open the UI: both are things you run once, from a
@@ -24,7 +27,23 @@ const (
 	// the calling session — the command an agent's own hook config runs, over
 	// $LAZYSHELL_SOCK. See pkg/hook and pkg/app/hook.go.
 	CommandHook = "hook"
+	// CommandCtl drives a running lazyshell over the agent control socket:
+	// list/read/new/send/kill/rename, in Invocation.CtlVerb. Only works when
+	// config.Control.Enabled is true — see pkg/control and pkg/app/ctl.go.
+	CommandCtl = "ctl"
 )
+
+// Verbs of `lazyshell ctl`, mirroring pkg/control's own constants. Repeated
+// here rather than imported so the parser reports a typo without pkg/control
+// being reachable, and so this list is what the usage text is checked against.
+var ctlVerbs = map[string]struct{ minArgs, maxArgs int }{
+	control.VerbList:   {0, 0},
+	control.VerbRead:   {1, 1},
+	control.VerbNew:    {0, 0},
+	control.VerbSend:   {2, -1}, // target + text, the text possibly several words
+	control.VerbKill:   {1, 1},
+	control.VerbRename: {2, 2},
+}
 
 // Verbs of `lazyshell config`. A bare `lazyshell config` means ConfigShow:
 // reading is safe and is what someone typing the command blind most likely
@@ -78,6 +97,28 @@ func (f envFileFlag) Set(v string) error {
 	return nil
 }
 
+// CtlOptions are `lazyshell ctl`'s own flags. Kept apart from Options, which
+// is about the interface this command never opens.
+type CtlOptions struct {
+	// Name is `ctl new --name` (the session to create) and is unused by
+	// `ctl rename`, whose new name is a positional argument.
+	Name string
+	// Cwd is `ctl new --cwd`: the working directory to start in.
+	Cwd string
+	// Command is `ctl new --command`: typed into the new session's shell.
+	Command string
+	// Tail is `ctl read --tail`: last N lines only. Zero is the whole
+	// scrollback.
+	Tail int
+	// Enter is `ctl send --enter`: append a carriage return to the text.
+	// Off by default — pressing Enter is an explicit act, same as tmux's
+	// send-keys.
+	Enter bool
+	// JSON prints the raw control.Response instead of the human rendering,
+	// for a caller that would rather parse than scrape.
+	JSON bool
+}
+
 // Invocation is a fully parsed command line.
 type Invocation struct {
 	Options
@@ -87,6 +128,13 @@ type Invocation struct {
 	// Arg is the sub-command's positional argument: the file to approve for
 	// `allow`, the verb for `config`, empty for `init`.
 	Arg string
+	// CtlVerb is `ctl`'s verb, one of pkg/control's Verb* constants, already
+	// checked against ctlVerbs.
+	CtlVerb string
+	// CtlArgs are the verb's positional arguments, count already checked.
+	CtlArgs []string
+	// Ctl are `ctl`'s flags.
+	Ctl CtlOptions
 }
 
 const usage = `lazyshell — gestionnaire de sessions shell en TUI
@@ -100,6 +148,17 @@ Usage :
   lazyshell config init         écrit une config utilisateur commentée
   lazyshell hook <état>         signale l'état d'un agent IA (idle/working/blocked/done) —
                                  appelée par la config de hook de l'agent, pas à la main
+
+Pilotage d'un lazyshell en cours (nécessite control.enabled dans la config) :
+  lazyshell ctl list                        liste les sessions
+  lazyshell ctl read <session> [--tail N]   affiche la sortie d'une session
+  lazyshell ctl new [--name N] [--cwd D] [--command C]
+                                            crée une session
+  lazyshell ctl send <session> <texte…> [--enter]
+                                            écrit dans une session, comme au clavier
+  lazyshell ctl kill <session>              termine une session
+  lazyshell ctl rename <session> <nom>      renomme une session
+  <session> est un id (session-2) ou un nom exact ; --json donne la réponse brute.
 
 Options :
   -f, --config-file <fichier>   fichier de projet à utiliser
@@ -122,12 +181,19 @@ func ParseArgs(args []string) (Invocation, error) {
 	// to the sub-command or to a preceding flag.
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		switch args[0] {
-		case CommandInit, CommandAllow, CommandConfig, CommandHook:
+		case CommandInit, CommandAllow, CommandConfig, CommandHook, CommandCtl:
 			inv.Command = args[0]
 			args = args[1:]
 		default:
 			return inv, fmt.Errorf("commande inconnue %q\n\n%s", args[0], usage)
 		}
+	}
+
+	// ctl parses on its own: none of the flags below mean anything to it, and
+	// its arguments are interspersed with its own flags ("ctl send s1 echo hi
+	// --enter"), which the single Parse used here cannot do.
+	if inv.Command == CommandCtl {
+		return parseCtlArgs(inv, args)
 	}
 
 	fs := flag.NewFlagSet("lazyshell", flag.ContinueOnError)
@@ -189,4 +255,84 @@ func ParseArgs(args []string) (Invocation, error) {
 	}
 
 	return inv, nil
+}
+
+// parseCtlArgs parses `lazyshell ctl`'s tail: a verb, its positional
+// arguments, and its flags, in any order.
+//
+// The repeated-Parse loop is the standard Go idiom for interspersed flags and
+// arguments — flag.Parse stops at the first non-flag — and it is needed here
+// rather than anywhere else because the natural way to write these commands
+// puts a positional first: `ctl send session-1 "echo bonjour" --enter`.
+func parseCtlArgs(inv Invocation, args []string) (Invocation, error) {
+	fs := flag.NewFlagSet("lazyshell ctl", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	fs.Usage = func() {}
+
+	fs.StringVar(&inv.Ctl.Name, "name", "", "nom de la session à créer")
+	fs.StringVar(&inv.Ctl.Cwd, "cwd", "", "dossier de travail de la session à créer")
+	fs.StringVar(&inv.Ctl.Command, "command", "", "commande tapée dans la session créée")
+	fs.IntVar(&inv.Ctl.Tail, "tail", 0, "n'affiche que les N dernières lignes")
+	fs.BoolVar(&inv.Ctl.Enter, "enter", false, "ajoute un retour chariot au texte envoyé")
+	fs.BoolVar(&inv.Ctl.JSON, "json", false, "affiche la réponse brute en JSON")
+
+	var positional []string
+
+	rest := args
+	for {
+		if err := fs.Parse(rest); err != nil {
+			return inv, fmt.Errorf("%w\n\n%s", err, usage)
+		}
+
+		if fs.NArg() == 0 {
+			break
+		}
+
+		positional = append(positional, fs.Arg(0))
+		rest = fs.Args()[1:]
+	}
+
+	if len(positional) == 0 {
+		return inv, fmt.Errorf("lazyshell ctl attend un verbe (%s)\n\n%s", ctlVerbList(), usage)
+	}
+
+	inv.CtlVerb = positional[0]
+	inv.CtlArgs = positional[1:]
+
+	arity, ok := ctlVerbs[inv.CtlVerb]
+	if !ok {
+		return inv, fmt.Errorf("verbe inconnu %q pour ctl (attendu : %s)\n\n%s",
+			inv.CtlVerb, ctlVerbList(), usage)
+	}
+
+	// Checked here rather than in RunCtl for the reason `config`'s verb is:
+	// a wrong argument count is a typo, and the answer to a typo is the usage
+	// message, not a request sent to a running lazyshell.
+	if got := len(inv.CtlArgs); got < arity.minArgs || (arity.maxArgs >= 0 && got > arity.maxArgs) {
+		return inv, fmt.Errorf("lazyshell ctl %s : %d argument(s), %s attendu(s)\n\n%s",
+			inv.CtlVerb, got, arityText(arity.minArgs, arity.maxArgs), usage)
+	}
+
+	return inv, nil
+}
+
+func arityText(minArgs, maxArgs int) string {
+	if maxArgs < 0 {
+		return fmt.Sprintf("au moins %d", minArgs)
+	}
+
+	if minArgs == maxArgs {
+		return strconv.Itoa(minArgs)
+	}
+
+	return fmt.Sprintf("de %d à %d", minArgs, maxArgs)
+}
+
+// ctlVerbList is the verbs in a stable order, for error messages — ctlVerbs is
+// a map, and an error whose wording changes between runs is a bad error.
+func ctlVerbList() string {
+	return strings.Join([]string{
+		control.VerbList, control.VerbRead, control.VerbNew,
+		control.VerbSend, control.VerbKill, control.VerbRename,
+	}, ", ")
 }

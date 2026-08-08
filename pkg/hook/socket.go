@@ -7,8 +7,15 @@
 // The wire protocol is deliberately the smallest thing that works: one line
 // per event, the line being one of agent.State's four spellings
 // ("idle"/"working"/"blocked"/"done"). No JSON, no framing, no verbs beyond
-// "this is my state now" — an agent declares itself, it does not control
-// lazyshell (see the design report's open question on a control API).
+// "this is my state now" — an agent declares itself here, it does not control
+// lazyshell.
+//
+// That last part is a property of *this* channel, not of lazyshell as a whole
+// any more: the verbs an agent can send live in pkg/control, on a separate
+// socket with a separate protocol, off unless config.Control.Enabled says
+// otherwise (docs/adr/0006-api-de-controle-par-les-agents.md). Keeping the two
+// apart is the point — this one stays open by default precisely because it can
+// only ever move a marker in a list.
 package hook
 
 import (
@@ -17,11 +24,11 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/thomas-gleizes/lazyshell/pkg/agent"
+	"github.com/thomas-gleizes/lazyshell/pkg/config"
 )
 
 // dialTimeout bounds how long a hook invocation (a short-lived CLI process,
@@ -29,30 +36,13 @@ import (
 // out to be gone or unresponsive.
 const dialTimeout = 500 * time.Millisecond
 
-// runtimeDir is where every session's hook socket lives:
-// $XDG_RUNTIME_DIR/lazyshell/<pid>, falling back to os.TempDir()'s
-// equivalent when $XDG_RUNTIME_DIR is unset — same "always land somewhere,
-// never fail silently" precedence pkg/config.Path uses for the config file.
-// The pid segment is this lazyshell process's own, so two instances never
-// collide on the same session id: creation order alone ("session-1") is not
-// unique across processes.
-func runtimeDir() string {
-	base := os.Getenv("XDG_RUNTIME_DIR")
-	if base == "" {
-		base = os.TempDir()
-	}
-
-	return filepath.Join(base, "lazyshell", strconv.Itoa(os.Getpid()))
-}
-
 // SocketPath is the Unix socket path a session's hook channel listens on —
 // exported so pkg/session can compute it before starting the process, to
 // inject it into that process's environment as $LAZYSHELL_SOCK. Kept short
-// on purpose (session ids are short, "session-N"): a Unix socket path is
-// capped at roughly 100 bytes depending on the platform, and $TMPDIR-based
-// fallbacks in particular can already eat into that budget.
+// on purpose (session ids are short, "session-N"): config.RuntimeDir's own
+// doc comment explains the path budget this spends from.
 func SocketPath(sessionID string) string {
-	return filepath.Join(runtimeDir(), sessionID+".sock")
+	return filepath.Join(config.RuntimeDir(), sessionID+".sock")
 }
 
 // Server is one session's hook listener.

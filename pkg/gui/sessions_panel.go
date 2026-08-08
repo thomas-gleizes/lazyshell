@@ -508,18 +508,37 @@ func (gui *Gui) newNamedSession(*gocui.Gui, *gocui.View) error {
 // spent in that case, so naming a session does not leave a hole in the
 // "session-N" sequence.
 func (gui *Gui) createSession(name string) error {
-	if name == "" {
+	_, err := gui.createSessionWithOptions(session.Options{Name: name})
+
+	return err
+}
+
+// createSessionWithOptions is createSession's general form: the naming rule
+// above, the shell fallback, and the debug trace, in one place, whatever else
+// the caller wants to set (a working directory, a command to type). Every
+// creation path goes through it — the keybindings, and pkg/gui/control.go's
+// VerbNew — so an agent-created session gets the same "session-N" sequence and
+// the same trace as one the user asked for.
+//
+// GUI goroutine only: it spends gui.sessionCounter.
+func (gui *Gui) createSessionWithOptions(opts session.Options) (*session.Session, error) {
+	if opts.Name == "" {
 		gui.sessionCounter++
-		name = fmt.Sprintf("session-%d", gui.sessionCounter)
+		opts.Name = fmt.Sprintf("session-%d", gui.sessionCounter)
 	}
 
-	if _, err := gui.sessions.New(name, gui.defaultShell()); err != nil {
-		return err
+	if opts.Shell == "" {
+		opts.Shell = gui.defaultShell()
 	}
 
-	gui.debug.Event("session %s created (%s)", name, gui.defaultShell())
+	sess, err := gui.sessions.NewWithOptions(opts)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil
+	gui.debug.Event("session %s created (%s)", opts.Name, opts.Shell)
+
+	return sess, nil
 }
 
 // killSession asks for confirmation before killing the selected session.

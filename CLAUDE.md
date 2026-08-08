@@ -112,8 +112,16 @@ now that the roadmap that used to hold it is gone.
   shell as `\x1b[1;2B`. The wheel scrolls the panel's content and is *never* encoded as an arrow
   key; it only reaches the session's program once that program arms a DECSET 9/1000/1002/1003.
 - Windows support: explicitly out of scope (no Unix pty).
-- Agent control API (agents creating panels / reading other sessions' output via a socket): decided
-  against for now — the phase 11b hooks socket is inbound/declarative only; an outbound control verb
-  is a deliberately separate, not-yet-taken decision (untrusted process, execution surface risk).
+- Agent control API (agents creating panels / reading other sessions' output via a socket): **done
+  (ADR 0006)**, and the decision it reverses was explicit, so read that ADR before touching any of
+  it. `pkg/control` + `lazyshell ctl`, six verbs (`list`/`read`/`new`/`send`/`kill`/`rename`), on a
+  *separate* socket with a *separate* protocol (line-JSON, request→response) from the phase 11b hook
+  channel — which stays inbound/declarative and open by default precisely because all it can do is
+  move a marker. The load-bearing rules: `control.enabled` is false by default and, when false,
+  there is no socket at all and no `$LAZYSHELL_CONTROL_SOCK` in any session's environment (its
+  absence is the signal); there is no token, so enabling it means every process running as the user
+  can drive lazyshell; `ctl` exits non-zero on failure, the exact opposite of `lazyshell hook`; and
+  the goroutine split in `pkg/gui/control.go` (`list`/`read`/`send` inline, `new`/`kill`/`rename`
+  through `onGUI`) is a correctness rule, not a style choice.
 - Detach/daemon mode ("agents keep running with the laptop closed"): out of scope unless real demand
   surfaces.

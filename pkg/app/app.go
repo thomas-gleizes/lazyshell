@@ -66,6 +66,8 @@ func Main(args []string, out io.Writer) error {
 		return ShowConfig(inv.Options, out, os.Stderr)
 	case CommandHook:
 		return RunHook(inv.Arg, os.Stderr)
+	case CommandCtl:
+		return RunCtl(inv, out)
 	}
 
 	return New(inv.Options).Run()
@@ -106,6 +108,13 @@ func newApp(opts Options, approve approver, errOut io.Writer) *App {
 	sessions.Term = cfg.Term
 	sessions.DefaultEnvFiles = opts.EnvFiles
 	sessions.DisableDefaultEnv = opts.NoEnvFile
+
+	// Only when the control API is on: an empty ControlSocket is what keeps
+	// $LAZYSHELL_CONTROL_SOCK out of every session's environment, which is how
+	// a session learns the feature is off (pkg/session's buildEnv, pkg/control).
+	if cfg.Control.Enabled {
+		sessions.ControlSocket = config.ControlSocketPath()
+	}
 
 	if cfg.KillTimeoutMs > 0 {
 		sessions.KillTimeout = time.Duration(cfg.KillTimeoutMs) * time.Millisecond

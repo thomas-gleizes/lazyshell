@@ -125,6 +125,7 @@
     <tr><td><code>mouse.forward_to_app</code></td><td>booléen</td><td><code>true</code></td><td>Un programme dans une session peut recevoir la souris, et seulement une fois qu'il l'a demandée par un DECSET 9/1000/1002/1003 (<code>vim</code> avec <code>set mouse=a</code>, <code>htop</code>). Un shell ou une CLI d'agent ne la demande jamais.</td></tr>
     <tr><td><code>perf.refresh_interval_ms</code></td><td><code>0</code>, ou entier ≥ 100</td><td><code>5000</code></td><td>Fréquence d'échantillonnage des process de chaque session pour l'onglet <em>ressources</em>. Tourne en arrière-plan que l'onglet soit ouvert ou non, en une seule passe pour toutes les sessions. <code>0</code> coupe l'échantillonnage : c'est le seul travail périodique qui lance un process.</td></tr>
     <tr><td><code>env_tab.mask_secrets</code></td><td>booléen</td><td><code>true</code></td><td>L'onglet <em>environnement</em> masque la valeur des variables dont le nom ressemble à un identifiant (<code>TOKEN</code>, <code>SECRET</code>, <code>PASSWORD</code>, <code>AUTH</code>, <code>..._KEY</code>).</td></tr>
+    <tr><td><code>control.enabled</code></td><td>booléen</td><td><code>false</code></td><td>L'API de contrôle par les agents est ouverte — le socket que <code>lazyshell ctl</code> pilote. Désactivée par défaut ; lire la page <a href="agents.html">sessions d'agents IA</a> avant de l'activer, car elle permet à tout processus tournant sous votre compte de créer des sessions, d'y taper et de lire leur sortie.</td></tr>
     <tr><td><code>agent_stats_command</code></td><td>chaîne</td><td><code>""</code></td><td>Exécutée pour la session d'agent IA sélectionnée, avec <code>$LAZYSHELL_SESSION_ID</code> dans son environnement ; sa première ligne de sortie est affichée à côté de la durée du tour. Vide la désactive.</td></tr>
   </tbody>
 </table>
@@ -268,6 +269,9 @@ perf:
 
 env_tab:
   mask_secrets: true
+
+control:
+  enabled: false
 
 agent_stats_command: ""</code></pre>
 

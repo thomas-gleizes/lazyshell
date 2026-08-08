@@ -78,6 +78,13 @@ type Manager struct {
 	// Options.NoDefaultEnvFile overrides it back on. pkg/app wires this to
 	// --no-env-file.
 	DisableDefaultEnv bool
+
+	// ControlSocket is the agent control API's socket path (pkg/control),
+	// injected into every session as $LAZYSHELL_CONTROL_SOCK. Empty — the
+	// zero value, and what pkg/app leaves it at unless config.Control.Enabled
+	// is true — means the API is off: no variable is injected, and a session
+	// therefore has no way to find the socket even if one existed.
+	ControlSocket string
 }
 
 // NewManager returns an empty Manager, ready to create sessions.
@@ -265,7 +272,10 @@ func (m *Manager) term() string {
 //  1. the process's own environment
 //  2. TERM/LAZYSHELL_SESSION_ID/LAZYSHELL_SOCK, forced — a session's identity
 //     and its hook channel are not something a .env file or a project's
-//     declarative `env:` should be able to redefine
+//     declarative `env:` should be able to redefine. LAZYSHELL_CONTROL_SOCK
+//     joins them when, and only when, the control API is on (m.ControlSocket):
+//     the variable's *absence* is how a session learns the feature is off, so
+//     it is not injected at all rather than injected empty.
 //  3. "<cwd>/.env", loaded automatically unless disabled (opts.NoDefaultEnvFile,
 //     else m.DisableDefaultEnv)
 //  4. m.DefaultEnvFiles, in order (the --env-file flag)
@@ -276,6 +286,10 @@ func (m *Manager) term() string {
 // same config produce the same environment, which is what makes it testable.
 func buildEnv(m *Manager, sessionID, sockPath, cwd string, opts Options) ([]string, error) {
 	env := append(os.Environ(), "TERM="+m.term(), "LAZYSHELL_SESSION_ID="+sessionID, "LAZYSHELL_SOCK="+sockPath)
+
+	if m.ControlSocket != "" {
+		env = append(env, "LAZYSHELL_CONTROL_SOCK="+m.ControlSocket)
+	}
 
 	loadDefault := !m.DisableDefaultEnv
 	if opts.NoDefaultEnvFile != nil {

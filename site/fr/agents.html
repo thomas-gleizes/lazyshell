@@ -39,6 +39,7 @@
     <li><a href="#detection">Détection sans configuration</a></li>
     <li><a href="#manifestes">Manifestes personnalisés</a></li>
     <li><a href="#hooks">État autoritaire par hooks</a></li>
+    <li><a href="#controle">API de contrôle par les agents</a></li>
     <li><a href="#notifications">Notifications</a></li>
     <li><a href="#stats">Durée de tour et stats</a></li>
     <li><a href="#limites">Ce que lazyshell ne fait pas</a></li>
@@ -143,6 +144,44 @@
   </p>
 </div>
 
+<h2 id="controle">API de contrôle par les agents</h2>
+
+<p>
+  Le canal de hooks ci-dessus ne permet à un agent que de <em>se décrire</em>. Lui permettre
+  d'<em>agir</em> — créer des sessions, lire ce que les autres ont affiché, y taper — est une
+  fonctionnalité distincte, sur une socket distincte, désactivée sauf si
+  <code>control.enabled</code> en décide autrement. C'est ce dont un agent « chef d'orchestre » a
+  besoin.
+</p>
+
+<pre><code>lazyshell ctl list                                # id, nom, statut, état d'agent
+lazyshell ctl read session-2 --tail 40            # texte brut, sans séquences d'échappement
+lazyshell ctl new --name build --cwd ./api --command 'make test'
+lazyshell ctl send build 'echo bonjour' --enter   # comme si c'était tapé
+lazyshell ctl kill build
+lazyshell ctl rename build tests</code></pre>
+
+<p>
+  Une session se désigne par son id (<code>session-2</code>, la valeur de
+  <code>$LAZYSHELL_SESSION_ID</code>) ou par son nom exact ; <code>--json</code> affiche la réponse
+  brute. Contrairement à <code>lazyshell hook</code>, qui sort toujours en 0 pour ne jamais casser
+  le tour d'un agent, <code>ctl</code> sort en code non nul au moindre échec — celui qui a demandé
+  une session sans l'obtenir doit pouvoir le savoir. <code>ctl new</code> ne vole délibérément ni
+  la sélection ni le clavier, contrairement à la touche <code>n</code>.
+</p>
+
+<div class="warn">
+  <p>
+    <strong>À lire avant d'activer.</strong> Il n'y a ni jeton ni permission par session : les
+    permissions <code>0600</code> de la socket sont l'intégralité du contrôle d'accès. Activer
+    signifie que <em>tout processus tournant sous votre compte</em> peut créer des sessions, y
+    taper des commandes et lire leur sortie — pas seulement les agents que vous avez lancés dans
+    lazyshell. Et <code>ctl read</code> rend le scrollback verbatim, secrets compris : le masquage
+    de l'onglet environnement n'a pas d'équivalent ici, parce qu'un identifiant affiché dans un
+    shell est indiscernable de n'importe quel autre texte une fois à l'écran.
+  </p>
+</div>
+
 <h2 id="notifications">Notifications</h2>
 
 <p>
@@ -186,14 +225,16 @@ agent_stats_command: "~/bin/mon-compteur-de-tokens.sh"</code></pre>
     <code>agent_stats_command</code> est le point d'extension prévu.
   </li>
   <li>
-    <strong>Il n'appelle jamais l'agent par la socket.</strong> Le canal est entrant et déclaratif
-    uniquement : lazyshell écoute, et la seule chose qu'un événement de hook peut faire est de
-    fixer cet unique état.
+    <strong>Il n'appelle jamais l'agent par la socket de hooks.</strong> Ce canal-là est entrant et
+    déclaratif uniquement : lazyshell écoute, et la seule chose qu'un événement de hook peut faire
+    est de fixer cet unique état. L'API de contrôle ci-dessus est une seconde socket, distincte, et
+    elle est fermée par défaut.
   </li>
   <li>
-    <strong>Il n'y a pas d'API de contrôle.</strong> Un agent ne peut pas créer de panneau ni lire
-    la sortie d'une autre session — décision délibérée : le process à l'autre bout n'est pas de
-    confiance, et un verbe sortant serait une surface d'exécution.
+    <strong>L'API de contrôle n'accorde rien qu'on ne lui demande.</strong> Il n'y a pas de verbe
+    <code>delete</code> — <code>ctl kill</code> termine le processus et laisse la session listée
+    comme terminée, il ne la supprime jamais définitivement — et rien dans le protocole ne permet à
+    un agent de modifier la configuration ou les raccourcis de lazyshell.
   </li>
 </ul>
 

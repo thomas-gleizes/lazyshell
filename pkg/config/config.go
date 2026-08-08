@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"gopkg.in/yaml.v3"
 )
@@ -151,6 +152,9 @@ type Config struct {
 	EnvTab EnvTab `yaml:"env_tab"`
 	// Perf configures the output panel's perf tab.
 	Perf Perf `yaml:"perf"`
+	// Control configures the agent control API (pkg/control). Off by default,
+	// deliberately — see docs/adr/0006-api-de-controle-par-les-agents.md.
+	Control Control `yaml:"control"`
 	// AgentStatsCommand, when set, is run for the selected session — with
 	// $LAZYSHELL_SESSION_ID in its environment — and its first line of
 	// stdout is shown alongside the turn duration. Best-effort: lazyshell
@@ -253,6 +257,22 @@ type Perf struct {
 	RefreshIntervalMs int `yaml:"refresh_interval_ms"`
 }
 
+// Control configures the agent control API: a Unix socket, one per lazyshell
+// process, over which `lazyshell ctl` lists the sessions, reads their output,
+// creates new ones, types into them, kills and renames them (pkg/control).
+//
+// Unlike the hook channel of pkg/hook — which is inbound and declarative, an
+// agent stating its own state and nothing else — this one carries verbs, and
+// two of them (`new`, `send`) amount to running commands as you. There is no
+// token: the socket's 0600 permissions are the only boundary, so enabling this
+// means every process running under your account can drive lazyshell, not just
+// the agents you started inside it. Hence off by default.
+type Control struct {
+	// Enabled turns the whole API on: the socket is only created, and
+	// $LAZYSHELL_CONTROL_SOCK only injected into sessions, when it is true.
+	Enabled bool `yaml:"enabled"`
+}
+
 // Mouse configures the mouse support. It is on by default, and the switch
 // exists because enabling it is not free: gocui gives mouse buttons and the
 // Shift-Up/Shift-Down keys the very same values (MouseLeft is KeyShiftArrowDown,
@@ -326,6 +346,7 @@ func Default() Config {
 		},
 		EnvTab:            EnvTab{MaskSecrets: true},
 		Perf:              Perf{RefreshIntervalMs: defaultPerfRefreshIntervalMs},
+		Control:           Control{Enabled: false},
 		AgentStatsCommand: "",
 	}
 }
@@ -373,6 +394,45 @@ func DebugLogPath() string {
 	}
 
 	return filepath.Join(dir, "debug.log")
+}
+
+// RuntimeDir is where lazyshell's Unix sockets live:
+// $XDG_RUNTIME_DIR/lazyshell/<pid>, falling back to os.TempDir()'s equivalent
+// when $XDG_RUNTIME_DIR is unset — the same "always land somewhere, never fail
+// silently" precedence Path uses for the config file. The pid segment is this
+// lazyshell process's own, so two instances never collide: creation order
+// alone ("session-1") is not unique across processes, and the control socket
+// has no session in its name at all.
+//
+// Callers must keep what they append short. A Unix socket path is capped at
+// roughly 100 bytes depending on the platform, and a $TMPDIR-based fallback
+// can already eat into that budget on its own.
+func RuntimeDir() string {
+	return filepath.Join(RuntimeRoot(), strconv.Itoa(os.Getpid()))
+}
+
+// RuntimeRoot is RuntimeDir without the pid segment: the directory holding one
+// subdirectory per lazyshell process on this machine. Exported for the one job
+// that has to look across instances rather than inside its own — `lazyshell
+// ctl` finding the lazyshell to talk to when it was not started from inside
+// one of its sessions.
+func RuntimeRoot() string {
+	base := os.Getenv("XDG_RUNTIME_DIR")
+	if base == "" {
+		base = os.TempDir()
+	}
+
+	return filepath.Join(base, "lazyshell")
+}
+
+// ControlSocketPath is the Unix socket the agent control API listens on when
+// Control.Enabled is true — one per lazyshell process, not one per session:
+// the session a verb applies to travels in the request, so per-session sockets
+// would multiply RuntimeDir's path budget for nothing. Exported so pkg/gui can
+// listen on it, pkg/session can inject it as $LAZYSHELL_CONTROL_SOCK, and
+// `lazyshell ctl` can fall back to it when invoked outside a session.
+func ControlSocketPath() string {
+	return filepath.Join(RuntimeDir(), "control.sock")
 }
 
 // configDir is lazyshell's config directory, shared by Path and AgentsDir:

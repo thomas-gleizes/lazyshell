@@ -124,6 +124,7 @@
     <tr><td><code>mouse.forward_to_app</code></td><td>bool</td><td><code>true</code></td><td>Whether a program inside a session may receive the mouse itself, and only once it has asked for it with a DECSET 9/1000/1002/1003 (<code>vim</code> with <code>set mouse=a</code>, <code>htop</code>). A shell or an AI agent CLI never asks.</td></tr>
     <tr><td><code>perf.refresh_interval_ms</code></td><td><code>0</code>, or int ≥ 100</td><td><code>5000</code></td><td>How often every session's processes are sampled for the resources tab. Runs in the background whether or not the tab is open, in a single pass across all sessions. <code>0</code> turns sampling off — it is the one periodic job that spawns a process.</td></tr>
     <tr><td><code>env_tab.mask_secrets</code></td><td>bool</td><td><code>true</code></td><td>Whether the environment tab masks the value of variables whose name looks like a credential (<code>TOKEN</code>, <code>SECRET</code>, <code>PASSWORD</code>, <code>AUTH</code>, <code>..._KEY</code>).</td></tr>
+    <tr><td><code>control.enabled</code></td><td>bool</td><td><code>false</code></td><td>Whether the agent control API is open — the socket <code>lazyshell ctl</code> drives a running lazyshell over. Off by default; read the <a href="agents.html">agent sessions</a> page before turning it on, since it lets any process running as you create sessions, type into them and read their output.</td></tr>
     <tr><td><code>agent_stats_command</code></td><td>string</td><td><code>""</code></td><td>Run for the selected AI agent session, with <code>$LAZYSHELL_SESSION_ID</code> in its environment; its first line of stdout is shown next to the turn duration. Empty disables it.</td></tr>
   </tbody>
 </table>
@@ -265,6 +266,9 @@ perf:
 
 env_tab:
   mask_secrets: true
+
+control:
+  enabled: false
 
 agent_stats_command: ""</code></pre>
 
