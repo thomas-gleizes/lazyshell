@@ -47,6 +47,26 @@ func TestShowPromptOpensPopupPreFilled(t *testing.T) {
 	}
 }
 
+// TestShowPromptHasRoomForOneLine guards the geometry: gocui's SetView takes
+// corner coordinates, so a popup one row tall has zero usable inner lines and
+// draws as an empty frame with no text and no cursor.
+func TestShowPromptHasRoomForOneLine(t *testing.T) {
+	gui, g := newPromptTestGui(t)
+
+	if err := gui.showPrompt("titre", "", func(string) error { return nil }); err != nil {
+		t.Fatalf("showPrompt: %v", err)
+	}
+
+	view, err := g.View(promptViewName)
+	if err != nil {
+		t.Fatalf("prompt view not found: %v", err)
+	}
+
+	if _, height := view.InnerSize(); height < 1 {
+		t.Errorf("prompt inner height = %d, want at least 1 line of input", height)
+	}
+}
+
 func TestSubmitPromptCallsOnSubmitWithTrimmedText(t *testing.T) {
 	gui, g := newPromptTestGui(t)
 

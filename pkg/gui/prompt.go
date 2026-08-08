@@ -13,9 +13,14 @@ const promptViewName = "prompt"
 // promptMinWidth/promptHeight size the single-line text-entry popup: wide
 // enough for a short answer to be comfortable, one line of input plus the
 // frame gocui always draws around a titled view.
+//
+// Both are gocui *corner-to-corner* distances, not inner sizes: SetView(x0,
+// y0, x1, y1) spans y1-y0+1 rows of which the frame eats two, so height must
+// be 2 to leave a single usable line. With 1 the popup renders as a bare
+// frame with nowhere to put the text or the cursor.
 const (
 	promptMinWidth = 40
-	promptHeight   = 1
+	promptHeight   = 2
 )
 
 // showPrompt opens a single-line text-entry popup titled title, pre-filled
