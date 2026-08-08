@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -32,73 +33,98 @@ func TestFormatBytes(t *testing.T) {
 }
 
 // A percentage is a rate: with two samples it is the delta, and without one it
-// has to say that it is showing something else instead.
-func TestPerfSamplerCPUText(t *testing.T) {
+// has to fall back to something and say so.
+func TestCPUPercent(t *testing.T) {
 	now := time.Now()
-
-	sampler := func(previous map[int]session.ProcStats) *perfSampler {
-		return &perfSampler{
-			tr:       i18n.New("fr"),
-			previous: previous,
-			sess:     &session.Session{CreatedAt: now.Add(-10 * time.Second)},
-		}
-	}
+	created := now.Add(-10 * time.Second)
 
 	t.Run("delta between two samples", func(t *testing.T) {
-		// Half a second of CPU over one second of wall clock is 50%.
-		p := sampler(map[int]session.ProcStats{
-			42: {PID: 42, CPUTime: time.Second, SampledAt: now},
-		})
+		before := session.ProcStats{PID: 42, CPUTime: time.Second, SampledAt: now}
+		after := session.ProcStats{PID: 42, CPUTime: 1500 * time.Millisecond, SampledAt: now.Add(time.Second)}
 
-		got := p.cpuText(session.ProcStats{
-			PID:       42,
-			CPUTime:   1500 * time.Millisecond,
-			SampledAt: now.Add(time.Second),
-		})
+		// Half a second of CPU over one second of wall clock.
+		got, instant := cpuPercent(before, after, created)
 
-		if got != "50.0 %" {
-			t.Errorf("cpuText = %q, want %q", got, "50.0 %")
+		if !instant {
+			t.Error("instant = false with two samples to compare")
+		}
+
+		if got != 50 {
+			t.Errorf("cpuPercent = %v, want 50", got)
 		}
 	})
 
-	t.Run("first sample falls back to the average", func(t *testing.T) {
-		p := sampler(nil)
-
+	t.Run("no previous sample falls back to the average", func(t *testing.T) {
 		// One second of CPU over the ten the session has been alive.
-		got := p.cpuText(session.ProcStats{PID: 42, CPUTime: time.Second, SampledAt: now})
+		got, instant := cpuPercent(session.ProcStats{}, session.ProcStats{
+			PID: 42, CPUTime: time.Second, SampledAt: now,
+		}, created)
 
-		if !strings.HasPrefix(got, "10.0 %") {
-			t.Errorf("cpuText = %q, want it to start with %q", got, "10.0 %")
+		if instant {
+			t.Error("instant = true with nothing to compare against")
 		}
 
-		// And it must say so rather than pass for the instantaneous figure.
-		if !strings.Contains(got, "moy.") {
-			t.Errorf("cpuText = %q, want it labelled as an average", got)
+		// The average divides by time.Since, so it lands just under 10 rather
+		// than exactly on it.
+		if got < 9.9 || got > 10 {
+			t.Errorf("cpuPercent = %v, want the 10%% average", got)
 		}
 	})
 
-	t.Run("a pid reused under us shows no figure", func(t *testing.T) {
+	t.Run("a pid reused under us falls back too", func(t *testing.T) {
 		// A negative delta means the pid is not the process it was.
-		p := sampler(map[int]session.ProcStats{
-			42: {PID: 42, CPUTime: 10 * time.Second, SampledAt: now},
-		})
+		before := session.ProcStats{PID: 42, CPUTime: 10 * time.Second, SampledAt: now}
+		after := session.ProcStats{PID: 42, CPUTime: time.Second, SampledAt: now.Add(time.Second)}
 
-		got := p.cpuText(session.ProcStats{
-			PID:       42,
-			CPUTime:   time.Second,
-			SampledAt: now.Add(time.Second),
-		})
-
-		if !strings.Contains(got, "moy.") {
-			t.Errorf("cpuText = %q, want it to fall back to the average", got)
+		if _, instant := cpuPercent(before, after, created); instant {
+			t.Error("instant = true on a negative delta, want the average fallback")
 		}
 	})
 }
 
+// newTestRenderer is a perfRenderer over a fixed snapshot, for the rendering
+// tests — none of which want a real session or a sampler behind them.
+func newTestRenderer(width int, snap perfSnapshot) *perfRenderer {
+	return &perfRenderer{tr: i18n.New("fr"), width: width, snap: snap, drawn: true}
+}
+
+// The figure and the curve beside it must come from the same place, or they can
+// disagree — hence cpuText reading the series rather than recomputing.
+func TestCPUTextReadsTheSeries(t *testing.T) {
+	tests := []struct {
+		name   string
+		series []float64
+		want   string
+		avg    bool
+	}{
+		{name: "no series at all", series: nil, want: "inconnu"},
+		{name: "a single point is the average fallback", series: []float64{12.5}, want: "12.5 %", avg: true},
+		{name: "two points is a real rate", series: []float64{12.5, 40}, want: "40.0 %"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newTestRenderer(100, perfSnapshot{shellCPU: tc.series})
+
+			got := p.cpuText(session.ProcStats{PID: 1})
+
+			if !strings.Contains(got, tc.want) {
+				t.Errorf("cpuText = %q, want it to contain %q", got, tc.want)
+			}
+
+			// The fallback is a different number than the one it stands in for,
+			// so it must never pass for the instantaneous figure.
+			if labelled := strings.Contains(got, "moy."); labelled != tc.avg {
+				t.Errorf("cpuText = %q, average label = %v, want %v", got, labelled, tc.avg)
+			}
+		})
+	}
+}
+
 // What a platform cannot report must read as "unknown", never as zero: a
 // process showing "0 threads" and "0 B written" would be a lie.
-func TestPerfSamplerMarksUnavailableMetrics(t *testing.T) {
-	p := &perfSampler{tr: i18n.New("fr"), sess: &session.Session{CreatedAt: time.Now()}}
+func TestRenderProcessMarksUnavailableMetrics(t *testing.T) {
+	p := newTestRenderer(100, perfSnapshot{})
 
 	got := p.renderProcess(session.ProcStats{
 		PID:              42,
@@ -121,8 +147,8 @@ func TestPerfSamplerMarksUnavailableMetrics(t *testing.T) {
 	}
 }
 
-func TestPerfSamplerRendersBothProcesses(t *testing.T) {
-	p := &perfSampler{tr: i18n.New("fr"), sess: &session.Session{CreatedAt: time.Now()}}
+func TestRenderProcessNamesBothRoles(t *testing.T) {
+	p := newTestRenderer(100, perfSnapshot{})
 
 	shell := p.renderProcess(session.ProcStats{PID: 1, Comm: "zsh"})
 	fg := p.renderProcess(session.ProcStats{PID: 2, Comm: "claude", Foreground: true})
@@ -136,163 +162,115 @@ func TestPerfSamplerRendersBothProcesses(t *testing.T) {
 	}
 }
 
-// The sampler exists to decouple sampling from the 30 ms redraw tick; a
-// regression here would spawn a `ps` 33 times a second on macOS.
-func TestPerfSamplerHonoursItsInterval(t *testing.T) {
-	m := newTestSessionManager(t)
+// The whole reason the renderer holds a version: rebuilding this text on every
+// 30 ms redraw would undo the point of sampling slowly.
+func TestRendererReusesItsTextUntilANewSample(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
 
-	sess, err := m.New("perf", "/bin/sh")
-	if err != nil {
-		t.Fatalf("Manager.New: %v", err)
+	history := &perfHistory{
+		version: 1,
+		latest:  []session.ProcStats{{PID: 1, Comm: "sh", RSSBytes: 1024}},
+	}
+	gui.perfHistories = map[string]*perfHistory{"s1": history}
+
+	p := &perfRenderer{sessionID: "s1", gui: gui, tr: i18n.New("fr"), width: 100}
+
+	first := p.frame()
+	if first.content == "" {
+		t.Fatal("the first frame is empty")
 	}
 
-	p := &perfSampler{sess: sess, tr: i18n.New("fr"), interval: time.Hour}
-
-	p.frame()
-	first := p.takenAt
-
-	if first.IsZero() {
-		t.Fatal("the first frame did not sample")
+	// Same version: the text must be handed back untouched, not rebuilt.
+	p.content = "SENTINEL"
+	if got := p.frame(); got.content != "SENTINEL" {
+		t.Error("the renderer rebuilt its text without a new sample")
 	}
 
-	for range 5 {
-		p.frame()
-	}
+	gui.mu.Lock()
+	history.version++
+	history.latest = []session.ProcStats{{PID: 1, Comm: "sh", RSSBytes: 2048}}
+	gui.mu.Unlock()
 
-	if !p.takenAt.Equal(first) {
-		t.Error("the sampler re-sampled inside its interval")
-	}
-}
-
-// And the converse: once the interval has elapsed, it must actually re-sample.
-func TestPerfSamplerResamplesAfterItsInterval(t *testing.T) {
-	m := newTestSessionManager(t)
-
-	sess, err := m.New("perf", "/bin/sh")
-	if err != nil {
-		t.Fatalf("Manager.New: %v", err)
-	}
-
-	p := &perfSampler{sess: sess, tr: i18n.New("fr"), interval: time.Millisecond}
-
-	p.frame()
-	first := p.takenAt
-
-	time.Sleep(5 * time.Millisecond)
-	p.frame()
-
-	if p.takenAt.Equal(first) {
-		t.Error("the sampler did not re-sample after its interval elapsed")
+	if got := p.frame(); got.content == "SENTINEL" {
+		t.Error("the renderer did not redraw after a new sample")
 	}
 }
 
-// An exited session cannot be sampled — the panel has to say so rather than go
-// blank or keep showing figures that are no longer about anything.
-func TestPerfSamplerReportsAnUnmeasurableSession(t *testing.T) {
-	p := &perfSampler{
-		sess:     &session.Session{ID: "gone", CreatedAt: time.Now()},
-		tr:       i18n.New("fr"),
-		interval: time.Hour,
-	}
+// Before the first background tick lands there is nothing to draw, and the
+// panel has to say that rather than go blank.
+func TestRendererSaysWhenNothingIsSampledYet(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+
+	p := &perfRenderer{sessionID: "absent", gui: gui, tr: i18n.New("fr"), width: 100}
 
 	got := p.frame()
 
-	if !strings.Contains(got.content, "Mesure impossible") {
-		t.Errorf("content = %q, want it to report why there are no figures", got.content)
+	if !strings.Contains(got.content, "Mesure en cours") {
+		t.Errorf("content = %q, want it to say sampling is under way", got.content)
 	}
 
-	// And no cursor: perf is not a screen being typed into.
+	// And no cursor: this tab is not a screen being typed into.
 	if got.cursorShown {
-		t.Error("the perf tab asked for a terminal cursor")
+		t.Error("the resources tab asked for a terminal cursor")
 	}
 }
 
-// A sampler built without a history must degrade to "no charts", never take
-// the render task down with it.
-func TestPerfSamplerWithoutAHistoryDoesNotPanic(t *testing.T) {
-	p := &perfSampler{
-		tr:    i18n.New("fr"),
-		sess:  &session.Session{CreatedAt: time.Now()},
-		width: 100,
-	}
+// A session whose processes could not be read at all must say why.
+func TestRendererReportsAnUnmeasurableSession(t *testing.T) {
+	p := newTestRenderer(100, perfSnapshot{err: errors.New("session-1")})
 
-	got := p.renderProcess(session.ProcStats{PID: 42, Comm: "sh", RSSBytes: 1024})
-
-	if !strings.Contains(got, "sh") {
-		t.Errorf("renderProcess produced nothing useful:\n%s", got)
-	}
-
-	if chart := p.renderCPUChart(); chart != "" {
-		t.Errorf("renderCPUChart drew something with no history:\n%s", chart)
+	if got := p.render(); !strings.Contains(got, "Mesure impossible") {
+		t.Errorf("render = %q, want it to report why there are no figures", got)
 	}
 }
 
 // The charts only appear once there is a series to draw; before that the tab is
 // the figures alone rather than an empty frame.
-func TestPerfSamplerDrawsChartsOnlyOnceThereIsHistory(t *testing.T) {
-	p := &perfSampler{
-		tr:      i18n.New("fr"),
-		sess:    &session.Session{CreatedAt: time.Now()},
-		width:   100,
-		history: &perfHistory{},
+func TestChartsAppearOnlyOnceThereIsHistory(t *testing.T) {
+	tests := []struct {
+		name   string
+		series []float64
+		want   bool
+	}{
+		{name: "nothing sampled", series: nil},
+		{name: "a single point is not a curve", series: []float64{10}},
+		{name: "all idle has no scale to draw against", series: []float64{0, 0}},
+		{name: "two points and some load", series: []float64{10, 40}, want: true},
 	}
 
-	if got := p.renderCPUChart(); got != "" {
-		t.Errorf("a chart was drawn from an empty history:\n%s", got)
-	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newTestRenderer(100, perfSnapshot{shellCPU: tc.series})
 
-	p.history.track(false).push(1, 10, 100)
+			chart := p.renderCPUChart()
 
-	if got := p.renderCPUChart(); got != "" {
-		t.Errorf("a chart was drawn from a single point:\n%s", got)
-	}
+			if (chart != "") != tc.want {
+				t.Fatalf("renderCPUChart drew %q, want drawn = %v", chart, tc.want)
+			}
 
-	p.history.track(false).push(1, 40, 110)
-
-	chart := p.renderCPUChart()
-	if chart == "" {
-		t.Fatal("no chart once there are two points")
-	}
-
-	// The peak is what the auto-scaled vertical axis is anchored on, so it has
-	// to be stated — a curve on an unlabelled moving scale means nothing.
-	if !strings.Contains(chart, "40.0") {
-		t.Errorf("the chart does not state its peak:\n%s", chart)
+			// The peak is what the auto-scaled vertical axis is anchored on, so
+			// it has to be stated — a curve on an unlabelled moving scale means
+			// nothing.
+			if tc.want && !strings.Contains(chart, "40.0") {
+				t.Errorf("the chart does not state its peak:\n%s", chart)
+			}
+		})
 	}
 }
 
 // A panel too narrow for a chart must fall back to the figures rather than draw
 // a stub of one.
-func TestPerfSamplerDropsChartsOnANarrowPanel(t *testing.T) {
-	p := &perfSampler{
-		tr:      i18n.New("fr"),
-		sess:    &session.Session{CreatedAt: time.Now()},
-		width:   perfChartMinWidth - 1,
-		history: &perfHistory{},
-	}
+func TestChartsAreDroppedOnANarrowPanel(t *testing.T) {
+	snap := perfSnapshot{shellCPU: []float64{10, 40}}
 
-	p.history.track(false).push(1, 10, 100)
-	p.history.track(false).push(1, 40, 110)
+	p := newTestRenderer(perfChartMinWidth-1, snap)
 
 	if got := p.renderCPUChart(); got != "" {
 		t.Errorf("a chart was drawn on a %d-column panel:\n%s", p.width, got)
 	}
 
-	line := p.metricLine("CPU", "40.0 %", p.history.track(false).cpu, true)
+	line := p.metricLine("CPU", "40.0 %", snap.shellCPU, true)
 	if strings.ContainsAny(line, string(sparkLevels)) {
 		t.Errorf("a sparkline was drawn on a %d-column panel: %q", p.width, line)
 	}
-}
-
-// newTestSessionManager is a Manager whose sessions are killed and drained
-// before the test returns, so none outlives it.
-func newTestSessionManager(t *testing.T) *session.Manager {
-	t.Helper()
-
-	m := session.NewManager()
-	m.KillTimeout = 300 * time.Millisecond
-
-	t.Cleanup(m.Shutdown)
-
-	return m
 }

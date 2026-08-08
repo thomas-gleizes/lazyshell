@@ -61,6 +61,21 @@ type ProcStats struct {
 // already have been reused, so this errors rather than reporting a stranger's
 // numbers.
 func (s *Session) Stats() ([]ProcStats, error) {
+	pids, err := s.statsPIDs()
+	if err != nil {
+		return nil, err
+	}
+
+	return s.assembleStats(pids, sampleProcs(pids))
+}
+
+// statsPIDs is what this session wants sampled: its shell first, then the pty's
+// foreground process group leader when that is a different process.
+//
+// Split out from Stats so Manager.StatsAll can collect every session's pids and
+// pay for a single sampleProcs — which on darwin is a single `ps` spawn rather
+// than one per session.
+func (s *Session) statsPIDs() ([]int, error) {
 	if s.Status() == StatusExited {
 		return nil, fmt.Errorf("session %s: exited, no stats", s.ID)
 	}
@@ -81,7 +96,17 @@ func (s *Session) Stats() ([]ProcStats, error) {
 		pids = append(pids, fgPID)
 	}
 
-	samples := sampleProcs(pids)
+	return pids, nil
+}
+
+// assembleStats picks this session's pids out of a batch of samples, in the
+// order statsPIDs asked for them, and marks which one is the foreground.
+func (s *Session) assembleStats(pids []int, samples map[int]ProcStats) ([]ProcStats, error) {
+	if len(pids) == 0 {
+		return nil, fmt.Errorf("session %s: nothing to sample", s.ID)
+	}
+
+	shellPID := pids[0]
 
 	out := make([]ProcStats, 0, len(pids))
 	for _, pid := range pids {
@@ -102,6 +127,68 @@ func (s *Session) Stats() ([]ProcStats, error) {
 	}
 
 	return out, nil
+}
+
+// StatsAll samples every live session at once, keyed by session id. Sessions
+// that cannot be sampled — exited, or whose process vanished — are simply
+// absent from the result.
+//
+// One call, not one per session: on darwin each sampleProcs is a `ps` spawn,
+// so sampling eight sessions separately would mean eight processes every
+// interval instead of one. This is what makes background sampling (pkg/gui
+// keeps a history whether or not the resources tab is open) affordable.
+func (m *Manager) StatsAll() map[string][]ProcStats {
+	sessions := m.List()
+
+	// pidsBySession keeps each session's pids in statsPIDs order, since that
+	// order is what says which one is the shell.
+	pidsBySession := make(map[string][]int, len(sessions))
+
+	var all []int
+
+	for _, sess := range sessions {
+		pids, err := sess.statsPIDs()
+		if err != nil {
+			continue
+		}
+
+		pidsBySession[sess.ID] = pids
+		all = append(all, pids...)
+	}
+
+	if len(all) == 0 {
+		return nil
+	}
+
+	samples := sampleProcs(all)
+
+	out := make(map[string][]ProcStats, len(pidsBySession))
+
+	for id, pids := range pidsBySession {
+		stats, err := m.sessionByID(id).assembleStats(pids, samples)
+		if err != nil {
+			continue
+		}
+
+		out[id] = stats
+	}
+
+	return out
+}
+
+// sessionByID is StatsAll's lookup. Never nil for an id it just collected pids
+// from — Remove would have to run in between, and even then assembleStats only
+// reads the id for its error message.
+func (m *Manager) sessionByID(id string) *Session {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	sess, ok := m.sessions[id]
+	if !ok {
+		return &Session{ID: id}
+	}
+
+	return sess
 }
 
 // Env is the environment the session's shell was started with — exactly what

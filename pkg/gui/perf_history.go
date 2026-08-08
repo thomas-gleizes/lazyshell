@@ -1,20 +1,31 @@
 package gui
 
-// The resources tab's charts need something the sampler cannot hold: memory
-// across render tasks. perfSampler lives in the render task's closure, and that
-// closure is thrown away and rebuilt by every restartOutput — a scroll, a tab
-// switch, a focus change. A history kept there would reset on each of those,
-// so the curve would vanish the moment the user touched anything.
+import (
+	"slices"
+
+	"github.com/thomas-gleizes/lazyshell/pkg/session"
+)
+
+// The resources tab's state: the last sample of each session's processes, and
+// the series behind its charts.
 //
-// It therefore lives on Gui, keyed by session id, and is handed to each new
-// sampler by showOutput.
+// It lives on Gui rather than in the render task's closure for two reasons.
+// The first is that the closure is thrown away and rebuilt by every
+// restartOutput — a scroll, a tab switch, a focus change — so a history kept
+// there would reset the moment the user touched anything. The second is that
+// sampling now runs in the background for *every* session, on its own tick,
+// whether or not the tab is open: opening the resources tab shows a curve that
+// is already there instead of one that starts from nothing.
 //
-// Concurrency: the *map* is only ever touched from gocui's goroutine
-// (perfHistoryFor, called by showOutput). The *contents* are only ever written
-// from the render task's goroutine. Those never overlap — tasks.Manager stops
-// the previous task synchronously before starting the next (see its
-// TestNewTaskStopsThePrevious), which is the same guarantee showOutput already
-// relies on for its previous-frame comparison. Hence no mutex on either.
+// Concurrency: this is genuinely shared state. It is written only by
+// samplePerf, on goEvery's background goroutine, and read only by the output
+// render task, on its own. Both go through gui.mu — unlike the earlier version,
+// where a single goroutine did both and no lock was needed.
+//
+// The render task must not rebuild its text on every 30 ms tick just because
+// the panel redraws, so each history carries a version that samplePerf bumps.
+// The renderer compares it against what it last drew and reuses its string
+// otherwise; that is what keeps the tab as cheap as the others.
 
 // perfHistoryLen bounds each series. Wider than any real panel, so the charts
 // are never short of points, and small enough that a few dozen sessions cost
@@ -64,6 +75,74 @@ func appendCapped(series []float64, value float64) []float64 {
 type perfHistory struct {
 	shell      perfTrack
 	foreground perfTrack
+
+	// latest is the most recent sample, which is what the figures beside each
+	// curve are printed from, and err why there is none. Kept here rather than
+	// re-read by the renderer so that what is drawn and what is plotted always
+	// come from the same instant.
+	latest []session.ProcStats
+	err    error
+
+	// previous backs the CPU delta. It belongs to the sampler, not the
+	// renderer, now that sampling happens in one place — see samplePerf.
+	previous map[int]session.ProcStats
+
+	// version is bumped on every sample. The renderer uses it to tell "nothing
+	// has changed, reuse the text" from "resample happened, redraw".
+	version int
+}
+
+// snapshot is what the renderer takes away from a history: a copy it can read
+// without holding gui.mu, since rendering is not something to do under a lock
+// the sampling goroutine also wants.
+type perfSnapshot struct {
+	version int
+
+	latest []session.ProcStats
+	err    error
+
+	// shellCPU and the rest are copies, not the live slices: appendCapped
+	// rewrites its backing array in place, so a renderer holding the original
+	// would see it change under it mid-draw.
+	shellCPU, shellRSS           []float64
+	foregroundCPU, foregroundRSS []float64
+
+	// chartIsForeground says which of the two the big chart should plot — the
+	// foreground process when there is one, since that is what the user is
+	// watching.
+	chartIsForeground bool
+}
+
+func (h *perfHistory) snapshot() perfSnapshot {
+	chart := h.chartTrack()
+
+	return perfSnapshot{
+		version:           h.version,
+		latest:            slices.Clone(h.latest),
+		err:               h.err,
+		shellCPU:          slices.Clone(h.shell.cpu),
+		shellRSS:          slices.Clone(h.shell.rss),
+		foregroundCPU:     slices.Clone(h.foreground.cpu),
+		foregroundRSS:     slices.Clone(h.foreground.rss),
+		chartIsForeground: chart == &h.foreground,
+	}
+}
+
+// cpu and rss pick a role's series out of a snapshot.
+func (s perfSnapshot) cpu(foreground bool) []float64 {
+	if foreground {
+		return s.foregroundCPU
+	}
+
+	return s.shellCPU
+}
+
+func (s perfSnapshot) rss(foreground bool) []float64 {
+	if foreground {
+		return s.foregroundRSS
+	}
+
+	return s.shellRSS
 }
 
 func (h *perfHistory) track(foreground bool) *perfTrack {
@@ -97,26 +176,16 @@ func (h *perfHistory) chartTrack() *perfTrack {
 	return &h.shell
 }
 
-// perfHistoryFor returns the session's history, creating it on first use.
-// Called from gocui's goroutine only — see this file's header.
-func (gui *Gui) perfHistoryFor(sessionID string) *perfHistory {
-	if gui.perfHistories == nil {
-		gui.perfHistories = make(map[string]*perfHistory)
-	}
-
-	history, ok := gui.perfHistories[sessionID]
-	if !ok {
-		history = &perfHistory{}
-		gui.perfHistories[sessionID] = history
-	}
-
-	return history
-}
-
 // forgetPerfHistory drops a session's series, so a deleted session does not
-// keep its samples alive for the rest of the process.
+// keep its samples alive for the rest of the process — and so an id that came
+// round again would not inherit them.
+//
+// samplePerf prunes dead sessions on its own tick too; this is the immediate
+// path, for the user explicitly removing one.
 func (gui *Gui) forgetPerfHistory(sessionID string) {
+	gui.mu.Lock()
 	delete(gui.perfHistories, sessionID)
+	gui.mu.Unlock()
 }
 
 // maxOf is the largest value in a series, or 0 for an empty one. The charts

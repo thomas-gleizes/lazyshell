@@ -69,18 +69,15 @@ func (gui *Gui) showOutput(sess *session.Session) {
 	// The perf tab is the opposite case: it has to keep re-reading, but far
 	// slower than the redraw tick, so it carries its own sampler with its own
 	// interval — see perfSampler.
-	var perf *perfSampler
+	var perf *perfRenderer
 	if tab == tabResources {
-		perf = &perfSampler{
-			sess:     sess,
-			interval: gui.perfInterval(),
-			tr:       gui.tr,
-			// Both come from Gui and are read here, on gocui's goroutine, not
-			// from the task: the history because it has to outlive this task
-			// (see pkg/gui/perf_history.go), the width because a task has no
-			// way to learn it has been resized — layout restarts it instead.
-			history: gui.perfHistoryFor(sess.ID),
-			width:   gui.outputPanelWidth(),
+		perf = &perfRenderer{
+			sessionID: sess.ID,
+			gui:       gui,
+			tr:        gui.tr,
+			// Read here, on gocui's goroutine: a task has no way to learn it
+			// has been resized, so layout restarts it instead.
+			width: gui.outputPanelWidth(),
 		}
 	}
 

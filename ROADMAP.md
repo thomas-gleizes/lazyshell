@@ -767,11 +767,16 @@ bascule.
 - [x] Courbes dans l'onglet `ressources` : une sparkline en blocs collée à chaque chiffre, plus un
   graphe braille de 4 lignes pour le CPU du process d'avant-plan (celui du shell à défaut). Aucune
   dépendance : `pkg/gui/perf_chart.go` est deux fonctions pures sur une série.
+- [x] L'échantillonnage tourne **en arrière-plan**, pour toutes les sessions, que l'onglet soit
+  ouvert ou non (`perf.refresh_interval_ms`, défaut 5000, `0` pour couper) : une courbe ne vaut d'être
+  regardée que si elle remonte plus loin que l'instant où on l'a ouverte. Un seul passage
+  (`Manager.StatsAll`) pour toutes les sessions, donc un seul `ps` sur darwin quel que soit leur
+  nombre.
 - [x] L'historique vit sur `Gui`, pas dans la closure de la tâche de rendu — celle-ci est reconstruite
   à chaque `restartOutput` (défilement, bascule d'onglet, focus), donc une série gardée là se
-  réinitialiserait dès que l'utilisateur touche quoi que ce soit. Sans verrou : `tasks.Manager`
-  arrête la tâche précédente **synchroniquement** avant de démarrer la suivante, la garantie sur
-  laquelle `showOutput` s'appuie déjà pour sa comparaison de frames.
+  réinitialiserait dès que l'utilisateur touche quoi que ce soit. Un seul échantillonneur, en
+  arrière-plan : la tâche de rendu ne fait que lire, les deux passent par `gui.mu`, et un compteur
+  de version évite de reconstruire le texte 33 fois par seconde pour un échantillon toutes les 5 s.
 - [x] Échelles choisies par métrique, pas uniformément : le CPU est cadré depuis zéro (l'inactivité
   *est* le plancher), la mémoire sur sa propre plage — cadrée depuis zéro, un process qui oscille
   entre 8,8 et 8,9 Mio est une ligne plate au plafond, ce qui ne dit rien. Une série immobile est

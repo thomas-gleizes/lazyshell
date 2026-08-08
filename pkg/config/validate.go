@@ -40,16 +40,23 @@ func (c *Config) Validate() []error {
 		{"scroll.page_lines", &c.Scroll.PageLines, 0, 0, def.Scroll.PageLines},
 		{"scroll.half_page_divisor", &c.Scroll.HalfPageDivisor, 1, 0, def.Scroll.HalfPageDivisor},
 		{"mouse.wheel_lines", &c.Mouse.WheelLines, 1, 0, def.Mouse.WheelLines},
-		// Floored at 100 ms rather than 1: sampling is the expensive part of
-		// the perf tab (a `ps` spawn per tick on macOS), and a value below
-		// that would spend more time measuring than the thing it measures.
-		{"perf.refresh_interval_ms", &c.Perf.RefreshIntervalMs, 100, 0, def.Perf.RefreshIntervalMs},
 	}
 
 	for _, check := range checks {
 		if err := clamp(check.name, check.field, check.min, check.max, check.fallback); err != nil {
 			errs = append(errs, err)
 		}
+	}
+
+	// Not in the table above because 0 is a meaningful value here, not an out
+	// of range one: it turns background sampling off entirely. Everything
+	// between 1 and 100 ms is what gets corrected — sampling spawns a `ps` on
+	// macOS, so at that rate it would cost more than what it measures.
+	if c.Perf.RefreshIntervalMs < 0 || (c.Perf.RefreshIntervalMs > 0 && c.Perf.RefreshIntervalMs < 100) {
+		errs = append(errs, fmt.Errorf(
+			"perf.refresh_interval_ms = %d hors bornes (0 pour désactiver, sinon minimum 100), retour à %d",
+			c.Perf.RefreshIntervalMs, def.Perf.RefreshIntervalMs))
+		c.Perf.RefreshIntervalMs = def.Perf.RefreshIntervalMs
 	}
 
 	if !Languages[c.Language] {

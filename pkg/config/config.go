@@ -67,11 +67,12 @@ const (
 	// output panel by (pkg/gui/mouse.go). Three is what terminals themselves
 	// use for their own scrollback.
 	defaultMouseWheelLines = 3
-	// defaultPerfRefreshIntervalMs is how often the perf tab samples the
-	// selected session's process (pkg/gui/perf_tab.go). A second: a CPU
+	// defaultPerfRefreshIntervalMs is how often every session's processes are
+	// sampled for the resources tab (pkg/gui/perf_sampler.go). Five seconds:
+	// this runs in the background whether or not that tab is open, a CPU
 	// percentage needs a wide enough window to mean anything, and on macOS
 	// each sample costs a `ps` spawn.
-	defaultPerfRefreshIntervalMs = 1000
+	defaultPerfRefreshIntervalMs = 5000
 )
 
 // Config is lazyshell's user-facing configuration. Every field has a

@@ -128,10 +128,10 @@ type Gui struct {
 	outputTab outputTab
 	tabOffset int
 
-	// perfHistories holds the resources tab's sample series, per session id.
-	// It lives here rather than in the render task's closure because it must
-	// survive that task being rebuilt — see pkg/gui/perf_history.go for the
-	// full reasoning and the concurrency rule (no mutex, and why).
+	// perfHistories holds the resources tab's state, per session id: the last
+	// sample and the series behind its charts. Written only by samplePerf on
+	// goEvery's goroutine, read only by the output render task on its own —
+	// both under mu. See pkg/gui/perf_history.go for the full reasoning.
 	perfHistories map[string]*perfHistory
 	// lastOutputWidth is what reflowOutputOnResize compares against to notice
 	// the output panel has been resized. Same goroutine rule as above.
@@ -282,18 +282,18 @@ func refreshIntervalFrom(ms int) time.Duration {
 	return time.Duration(ms) * time.Millisecond
 }
 
-// perfSampleInterval mirrors pkg/config's defaultPerfRefreshIntervalMs, as
-// this package's own fallback — the same duplication every other config-backed
-// constant here already follows.
-const perfSampleInterval = time.Second
-
-// perfInterval is how often the perf tab samples, guarding the zero value the
-// way tick() guards the refresh interval: Config.Validate rejects it, but a
-// Gui built from a bare config.Config{} literal (several tests) has not been
-// through validation, and a zero interval would sample on every 30 ms tick.
+// perfInterval is how often the resources tab samples every session's
+// processes, or 0 when sampling is off.
+//
+// Zero is a real, documented value here rather than "unset take the default",
+// which is how every other interval in this file treats it. This is the one
+// periodic job that spawns a process, and it runs whether or not the tab is
+// ever opened — so someone who never opens it must be able to stop paying for
+// it. Config.Default fills the field in, so only a bare config.Config{} literal
+// (several tests) lands on off by accident, and none of those want sampling.
 func (gui *Gui) perfInterval() time.Duration {
 	if gui.perfIntervalMs <= 0 {
-		return perfSampleInterval
+		return 0
 	}
 
 	return time.Duration(gui.perfIntervalMs) * time.Millisecond
@@ -438,6 +438,16 @@ func (gui *Gui) Run() (err error) {
 
 		return gui.refreshAgentStats()
 	})
+
+	// A third tick, on its own much slower period: the resources tab's samples
+	// (pkg/gui/perf_sampler.go). It runs for every session whether or not that
+	// tab is open, so its history goes back further than the moment it was
+	// opened — which is the only thing that makes a curve worth looking at.
+	// Not folded into the tick above: that one fires ~33 times a second, and
+	// sampling is the one piece of periodic work here that spawns a process.
+	if interval := gui.perfInterval(); interval > 0 {
+		gui.goEvery(interval, gui.samplePerf)
+	}
 
 	// Sessions can already exist before the first keypress — pkg/app starts the
 	// ones a project file declares. Nothing else calls onSelectionChanged until

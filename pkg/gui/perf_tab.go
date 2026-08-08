@@ -3,103 +3,68 @@ package gui
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/thomas-gleizes/lazyshell/pkg/i18n"
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
-// perfSampler owns the perf tab's rendering between two ticks of the output
-// render task.
+// perfRenderer turns the resources tab's shared state into the panel's text.
 //
-// It exists because sampling and drawing happen at completely different rates:
-// the panel redraws on the shared 30 ms tick like everything else, but reading
-// a process's usage costs a `/proc` walk on Linux and a whole `ps` spawn on
-// macOS, and a CPU percentage measured over 30 ms would be noise anyway. So a
-// sample is taken at most once per interval and the rendered text is reused in
-// between — where the render task's own "unchanged frame is not pushed" rule
-// then stops it repainting the screen.
+// It samples nothing: samplePerf owns that, on its own background tick, so that
+// a session's history exists whether or not anyone has been looking at it.
+// This side only reads, on the render task's goroutine, and its whole job is to
+// not do that work 33 times a second — hence the version check in frame.
 //
-// It lives in the render task's closure and is therefore touched by exactly one
-// goroutine, serially — the same reasoning that lets showOutput keep its
-// previous-frame comparison there rather than on Gui.
-type perfSampler struct {
-	sess     *session.Session
-	interval time.Duration
+// It lives in the render task's closure, and is rebuilt with it. Nothing it
+// holds needs to survive that; everything that does lives in perfHistory.
+type perfRenderer struct {
+	sessionID string
+
+	// gui is only used to take a snapshot, which locks gui.mu for the copy and
+	// nothing else. Rendering itself touches no Gui state.
+	gui *Gui
 
 	// tr is read-only after construction and T is a map lookup, so calling it
 	// from the task's goroutine is safe — unlike anything on Gui.
 	tr *i18n.Catalog
-
-	// previous is the last sample per pid, which is what turns a cumulative
-	// CPU time into a percentage. Keyed by pid rather than by position: the
-	// foreground process changes from one sample to the next, and comparing
-	// "the second entry" against a different process's clock would invent
-	// spikes out of nothing.
-	previous map[int]session.ProcStats
-
-	// history outlives this sampler — see pkg/gui/perf_history.go for why it
-	// cannot live in the closure with everything else here.
-	history *perfHistory
 
 	// width is the panel's inner width, captured at task start. The charts are
 	// drawn to fit it, so layout restarts this task when it changes (there is
 	// no other way for a task to learn it has been resized).
 	width int
 
+	// snap is what the last draw was made from, and drawn whether there has
+	// been one at all — a zero version is a real version, so it cannot double
+	// as "nothing drawn yet".
+	snap    perfSnapshot
+	drawn   bool
 	content string
-	takenAt time.Time
 }
 
-// hist is the series store, allocated on first use. A sampler built without one
-// must not take the render task down: this is the only goroutine that would
-// notice, and losing the charts is a far better outcome than losing the panel.
-func (p *perfSampler) hist() *perfHistory {
-	if p.history == nil {
-		p.history = &perfHistory{}
+// frame returns what the resources tab should show right now, rebuilding its
+// text only when the background sampler has produced something new.
+func (p *perfRenderer) frame() outputFrame {
+	snap, ok := p.gui.perfSnapshotFor(p.sessionID)
+	if !ok {
+		// Nothing sampled yet: the first background tick has not landed, or
+		// this session has no process to sample.
+		return outputFrame{content: "  " + p.tr.T("perf.waiting")}
 	}
 
-	return p.history
-}
-
-// frame returns what the perf tab should show right now, sampling only if the
-// interval has elapsed since the last one.
-func (p *perfSampler) frame() outputFrame {
-	if p.content == "" || time.Since(p.takenAt) >= p.interval {
-		p.refresh()
+	if p.drawn && snap.version == p.snap.version {
+		return outputFrame{content: p.content}
 	}
+
+	p.snap, p.drawn = snap, true
+	p.content = p.render()
 
 	return outputFrame{content: p.content}
 }
 
-// refresh takes a sample and renders it, keeping the old text on failure only
-// if there is none yet — an error is worth showing, but not worth flickering
-// over a single failed read.
-func (p *perfSampler) refresh() {
-	p.takenAt = time.Now()
-
-	stats, err := p.sess.Stats()
-	if err != nil {
-		p.content = "  " + p.tr.T("perf.unavailable", err)
-		p.previous = nil
-
-		return
-	}
-
-	// The history is appended to *before* rendering, so this sample's own point
-	// is the rightmost one on the charts rather than lagging a tick behind the
-	// figure printed beside it.
-	sawForeground := false
-
-	for _, sample := range stats {
-		percent, _ := p.cpuPercent(sample)
-		p.hist().track(sample.Foreground).push(sample.PID, percent, float64(sample.RSSBytes))
-
-		sawForeground = sawForeground || sample.Foreground
-	}
-
-	if !sawForeground {
-		p.hist().dropForeground()
+// render builds the whole tab from the current snapshot.
+func (p *perfRenderer) render() string {
+	if len(p.snap.latest) == 0 {
+		return "  " + p.tr.T("perf.unavailable", p.snap.err)
 	}
 
 	var b strings.Builder
@@ -111,7 +76,7 @@ func (p *perfSampler) refresh() {
 		b.WriteString(chart)
 	}
 
-	for i, sample := range stats {
+	for i, sample := range p.snap.latest {
 		if i > 0 {
 			b.WriteString("\n")
 		}
@@ -119,14 +84,7 @@ func (p *perfSampler) refresh() {
 		b.WriteString(p.renderProcess(sample))
 	}
 
-	p.content = b.String()
-
-	next := make(map[int]session.ProcStats, len(stats))
-	for _, sample := range stats {
-		next[sample.PID] = sample
-	}
-
-	p.previous = next
+	return b.String()
 }
 
 // cpuChartHeight is how many character rows the big chart gets — four rows is
@@ -142,19 +100,19 @@ const perfChartMinWidth = 40
 // renderCPUChart draws the foreground process's CPU over time — or the shell's
 // when nothing is in the foreground. Empty string when the panel is too narrow
 // or there is not yet anything to plot.
-func (p *perfSampler) renderCPUChart() string {
+func (p *perfRenderer) renderCPUChart() string {
 	if p.width < perfChartMinWidth {
 		return ""
 	}
 
-	track := p.hist().chartTrack()
-	if len(track.cpu) < 2 {
+	series := p.snap.cpu(p.snap.chartIsForeground)
+	if len(series) < 2 {
 		// A single point is not a curve; showing one would be a flat line that
 		// says nothing about a series that has not started yet.
 		return ""
 	}
 
-	max := maxOf(track.cpu)
+	max := maxOf(series)
 	if max <= 0 {
 		return ""
 	}
@@ -163,12 +121,12 @@ func (p *perfSampler) renderCPUChart() string {
 	width := p.width - 4
 
 	name := p.tr.T("perf.shell")
-	if track == &p.hist().foreground {
+	if p.snap.chartIsForeground {
 		name = p.tr.T("perf.foreground")
 	}
 
 	lines := []string{"  " + p.tr.T("perf.cpu_chart", name, max)}
-	for _, row := range brailleChart(track.cpu, max, width, cpuChartHeight) {
+	for _, row := range brailleChart(series, max, width, cpuChartHeight) {
 		lines = append(lines, "  "+row)
 	}
 
@@ -176,21 +134,19 @@ func (p *perfSampler) renderCPUChart() string {
 }
 
 // renderProcess is one process's block: a heading, then one metric per line.
-func (p *perfSampler) renderProcess(sample session.ProcStats) string {
+func (p *perfRenderer) renderProcess(sample session.ProcStats) string {
 	role := p.tr.T("perf.shell")
 	if sample.Foreground {
 		role = p.tr.T("perf.foreground")
 	}
-
-	track := p.hist().track(sample.Foreground)
 
 	lines := []string{
 		fmt.Sprintf("  %s — %s (pid %d)", role, sample.Comm, sample.PID),
 		// CPU is scaled from zero (idle is genuinely the floor), memory on its
 		// own range (a process hovering around 8.9 MiB has no meaningful zero
 		// to be compared against) — see sparklineWindow.
-		p.metricLine(p.tr.T("perf.cpu"), p.cpuText(sample), track.cpu, true),
-		p.metricLine(p.tr.T("perf.rss"), formatBytes(sample.RSSBytes), track.rss, false),
+		p.metricLine(p.tr.T("perf.cpu"), p.cpuText(sample), p.snap.cpu(sample.Foreground), true),
+		p.metricLine(p.tr.T("perf.rss"), formatBytes(sample.RSSBytes), p.snap.rss(sample.Foreground), false),
 	}
 
 	threads := p.tr.T("perf.unknown")
@@ -226,7 +182,7 @@ const (
 
 // metricLine is one "label value ▁▂▃" row. series nil, or a panel too narrow
 // for a sparkline worth drawing, gives just the label and the value.
-func (p *perfSampler) metricLine(label, value string, series []float64, fromZero bool) string {
+func (p *perfRenderer) metricLine(label, value string, series []float64, fromZero bool) string {
 	line := fmt.Sprintf("%*s%-*s %-*s",
 		metricIndent, "", metricLabelWidth, label, metricValueWidth, value)
 
@@ -245,50 +201,30 @@ func (p *perfSampler) metricLine(label, value string, series []float64, fromZero
 	return line + " " + spark
 }
 
-// cpuText turns a cumulative CPU time into a percentage.
+// cpuText is the figure printed beside the CPU curve.
 //
-// A percentage is a rate, so it needs two samples. The first one after the tab
-// is opened has none to compare against, and rather than show a blank it falls
-// back to the process's average since it started — a real number, but a
-// different one, so it is labelled as such instead of quietly passing for the
-// instantaneous figure.
-func (p *perfSampler) cpuText(sample session.ProcStats) string {
-	percent, instant := p.cpuPercent(sample)
-
-	if instant {
-		return fmt.Sprintf("%.1f %%", percent)
-	}
-
-	if percent == 0 && p.sess.CreatedAt.IsZero() {
+// It reads the last point of the series rather than recomputing anything: the
+// sampler already worked the percentage out, and taking it from anywhere else
+// would risk the number and the curve beside it disagreeing.
+//
+// A percentage is a rate, so it needs two samples. A series with only one point
+// is showing cpuPercent's fallback — the average since launch — which is a real
+// number but a different one, so it is labelled rather than left to pass for the
+// instantaneous figure. (push resets a series when its pid changes, so "one
+// point" and "first sample of this process" are the same thing.)
+func (p *perfRenderer) cpuText(sample session.ProcStats) string {
+	series := p.snap.cpu(sample.Foreground)
+	if len(series) == 0 {
 		return p.tr.T("perf.unknown")
 	}
 
+	percent := series[len(series)-1]
+
+	if len(series) >= 2 {
+		return fmt.Sprintf("%.1f %%", percent)
+	}
+
 	return fmt.Sprintf("%.1f %% %s", percent, p.tr.T("perf.average"))
-}
-
-// cpuPercent is cpuText's numeric half, split out because the charts need the
-// number and the line needs the wording. instant reports whether it is the real
-// rate (a delta between two samples) or the fallback average since launch.
-func (p *perfSampler) cpuPercent(sample session.ProcStats) (percent float64, instant bool) {
-	if before, ok := p.previous[sample.PID]; ok {
-		elapsed := sample.SampledAt.Sub(before.SampledAt)
-		if elapsed > 0 {
-			used := sample.CPUTime - before.CPUTime
-			// A process that was replaced under the same pid, or a clock that
-			// went backwards, would give a negative delta — fall through to
-			// the average rather than plot a nonsense figure.
-			if used >= 0 {
-				return 100 * float64(used) / float64(elapsed), true
-			}
-		}
-	}
-
-	since := time.Since(p.sess.CreatedAt)
-	if since <= 0 {
-		return 0, false
-	}
-
-	return 100 * float64(sample.CPUTime) / float64(since), false
 }
 
 // formatBytes renders a byte count in binary units, which is what every tool a

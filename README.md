@@ -209,7 +209,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `mouse.enabled` | bool | `true` | Click, wheel and drag support. Turning it on costs `Shift-Up`/`Shift-Down` pass-through — gocui gives those keys and the mouse buttons the same values, so they cannot both work. Set to `false` to get them back. |
 | `mouse.wheel_lines` | int ≥ 1 | `3` | Lines one wheel notch scrolls the output panel by. |
 | `mouse.forward_to_app` | bool | `true` | Whether a program inside a session may receive the mouse itself, and only once it has asked for it with a DECSET 9/1000/1002/1003 (`vim` with `set mouse=a`, `htop`). A shell or an AI agent CLI never asks, so the wheel keeps scrolling lazyshell's scrollback. |
-| `perf.refresh_interval_ms` | int ≥ 100 | `1000` | How often the output panel's perf tab samples the session's process. Separate from `refresh_interval_ms`, and much slower on purpose: sampling costs a `/proc` walk on Linux and a `ps` spawn on macOS, and a CPU percentage measured over a redraw tick would be noise. |
+| `perf.refresh_interval_ms` | `0`, or int ≥ 100 | `5000` | How often every session's processes are sampled for the resources tab. This runs in the background whether or not that tab is open, so its curves already go back further than the moment you opened them; all sessions are sampled in one pass, so the cost does not grow with their number. `0` turns sampling off entirely — it is the one periodic job that spawns a process, so someone who never opens the tab need not pay for it. |
 | `env_tab.mask_secrets` | bool | `true` | Whether the output panel's env tab masks the value of variables whose name looks like a credential (`TOKEN`, `SECRET`, `PASSWORD`, `AUTH`, `..._KEY`). The panel is as shareable as a screenshot of it; set to `false` to see the real values. |
 | `agent_stats_command` | string | `""` | Run for the selected AI agent session, with `$LAZYSHELL_SESSION_ID` in its environment; its first line of stdout is shown next to the turn duration. Empty disables it. |
 
@@ -318,7 +318,7 @@ mouse:
   forward_to_app: true
 
 perf:
-  refresh_interval_ms: 1000
+  refresh_interval_ms: 5000
 
 env_tab:
   mask_secrets: true
