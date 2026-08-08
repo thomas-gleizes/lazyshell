@@ -63,10 +63,28 @@ pkg/
   i18n/           strings/translations
   version/        --version metadata (goreleaser-injected)
 docs/
+  README.fr.md    French translation of the root README
   adr/            architecture decision records (0001: rendu ANSI et clavier, 0002: rendu
                   multi-panneaux, 0003: souris)
   repports/       (sic) historical analysis reports
+site/             sources of the bilingual GitHub Pages site (site/en/, site/fr/)
 ```
+
+## Documentation language policy
+
+- **`README.md` is English-only** and is the reference version: every user-facing doc change lands
+  there first. It is checked by `pkg/config/doc_test.go`, which parses its `### Reference` table and
+  `### Example` YAML block against the `Config` struct — those two headings and the table/YAML
+  formats are load-bearing, and adding a config field without documenting it fails the build.
+- **`docs/README.fr.md` is its French translation**, kept in sync by hand. The two cross-link each
+  other at the top. Its config table and example mirror the English ones (same keys, same defaults);
+  nothing parses it, so keep it faithful rather than clever.
+- **`site/`** carries the same material as a bilingual site (`site/en/`, `site/fr/`) published on
+  GitHub Pages. A user-facing change worth documenting usually touches all three.
+- ADRs (`docs/adr/`) and the historical reports (`docs/repports/`) are French, and stay French —
+  they are records of decisions taken, not living documentation.
+- The application itself ships both languages (`pkg/i18n`, `language:` config); its CLI output
+  (`lazyshell config ...`) stays French.
 
 ## Open items (see ROADMAP.md "Ce qui reste ouvert" for full rationale)
 

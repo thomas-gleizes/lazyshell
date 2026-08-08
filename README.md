@@ -10,19 +10,22 @@ The output panel is a real terminal emulator, so full-screen applications
 work: `vim`, `htop` and `less` run inside a session, cursor and colours
 included.
 
-![démo](docs/demo.gif)
+![demo](docs/demo.gif)
 
-📖 **Documentation en ligne : [thomas-gleizes.github.io/lazyshell](https://thomas-gleizes.github.io/lazyshell/)**
-— installation, utilisation, configuration, sessions d'agents IA et configuration de projet,
-en [français](https://thomas-gleizes.github.io/lazyshell/fr/) et en
-[anglais](https://thomas-gleizes.github.io/lazyshell/en/). Les sources du site vivent dans
+🇫🇷 **Version française de ce document : [`docs/README.fr.md`](docs/README.fr.md).**
+
+📖 **Online documentation: [thomas-gleizes.github.io/lazyshell](https://thomas-gleizes.github.io/lazyshell/)**
+— installation, usage, configuration, AI agent sessions and project configuration, in
+[French](https://thomas-gleizes.github.io/lazyshell/fr/) and in
+[English](https://thomas-gleizes.github.io/lazyshell/en/). The site's sources live in
 `site/`.
 
 ## Install
 
-Binaire précompilé, sans toolchain Go : télécharger l'archive de son OS/arch
-depuis la [page des releases](https://github.com/thomas-gleizes/lazyshell/releases),
-vérifier `checksums.txt`, puis extraire `lazyshell` dans un dossier de son `PATH` :
+Prebuilt binary, no Go toolchain needed: download the archive for your OS/arch
+from the [releases page](https://github.com/thomas-gleizes/lazyshell/releases),
+check it against `checksums.txt`, then extract `lazyshell` into a directory on
+your `PATH`:
 
 ```sh
 tar xzf lazyshell_<os>_<arch>.tar.gz
@@ -30,13 +33,13 @@ sudo mv lazyshell /usr/local/bin/
 lazyshell --version
 ```
 
-Avec Go installé :
+With Go installed:
 
 ```sh
 go install github.com/thomas-gleizes/lazyshell/cmd/lazyshell@latest
 ```
 
-Ou depuis les sources :
+Or from source:
 
 ```sh
 git clone https://github.com/thomas-gleizes/lazyshell.git
@@ -53,32 +56,32 @@ to open an in-app help popup listing every binding below.
 
 | Key | Action |
 | --- | --- |
-| `q` / `Ctrl+C` | Quitter lazyshell |
-| `Tab` | Changer de panneau actif |
-| `?` | Afficher l'aide |
-| `j` / `↓` | Session suivante |
-| `k` / `↑` | Session précédente |
-| `n` | Nouvelle session |
-| `x` / `d` | Tuer la session sélectionnée |
-| `D` | Supprimer définitivement la session sélectionnée (retirée du panneau) |
-| `r` | Renommer la session sélectionnée |
-| `c` | Dupliquer la session sélectionnée |
-| `N` | Nouvelle session dans un dossier choisi |
-| `w` | Exporter le scrollback de la session sélectionnée vers un fichier |
-| `b` | Marquer/démarquer la session pour la diffusion (broadcast) |
+| `q` / `Ctrl+C` | Quit lazyshell |
+| `Tab` | Switch the focused panel |
+| `?` | Show the help |
+| `j` / `↓` | Next session |
+| `k` / `↑` | Previous session |
+| `n` | New session |
+| `x` / `d` | Kill the selected session |
+| `D` | Delete the selected session for good (removed from the panel) |
+| `r` | Rename the selected session |
+| `c` | Duplicate the selected session |
+| `N` | New session in a directory you pick |
+| `w` | Export the selected session's scrollback to a file |
+| `b` | Mark/unmark the session for broadcast |
 
 While the **output panel** is focused, these apply instead:
 
 | Key | Action |
 | --- | --- |
-| `i` / `Enter` | Donner le clavier au shell (mode pass-through) |
-| `Ctrl+B` (configurable) | Reprendre le clavier, depuis le mode pass-through |
-| `PgUp` / `PgDn` | Défiler d'un écran dans l'historique |
-| `Ctrl+U` / `Ctrl+D` | Défiler d'un demi-écran |
-| `/` | Rechercher dans l'historique ; `n` / `N` pour l'occurrence suivante/précédente |
-| `v` | Démarrer (ou étendre) une sélection de lignes — mode copie |
-| `y` ou un second `v` | Copier la sélection (OSC 52, ou la commande de repli configurée) |
-| `Esc` | Quitter la recherche ou annuler la sélection en cours |
+| `i` / `Enter` | Hand the keyboard to the shell (pass-through mode) |
+| `Ctrl+B` (configurable) | Take the keyboard back, out of pass-through mode |
+| `PgUp` / `PgDn` | Scroll one screen through the history |
+| `Ctrl+U` / `Ctrl+D` | Scroll half a screen |
+| `/` | Search the history; `n` / `N` for the next/previous match |
+| `v` | Start (or extend) a line selection — copy mode |
+| `y`, or a second `v` | Copy the selection (OSC 52, or the configured fallback command) |
+| `Esc` | Leave the search, or cancel the selection in progress |
 
 Starting a session (`n`, `N`, `c`) or restarting one (`R`) lands you straight
 inside it: the output panel takes the focus and pass-through is armed, so you
