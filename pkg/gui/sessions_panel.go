@@ -463,6 +463,13 @@ func (gui *Gui) onSelectionChanged() {
 		sess.Screen().ClearBell()
 		sess.Screen().ClearActivity()
 		gui.showOutput(sess)
+	} else {
+		// Nothing selected — the last session was deleted, or a filter hides
+		// them all. Doing nothing here used to leave the previous session's
+		// render task running, still pushing the screen of something that no
+		// longer exists; showWelcome stops it and puts the empty state up.
+		gui.debug.Event("selection → none")
+		gui.showWelcome()
 	}
 
 	gui.updateWindowTitle()
@@ -472,19 +479,47 @@ func (gui *Gui) onSelectionChanged() {
 // working directory, and selects it. A creation failure is shown in the
 // status bar rather than propagated.
 func (gui *Gui) newSession(*gocui.Gui, *gocui.View) error {
-	gui.sessionCounter++
-	name := fmt.Sprintf("session-%d", gui.sessionCounter)
-
-	if _, err := gui.sessions.New(name, gui.defaultShell()); err != nil {
+	if err := gui.createSession(""); err != nil {
 		return gui.reportSessionError(err)
 	}
-
-	gui.debug.Event("session %s created (%s)", name, gui.defaultShell())
 
 	gui.lastError = ""
 	gui.lastInfo = ""
 
 	return gui.selectNewlyCreatedSession()
+}
+
+// newNamedSession is newSession with the name asked for up front. An empty
+// answer (Enter on the untouched popup) is not an error: it falls back to the
+// generated "session-N" name, so the prompt is a shortcut for naming, never a
+// step that can block creation.
+func (gui *Gui) newNamedSession(*gocui.Gui, *gocui.View) error {
+	return gui.showPrompt(gui.tr.T("prompt.new_named"), "", func(name string) error {
+		if err := gui.createSession(name); err != nil {
+			return err
+		}
+
+		return gui.selectNewlyCreatedSession()
+	})
+}
+
+// createSession starts a session running the user's shell in lazyshell's own
+// working directory. An empty name gets the generated one; the counter is only
+// spent in that case, so naming a session does not leave a hole in the
+// "session-N" sequence.
+func (gui *Gui) createSession(name string) error {
+	if name == "" {
+		gui.sessionCounter++
+		name = fmt.Sprintf("session-%d", gui.sessionCounter)
+	}
+
+	if _, err := gui.sessions.New(name, gui.defaultShell()); err != nil {
+		return err
+	}
+
+	gui.debug.Event("session %s created (%s)", name, gui.defaultShell())
+
+	return nil
 }
 
 // killSession asks for confirmation before killing the selected session.

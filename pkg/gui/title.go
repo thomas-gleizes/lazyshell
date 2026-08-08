@@ -17,16 +17,19 @@ func (gui *Gui) updateWindowTitle() {
 		return
 	}
 
-	sess := gui.selectedSession()
-	if sess == nil {
-		return
-	}
+	// With nothing selected there is no session name to carry: returning early
+	// here would leave the host terminal's tab named after a session that has
+	// just been deleted, for as long as lazyshell stays empty.
+	title := "lazyshell"
 
-	title := sess.Name()
-	if live := sess.Screen().Title(); live != "" {
-		title = fmt.Sprintf("%s: %s", title, live)
+	if sess := gui.selectedSession(); sess != nil {
+		name := sess.Name()
+		if live := sess.Screen().Title(); live != "" {
+			name = fmt.Sprintf("%s: %s", name, live)
+		}
+
+		title = "lazyshell — " + name
 	}
-	title = "lazyshell — " + title
 
 	gui.mu.Lock()
 	unchanged := title == gui.lastWindowTitle

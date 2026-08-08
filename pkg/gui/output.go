@@ -261,5 +261,12 @@ func maxTabOffset(view *gocui.View) int {
 func (gui *Gui) restartOutput() {
 	if sess := gui.selectedSession(); sess != nil {
 		gui.showOutput(sess)
+
+		return
 	}
+
+	// No session to render: the panel's empty state is what "restart" means
+	// here, and it has to be re-asserted for the same reason — whatever the
+	// panel was showing before is no longer what it should show.
+	gui.showWelcome()
 }

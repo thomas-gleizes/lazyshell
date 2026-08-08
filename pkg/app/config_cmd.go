@@ -81,7 +81,8 @@ prefix_key: Ctrl+O
 # Remappage des actions. Une action absente garde sa touche par défaut.
 keybindings:
   new_session: "n"
-  new_session_in_dir: "N"
+  new_named_session: "N"
+  new_session_in_dir: "M"
   kill_session: "x"
   rename_session: "r"
   duplicate_session: "c"

@@ -173,6 +173,95 @@ func TestNewSessionInDirSubmitStartsSessionInGivenDir(t *testing.T) {
 	}
 }
 
+func TestNewNamedSessionSubmitUsesGivenName(t *testing.T) {
+	gui := newSessionsErgonomicsTestGui(t)
+	before := len(gui.sessions.List())
+
+	if err := gui.newNamedSession(gui.g, nil); err != nil {
+		t.Fatalf("newNamedSession: %v", err)
+	}
+
+	view, err := gui.g.View(promptViewName)
+	if err != nil {
+		t.Fatalf("prompt view not found: %v", err)
+	}
+	if got := view.Buffer(); got != "" {
+		t.Errorf("prompt pre-filled with %q, want an empty field", got)
+	}
+
+	view.Clear()
+	if _, err := view.Write([]byte("build")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	if err := gui.submitPrompt(gui.g, view); err != nil {
+		t.Fatalf("submitPrompt: %v", err)
+	}
+
+	sessions := gui.sessions.List()
+	if len(sessions) != before+1 {
+		t.Fatalf("session count = %d, want %d", len(sessions), before+1)
+	}
+
+	created := sessions[len(sessions)-1]
+	if created.Name() != "build" {
+		t.Errorf("created session Name() = %q, want %q", created.Name(), "build")
+	}
+
+	if selected := gui.selectedSession(); selected.ID != created.ID {
+		t.Errorf("selected session = %s, want the new one %s", selected.ID, created.ID)
+	}
+}
+
+// An empty answer is the documented fallback to the generated name — unlike
+// newSessionInDir, where an empty directory means "never mind".
+func TestNewNamedSessionEmptySubmitFallsBackToGeneratedName(t *testing.T) {
+	gui := newSessionsErgonomicsTestGui(t)
+	before := len(gui.sessions.List())
+
+	if err := gui.newNamedSession(gui.g, nil); err != nil {
+		t.Fatalf("newNamedSession: %v", err)
+	}
+
+	view, err := gui.g.View(promptViewName)
+	if err != nil {
+		t.Fatalf("prompt view not found: %v", err)
+	}
+	view.Clear()
+
+	if err := gui.submitPrompt(gui.g, view); err != nil {
+		t.Fatalf("submitPrompt: %v", err)
+	}
+
+	sessions := gui.sessions.List()
+	if len(sessions) != before+1 {
+		t.Fatalf("session count after empty submit = %d, want %d", len(sessions), before+1)
+	}
+
+	if got := sessions[len(sessions)-1].Name(); got != "session-1" {
+		t.Errorf("created session Name() = %q, want the generated %q", got, "session-1")
+	}
+}
+
+// The generated-name counter is only spent when it is actually used, so a run
+// of named sessions does not leave gaps in the "session-N" sequence.
+func TestNewNamedSessionDoesNotConsumeCounter(t *testing.T) {
+	gui := newSessionsErgonomicsTestGui(t)
+
+	if err := gui.createSession("build"); err != nil {
+		t.Fatalf("createSession: %v", err)
+	}
+
+	if err := gui.newSession(gui.g, nil); err != nil {
+		t.Fatalf("newSession: %v", err)
+	}
+
+	sessions := gui.sessions.List()
+	if got := sessions[len(sessions)-1].Name(); got != "session-1" {
+		t.Errorf("generated name = %q, want %q", got, "session-1")
+	}
+}
+
 func TestNewSessionInDirEmptySubmitCreatesNoSession(t *testing.T) {
 	gui := newSessionsErgonomicsTestGui(t)
 	before := len(gui.sessions.List())

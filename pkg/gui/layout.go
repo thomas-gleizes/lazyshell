@@ -159,7 +159,21 @@ func (gui *Gui) layout(g *gocui.Gui) error {
 		// instead of shortening it, so which set of labels is right depends on
 		// the width this pass just assigned.
 		if name == outputViewName {
-			view.Tabs = gui.tabLabels(tabStripWidth(view))
+			if gui.selectedSession() == nil {
+				// The three tabs are three views of a session there is none of,
+				// so the strip is dropped rather than left pointing at nothing;
+				// gocui falls back to View.Title when Tabs is empty, which is
+				// what puts the plain frame title up in its place.
+				view.Tabs = nil
+				view.Title = " lazyshell "
+
+				// Re-rendered on every pass, not once when the panel emptied:
+				// the welcome block is centered on the panel's current size,
+				// and a resize is only known here.
+				gui.renderWelcome(view)
+			} else {
+				view.Tabs = gui.tabLabels(tabStripWidth(view))
+			}
 		}
 	}
 

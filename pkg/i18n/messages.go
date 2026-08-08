@@ -49,6 +49,10 @@ var messages = map[string]map[string]string{
 		"fr": "Dupliquer la session sélectionnée",
 		"en": "Duplicate the selected session",
 	},
+	"action.new_named_session": {
+		"fr": "Nouvelle session nommée",
+		"en": "New named session",
+	},
 	"action.new_session_in_dir": {
 		"fr": "Nouvelle session dans un dossier choisi",
 		"en": "New session in a chosen directory",
@@ -286,6 +290,15 @@ var messages = map[string]map[string]string{
 		"en": "%s is done",
 	},
 
+	"welcome.empty": {
+		"fr": "Aucune session ouverte.",
+		"en": "No session open.",
+	},
+	"welcome.filtered": {
+		"fr": "Aucune session ne correspond au filtre.",
+		"en": "No session matches the filter.",
+	},
+
 	"sessions.empty": {
 		"fr": "Aucune session — n pour en créer une",
 		"en": "No sessions — press n to create one",
@@ -332,6 +345,10 @@ var messages = map[string]map[string]string{
 	"prompt.rename": {
 		"fr": "renommer la session",
 		"en": "rename the session",
+	},
+	"prompt.new_named": {
+		"fr": "nom de la session (vide = automatique)",
+		"en": "session name (empty = automatic)",
 	},
 	"prompt.new_in_dir": {
 		"fr": "nouvelle session dans...",
@@ -398,6 +415,10 @@ var messages = map[string]map[string]string{
 	"footer.duplicate": {
 		"fr": "dupliquer",
 		"en": "duplicate",
+	},
+	"footer.new_named": {
+		"fr": "nommer",
+		"en": "name",
 	},
 	"footer.new_in_dir": {
 		"fr": "dossier",

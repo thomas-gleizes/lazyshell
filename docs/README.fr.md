@@ -67,7 +67,8 @@ les raccourcis ci-dessous.
 | `D` | Supprimer définitivement la session sélectionnée (retirée du panneau) |
 | `r` | Renommer la session sélectionnée |
 | `c` | Dupliquer la session sélectionnée |
-| `N` | Nouvelle session dans un dossier choisi |
+| `N` | Nouvelle session en demandant son nom (vide = nom automatique) |
+| `M` | Nouvelle session dans un dossier choisi |
 | `w` | Exporter le scrollback de la session sélectionnée vers un fichier |
 | `b` | Marquer/démarquer la session pour la diffusion (broadcast) |
 | `F12` | Afficher/masquer le panneau de debug (ne fait quelque chose qu'avec `--debug`) |
@@ -256,7 +257,7 @@ Les deux jeux de noms se recouvrent et se contredisent : en CSS, `blue` vaut
 noms ANSI, donc `blue` donne le bleu ordinaire ; écrire `navy` pour celui de CSS,
 ou `brightblue` pour l'emplacement vif du terminal.
 
-Les identifiants d'action remappables sont `new_session`, `new_session_in_dir`,
+Les identifiants d'action remappables sont `new_session`, `new_named_session`, `new_session_in_dir`,
 `kill_session`, `delete_session`, `rename_session`, `duplicate_session`,
 `restart_session`, `zoom`, `filter_sessions`, `export_session`,
 `toggle_broadcast`, `jump_next_blocked`, `next_tab`, `prev_tab`,
@@ -289,7 +290,8 @@ prefix_key: Ctrl+O
 
 keybindings:
   new_session: "n"
-  new_session_in_dir: "N"
+  new_named_session: "N"
+  new_session_in_dir: "M"
   kill_session: "x"
   delete_session: "D"
   rename_session: "r"

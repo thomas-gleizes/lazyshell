@@ -51,6 +51,7 @@ func (gui *Gui) sessionsFooterHints() []footerHint {
 		{actions: []string{"toggle_broadcast"}, label: gui.tr.T("footer.broadcast")},
 		{actions: []string{"jump_next_blocked"}, label: gui.tr.T("footer.jump_next_blocked")},
 		{actions: []string{"duplicate_session"}, label: gui.tr.T("footer.duplicate")},
+		{actions: []string{"new_named_session"}, label: gui.tr.T("footer.new_named")},
 		{actions: []string{"new_session_in_dir"}, label: gui.tr.T("footer.new_in_dir")},
 	}
 }
@@ -71,6 +72,13 @@ func (gui *Gui) panelFooter(viewName string, width int) string {
 // outputFooterHints is the output panel's keys, which depend on what the panel
 // is currently doing — this is the one place where a fixed list would be wrong.
 func (gui *Gui) outputFooterHints() []footerHint {
+	// The welcome screen (pkg/gui/welcome.go) advertises its own keys in its
+	// body, and every hint below acts on a session there is none of. No footer
+	// at all is the honest answer.
+	if gui.selectedSession() == nil {
+		return nil
+	}
+
 	// The perf and env tabs share none of the panel's usual keys — no typing,
 	// no selection, no search — so their footer is its own short list rather
 	// than a filtered version of the one below.

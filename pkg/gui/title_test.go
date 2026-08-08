@@ -72,13 +72,25 @@ func TestUpdateWindowTitleNoopWhenDisabled(t *testing.T) {
 	}
 }
 
-func TestUpdateWindowTitleNoopWithNoSelection(t *testing.T) {
+// With nothing selected the title falls back to the bare application name
+// rather than being left alone: doing nothing would keep the host terminal's
+// tab named after the session that was just deleted.
+func TestUpdateWindowTitleFallsBackToTheAppNameWithNoSelection(t *testing.T) {
 	gui, _ := newHeadlessGui(t)
 
 	read := redirectStdout(t)
 	gui.updateWindowTitle()
+	if got := read(); got != "\x1b]0;lazyshell\x07" {
+		t.Fatalf("updateWindowTitle with no session selected wrote %q", got)
+	}
+
+	// And still only once: the dedupe on lastWindowTitle covers this title
+	// like any other, which matters because it is written from the shared
+	// tick in Run.
+	read = redirectStdout(t)
+	gui.updateWindowTitle()
 	if got := read(); got != "" {
-		t.Fatalf("updateWindowTitle wrote with no session selected: %q", got)
+		t.Fatalf("updateWindowTitle rewrote an unchanged title: %q", got)
 	}
 }
 

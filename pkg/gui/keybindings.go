@@ -180,8 +180,16 @@ func (gui *Gui) staticBindings() []Binding {
 		},
 		{
 			ViewName:    sessionsViewName,
-			Action:      "new_session_in_dir",
+			Action:      "new_named_session",
 			Key:         'N',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.newNamedSession,
+			Description: gui.tr.T("action.new_named_session"),
+		},
+		{
+			ViewName:    sessionsViewName,
+			Action:      "new_session_in_dir",
+			Key:         'M',
 			Modifier:    gocui.ModNone,
 			Handler:     gui.newSessionInDir,
 			Description: gui.tr.T("action.new_session_in_dir"),

@@ -66,7 +66,8 @@ to open an in-app help popup listing every binding below.
 | `D` | Delete the selected session for good (removed from the panel) |
 | `r` | Rename the selected session |
 | `c` | Duplicate the selected session |
-| `N` | New session in a directory you pick |
+| `N` | New session, asking for its name first (empty = automatic name) |
+| `M` | New session in a directory you pick |
 | `w` | Export the selected session's scrollback to a file |
 | `b` | Mark/unmark the session for broadcast |
 | `F12` | Show/hide the debug panel (only does something under `--debug`) |
@@ -250,7 +251,7 @@ terminal shows as *bright* blue. lazyshell resolves the ANSI names first, so
 `blue` gives you ordinary blue; write `navy` if you want the CSS one, or
 `brightblue` for the bright terminal slot.
 
-The remappable action ids are `new_session`, `new_session_in_dir`,
+The remappable action ids are `new_session`, `new_named_session`, `new_session_in_dir`,
 `kill_session`, `delete_session`, `rename_session`, `duplicate_session`,
 `restart_session`, `zoom`, `filter_sessions`, `export_session`,
 `toggle_broadcast`, `jump_next_blocked`, `next_tab`, `prev_tab`,
@@ -283,7 +284,8 @@ prefix_key: Ctrl+O
 
 keybindings:
   new_session: "n"
-  new_session_in_dir: "N"
+  new_named_session: "N"
+  new_session_in_dir: "M"
   kill_session: "x"
   delete_session: "D"
   rename_session: "r"

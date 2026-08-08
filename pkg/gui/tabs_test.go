@@ -124,6 +124,12 @@ func TestLayoutSizesTheTabStripToThePanel(t *testing.T) {
 // all, and without SelFgColor the active entry is drawn like the others.
 func TestOutputViewCarriesTheTabStrip(t *testing.T) {
 	gui, g := newHeadlessGui(t)
+
+	// A session is a precondition of the strip, not incidental setup: with
+	// none, layout deliberately drops the tabs for the welcome screen
+	// (pkg/gui/welcome.go).
+	newTestSession(t, gui, "shell")
+
 	if err := gui.layout(g); err != nil {
 		t.Fatalf("layout: %v", err)
 	}
@@ -428,6 +434,7 @@ func fillOutputView(t *testing.T, g *gocui.Gui, n int) {
 
 func TestSecondaryTabFooterOffersTheTabKeys(t *testing.T) {
 	gui, _ := newHeadlessGui(t)
+	newTestSession(t, gui, "shell")
 
 	gui.outputTab = tabEnvironment
 
