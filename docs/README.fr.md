@@ -79,6 +79,7 @@ s'appliquent :
 | --- | --- |
 | `i` / `Enter` | Donner le clavier au shell (mode pass-through) |
 | `Ctrl+O` (configurable) | Reprendre le clavier, depuis le mode pass-through |
+| `Esc` `Esc` | Pareil, sans touche à apprendre : deux Échap d'affilée, en moins de 400 ms |
 | `PgUp` / `PgDn` | Défiler d'un écran dans l'historique |
 | `Ctrl+U` / `Ctrl+D` | Défiler d'un demi-écran |
 | `/` | Rechercher dans l'historique ; `n` / `N` pour l'occurrence suivante/précédente |
@@ -90,6 +91,14 @@ Démarrer une session (`n`, `N`, `c`) ou en relancer une (`R`) vous dépose
 directement dedans : le panneau de sortie prend le focus et le pass-through est
 armé, on peut taper tout de suite. `Ctrl+O` reprend le clavier. Déplacer la
 sélection avec `j` / `k` est de la navigation et ne fait jamais ça.
+
+Deux `Esc` d'affilée, à moins de 400 ms l'un de l'autre, reprennent le clavier
+eux aussi — la sortie qu'on trouve sans lire ce tableau. C'est un vrai double
+appui : le premier `Esc` part dans la session comme n'importe quelle touche,
+donc `Esc` continue de marcher dans `vim` et dans une session d'agent, et toute
+autre touche tapée entre les deux casse la paire. La seule habitude qui n'y
+survit pas est le double `Esc` réflexe de `vim`, qui fera sortir du
+pass-through ; `Ctrl+O` reste la sortie pour qui préfère l'éviter.
 
 Un shell qui se termine de lui-même — `exit`, `Ctrl+D`, ou ce qu'il faisait
 tourner qui se finit — emmène l'interface avec lui : le pass-through est

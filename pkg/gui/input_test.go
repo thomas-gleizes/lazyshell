@@ -112,6 +112,72 @@ func TestEditOutputPrefixAloneExitsPassThrough(t *testing.T) {
 	}
 }
 
+// The second exit (ADR 0005): two Escapes in a row, no prefix key to know.
+func TestEditOutputDoubleEscExitsPassThrough(t *testing.T) {
+	gui, view := newOutputTestGui(t)
+
+	typeIntoOutput(gui, view, "i")
+	pressOutputKey(gui, view, gocui.KeyEsc)
+
+	if !gui.passThroughActive {
+		t.Fatal("a single Esc left pass-through, it must reach the session instead")
+	}
+
+	pressOutputKey(gui, view, gocui.KeyEsc)
+
+	if gui.passThroughActive {
+		t.Error("Esc Esc did not leave pass-through")
+	}
+}
+
+// The pair has to be a deliberate double press. Two Escapes minutes apart are
+// two unrelated keystrokes, and treating them as an exit would bring back the
+// never-expiring armed state ADR 0004 removed.
+func TestEditOutputStaleEscDoesNotPairUp(t *testing.T) {
+	gui, view := newOutputTestGui(t)
+
+	typeIntoOutput(gui, view, "i")
+
+	gui.lastEscAt = time.Now().Add(-escExitWindow - time.Second)
+	pressOutputKey(gui, view, gocui.KeyEsc)
+
+	if !gui.passThroughActive {
+		t.Error("an Esc paired with a long-expired one and left pass-through")
+	}
+}
+
+// Esc, some other key, Esc is a vim user moving around, not someone asking to
+// leave: any key in between breaks the pair.
+func TestEditOutputKeyBetweenEscapesBreaksThePair(t *testing.T) {
+	gui, view := newOutputTestGui(t)
+
+	typeIntoOutput(gui, view, "i")
+	pressOutputKey(gui, view, gocui.KeyEsc)
+	typeIntoOutput(gui, view, "j")
+	pressOutputKey(gui, view, gocui.KeyEsc)
+
+	if !gui.passThroughActive {
+		t.Error("Esc j Esc left pass-through, the intervening key must break the pair")
+	}
+}
+
+// Entering pass-through starts with no pair in progress: an Escape typed in an
+// earlier pass-through must not complete with the first one typed here.
+func TestEditOutputEscPairDoesNotSurviveReentry(t *testing.T) {
+	gui, view := newOutputTestGui(t)
+
+	typeIntoOutput(gui, view, "i")
+	pressOutputKey(gui, view, gocui.KeyEsc)
+	pressOutputKey(gui, view, gui.prefixKey)
+
+	typeIntoOutput(gui, view, "i")
+	pressOutputKey(gui, view, gocui.KeyEsc)
+
+	if !gui.passThroughActive {
+		t.Error("an Esc from a previous pass-through paired with the first of this one")
+	}
+}
+
 // The key that used to be the escape prefix must now reach the shell like any
 // other: Claude Code binds Ctrl-B, and getting it through is half the reason
 // the default moved to Ctrl-O.

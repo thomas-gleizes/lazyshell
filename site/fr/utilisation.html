@@ -113,6 +113,7 @@
   <tbody>
     <tr><td><kbd>i</kbd> / <kbd>Entrée</kbd></td><td>Donner le clavier au shell (mode pass-through)</td></tr>
     <tr><td><kbd>Ctrl+O</kbd> <span style="color:var(--text-faint)">(configurable)</span></td><td>Reprendre le clavier depuis le pass-through</td></tr>
+    <tr><td><kbd>Esc</kbd> <kbd>Esc</kbd></td><td>Pareil, sans touche à apprendre : deux Échap d'affilée, en moins de 400 ms</td></tr>
     <tr><td><kbd>PgUp</kbd> / <kbd>PgDn</kbd></td><td>Défiler d'un écran dans l'historique</td></tr>
     <tr><td><kbd>Ctrl+U</kbd> / <kbd>Ctrl+D</kbd></td><td>Défiler d'un demi-écran</td></tr>
     <tr><td><kbd>/</kbd></td><td>Rechercher dans l'historique ; <kbd>n</kbd> / <kbd>N</kbd> pour l'occurrence suivante / précédente</td></tr>
@@ -135,7 +136,9 @@
     <strong>Démarrer une session</strong> (<kbd>n</kbd>, <kbd>N</kbd>, <kbd>c</kbd>) ou en
     <strong>relancer</strong> une (<kbd>R</kbd>) vous dépose dedans : le panneau de sortie prend le
     focus et le pass-through est armé, vous pouvez taper immédiatement. <kbd>Ctrl+O</kbd> reprend
-    le clavier.
+    le clavier, et deux <kbd>Esc</kbd> d'affilée en moins de 400 ms aussi — un vrai double appui,
+    le premier <kbd>Esc</kbd> partant quand même dans la session pour qu'il continue de marcher
+    dans <code>vim</code> et dans une session d'agent.
   </li>
   <li>
     <strong>Un shell qui se termine seul</strong> — <code>exit</code>, <kbd>Ctrl+D</kbd>, ou la

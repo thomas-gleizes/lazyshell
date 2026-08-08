@@ -3,6 +3,7 @@ package gui
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/jesseduffield/gocui"
 
@@ -22,6 +23,18 @@ import (
 // pressing it inside an agent session was pressing a key that means something
 // on both sides at once. See docs/adr/0004-sortie-du-pass-through.md.
 const defaultPrefixKey = gocui.KeyCtrlO
+
+// escExitWindow is how long a first Escape stays eligible to be completed by a
+// second one into a pass-through exit. It exists because the pair has to be a
+// deliberate double press: without a deadline, an Escape typed into vim now and
+// another one five minutes later would add up to an exit, which is the
+// never-expiring armed state ADR 0004 removed.
+//
+// The value is a compromise, and the losing side is stated plainly: vim users
+// who double-tap Escape out of habit will leave pass-through. That is the price
+// of a second exit that needs no key to be learnt, and Ctrl-O (which no
+// application below claims) stays the exit for anyone who finds it wrong.
+const escExitWindow = 400 * time.Millisecond
 
 // prefixFrom resolves the pass-through escape key: $LAZYSHELL_PREFIX wins
 // if set (a terminal multiplexer running above lazyshell may well eat the key
@@ -153,6 +166,11 @@ func (gui *Gui) editOutput(view *gocui.View, key gocui.Key, ch rune, mod gocui.M
 // literally". That is what makes it a config value (prefix_key,
 // $LAZYSHELL_PREFIX) — a user who needs Ctrl-O in their shell moves the escape
 // key elsewhere rather than losing the exit.
+//
+// Escape twice in a row is a second, discoverable exit (ADR 0005). It is not a
+// prefix automaton coming back: the first Escape is forwarded to the session
+// immediately like any other key, so Escape keeps working in vim and Claude
+// Code, and nothing is armed that could swallow an unrelated keystroke.
 func (gui *Gui) editDuringPassThrough(key gocui.Key, ch rune, mod gocui.Modifier) bool {
 	// ch == 0 matters: a control key arrives with no rune, while every
 	// printable character arrives as key 0 with the rune set. Without this
@@ -160,6 +178,9 @@ func (gui *Gui) editDuringPassThrough(key gocui.Key, ch rune, mod gocui.Modifier
 	// as NUL) would match every letter typed and drop the user out of
 	// pass-through on the first keystroke. Validate rejects a non-control
 	// prefix_key, but $LAZYSHELL_PREFIX does not go through it.
+	//
+	// Checked before the Escape pair so that a user who set prefix_key to Esc
+	// gets the single press they asked for.
 	if key == gui.prefixKey && ch == 0 {
 		gui.debug.Action("editor exit_pass_through (prefix %s)", prefixName(gui.prefixKey))
 		gui.exitPassThrough()
@@ -167,9 +188,38 @@ func (gui *Gui) editDuringPassThrough(key gocui.Key, ch rune, mod gocui.Modifier
 		return true
 	}
 
+	if key == gocui.KeyEsc && ch == 0 {
+		if gui.escPressedRecently() {
+			// Only the second Escape is swallowed. The first already reached
+			// the session, which is what makes the pair safe to type: leaving
+			// pass-through this way costs the session one Escape, never zero
+			// and never two.
+			gui.debug.Action("editor exit_pass_through (Esc Esc)")
+			gui.exitPassThrough()
+
+			return true
+		}
+
+		gui.lastEscAt = time.Now()
+		gui.dispatchKey(key, ch, mod)
+
+		return true
+	}
+
+	// Any other key breaks the pair: Esc, j, Esc is a vim user moving around,
+	// not someone asking to leave.
+	gui.lastEscAt = time.Time{}
+
 	gui.dispatchKey(key, ch, mod)
 
 	return true
+}
+
+// escPressedRecently reports whether the Escape now being handled closes a pair
+// with the previous one, i.e. whether the two are within escExitWindow. A zero
+// lastEscAt (no Escape yet, or the pair was broken) never qualifies.
+func (gui *Gui) escPressedRecently() bool {
+	return !gui.lastEscAt.IsZero() && time.Since(gui.lastEscAt) < escExitWindow
 }
 
 // dispatchKey writes a translated keystroke to the selected session, or —
@@ -493,6 +543,9 @@ func (gui *Gui) enterPassThrough() {
 	}
 
 	gui.passThroughActive = true
+	// An Escape pressed during a previous pass-through must not pair up with
+	// the first one pressed in this one.
+	gui.lastEscAt = time.Time{}
 	gui.onSelectionChanged() // resets scroll to live and restarts the render task
 	gui.refreshChrome()
 }
@@ -502,6 +555,7 @@ func (gui *Gui) enterPassThrough() {
 // the terminal cursor back off the panel.
 func (gui *Gui) exitPassThrough() {
 	gui.passThroughActive = false
+	gui.lastEscAt = time.Time{}
 	gui.restartOutput()
 	gui.refreshChrome()
 }

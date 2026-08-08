@@ -113,6 +113,7 @@
   <tbody>
     <tr><td><kbd>i</kbd> / <kbd>Enter</kbd></td><td>Hand the keyboard to the shell (pass-through mode)</td></tr>
     <tr><td><kbd>Ctrl+O</kbd> <span style="color:var(--text-faint)">(configurable)</span></td><td>Take the keyboard back from pass-through</td></tr>
+    <tr><td><kbd>Esc</kbd> <kbd>Esc</kbd></td><td>Same, without a key to learn: two Escapes in a row, within 400 ms</td></tr>
     <tr><td><kbd>PgUp</kbd> / <kbd>PgDn</kbd></td><td>Scroll one screen through the scrollback</td></tr>
     <tr><td><kbd>Ctrl+U</kbd> / <kbd>Ctrl+D</kbd></td><td>Scroll half a screen</td></tr>
     <tr><td><kbd>/</kbd></td><td>Search the scrollback; <kbd>n</kbd> / <kbd>N</kbd> for the next / previous match</td></tr>
@@ -135,7 +136,9 @@
     <strong>Starting a session</strong> (<kbd>n</kbd>, <kbd>N</kbd>, <kbd>c</kbd>) or
     <strong>restarting</strong> one (<kbd>R</kbd>) lands you straight inside it: the output panel
     takes the focus and pass-through is armed, so you can type immediately. <kbd>Ctrl+O</kbd> gets
-    the keyboard back.
+    the keyboard back, and so do two <kbd>Esc</kbd> in a row within 400 ms — a genuine double
+    press, the first <kbd>Esc</kbd> still reaching the session so it keeps working in
+    <code>vim</code> and in an agent session.
   </li>
   <li>
     <strong>A shell that ends on its own</strong> — <code>exit</code>, <kbd>Ctrl+D</kbd>, or

@@ -77,6 +77,7 @@ While the **output panel** is focused, these apply instead:
 | --- | --- |
 | `i` / `Enter` | Hand the keyboard to the shell (pass-through mode) |
 | `Ctrl+O` (configurable) | Take the keyboard back, out of pass-through mode |
+| `Esc` `Esc` | Same, without a key to learn: two Escapes in a row, within 400 ms |
 | `PgUp` / `PgDn` | Scroll one screen through the history |
 | `Ctrl+U` / `Ctrl+D` | Scroll half a screen |
 | `/` | Search the history; `n` / `N` for the next/previous match |
@@ -88,6 +89,14 @@ Starting a session (`n`, `N`, `c`) or restarting one (`R`) lands you straight
 inside it: the output panel takes the focus and pass-through is armed, so you
 can type immediately. `Ctrl+O` gets the keyboard back. Moving the selection
 with `j` / `k` is navigation and never does this.
+
+Two `Esc` in a row, within 400 ms of each other, get the keyboard back too —
+the exit you can find without reading this table. It is a genuine double press:
+the first `Esc` is forwarded to the session like any other key, so `Esc` keeps
+working in `vim` and in an agent session, and any other key typed in between
+breaks the pair. The one habit it does not survive is double-tapping `Esc` in
+`vim` out of reflex, which will leave pass-through; `Ctrl+O` remains the exit
+for anyone who would rather it did not.
 
 A shell that ends on its own — `exit`, `Ctrl+D`, or whatever it was running
 finishing — takes the interface with it: pass-through is disarmed and focus

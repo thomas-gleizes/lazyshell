@@ -3,6 +3,7 @@ package gui
 import (
 	"strings"
 
+	"github.com/jesseduffield/gocui"
 	"github.com/rivo/uniseg"
 )
 
@@ -81,10 +82,20 @@ func (gui *Gui) outputFooterHints() []footerHint {
 		}
 	}
 
-	// In pass-through every key but the prefix goes to the shell, so the prefix
-	// is the only thing that is true about this panel right now.
+	// In pass-through every key but the prefix goes to the shell, so the two
+	// ways out are the only thing that is true about this panel right now.
 	if gui.passThroughActive {
-		return []footerHint{{key: prefixName(gui.prefixKey), label: gui.tr.T("footer.exit_passthrough")}}
+		hints := []footerHint{{key: prefixName(gui.prefixKey), label: gui.tr.T("footer.exit_passthrough")}}
+
+		// Redundant, and worse than that misleading, when the prefix *is*
+		// Escape: a single press already exits there (editDuringPassThrough
+		// tests the prefix first), so advertising a pair would teach the wrong
+		// gesture.
+		if gui.prefixKey != gocui.KeyEsc {
+			hints = append(hints, footerHint{key: "Esc Esc", label: gui.tr.T("footer.exit_passthrough")})
+		}
+
+		return hints
 	}
 
 	// Copy-mode's keys are its own thing too: j/k/arrows there extend the

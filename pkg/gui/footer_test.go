@@ -58,16 +58,16 @@ func TestFooterFollowsKeybindingRemap(t *testing.T) {
 	}
 }
 
-// In pass-through every key but the prefix goes to the shell, so listing
+// In pass-through every key but the two exits goes to the shell, so listing
 // anything else would be actively wrong.
-func TestOutputFooterInPassThroughShowsOnlyTheWayOut(t *testing.T) {
+func TestOutputFooterInPassThroughShowsOnlyTheWaysOut(t *testing.T) {
 	gui, _ := newHeadlessGui(t)
 	newTestSession(t, gui, "s")
 
 	gui.passThroughActive = true
 
-	if got := gui.panelFooter(outputViewName, 60); got != "Ctrl-O:sortir" {
-		t.Errorf("panelFooter(output) in pass-through = %q, want Ctrl-O:sortir", got)
+	if got := gui.panelFooter(outputViewName, 60); got != "Ctrl-O:sortir Esc Esc:sortir" {
+		t.Errorf("panelFooter(output) in pass-through = %q, want both exits", got)
 	}
 }
 
@@ -80,8 +80,24 @@ func TestOutputFooterFollowsPrefixRemap(t *testing.T) {
 
 	gui.passThroughActive = true
 
-	if got := gui.panelFooter(outputViewName, 60); got != "Ctrl-A:sortir" {
-		t.Errorf("panelFooter(output) = %q, want Ctrl-A:sortir", got)
+	if got := gui.panelFooter(outputViewName, 60); got != "Ctrl-A:sortir Esc Esc:sortir" {
+		t.Errorf("panelFooter(output) = %q, want Ctrl-A:sortir Esc Esc:sortir", got)
+	}
+}
+
+// A prefix_key of Esc exits on a single press (editDuringPassThrough tests the
+// prefix first), so the footer must not teach a double press there.
+func TestOutputFooterOmitsEscPairWhenPrefixIsEsc(t *testing.T) {
+	cfg := config.Default()
+	cfg.PrefixKey = "Esc"
+
+	gui, _ := newHeadlessGuiSizedWithConfig(t, 80, 24, cfg)
+	newTestSession(t, gui, "s")
+
+	gui.passThroughActive = true
+
+	if got := gui.panelFooter(outputViewName, 60); strings.Contains(got, "Esc Esc") {
+		t.Errorf("panelFooter(output) = %q, want no Esc Esc hint when the prefix is Esc", got)
 	}
 }
 

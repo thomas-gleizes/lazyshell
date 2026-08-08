@@ -115,6 +115,12 @@ type Gui struct {
 	// synchronously from gocui's own event dispatch — always the same
 	// goroutine, no mutex needed.
 	passThroughActive bool
+	// lastEscAt is when the previous Escape was forwarded to the session, and
+	// is what turns two of them in a row into a pass-through exit (see
+	// editDuringPassThrough). Zero means there is no pair in progress. Same
+	// concurrency rule as passThroughActive above — the Editor's goroutine
+	// only.
+	lastEscAt time.Time
 	// zoomed hides the sessions panel and gives the output panel the whole
 	// screen. Only ever touched from gocui's own goroutine (toggleZoom, a
 	// keybinding handler), same reasoning as passThroughActive above.
@@ -515,7 +521,14 @@ func (gui *Gui) renderStatus(view *gocui.View) {
 	case gui.lastInfo != "":
 		text = " " + gui.lastInfo + " "
 	case gui.passThroughActive:
-		text = gui.tr.T("status.passthrough", prefixName(gui.prefixKey))
+		// Two messages rather than one with "Esc Esc" appended: a user whose
+		// prefix_key is already Escape exits on a single press, so naming the
+		// pair would advertise a gesture that is not theirs.
+		if gui.prefixKey == gocui.KeyEsc {
+			text = gui.tr.T("status.passthrough", prefixName(gui.prefixKey))
+		} else {
+			text = gui.tr.T("status.passthrough_esc", prefixName(gui.prefixKey))
+		}
 	case gui.copyModeActive:
 		from, to := gui.copySelectionRange()
 		text = gui.tr.T("status.copymode", to-from+1)

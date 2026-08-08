@@ -77,7 +77,8 @@ docs/
   README.fr.md    French translation of the root README
   adr/            architecture decision records (0001: rendu ANSI et clavier, 0002: rendu
                   multi-panneaux, 0003: souris, 0004: sortie du pass-through — remplace la
-                  décision 3 de l'ADR 0001)
+                  décision 3 de l'ADR 0001, 0005: `Esc` `Esc` comme seconde sortie — complète
+                  l'ADR 0004 sans le remplacer)
   repports/       (sic) historical analysis reports
 site/             sources of the bilingual GitHub Pages site (site/en/, site/fr/)
 ```

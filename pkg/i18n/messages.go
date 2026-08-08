@@ -254,6 +254,12 @@ var messages = map[string]map[string]string{
 		"fr": " -- INSERT --  (%s pour sortir) ",
 		"en": " -- INSERT --  (%s to exit) ",
 	},
+	// The Esc Esc variant, shown unless prefix_key is itself Escape — see
+	// renderStatus.
+	"status.passthrough_esc": {
+		"fr": " -- INSERT --  (%s ou Esc Esc pour sortir) ",
+		"en": " -- INSERT --  (%s or Esc Esc to exit) ",
+	},
 	"status.search": {
 		"fr": " /%s : %d/%d occurrence(s) ",
 		"en": " /%s: %d/%d match(es) ",
