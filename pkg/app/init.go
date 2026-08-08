@@ -26,6 +26,12 @@ const projectTemplate = `# lazyshell.yml — sessions démarrées automatiquemen
 
 # shell: /bin/zsh          # optionnel — surcharge la config utilisateur ici
 
+# env_files:                # optionnel — fichiers .env chargés pour TOUTES les
+#   - .env                  # sessions ci-dessous, dans l'ordre (le dernier
+#   - .env.local             # gagne sur le précédent en cas de clé commune)
+# no_default_env: true      # optionnel — désactive le ".env" auto du cwd de
+#                            # chaque session (chargé par défaut sinon)
+
 sessions:
   - name: api
     # cwd est relatif à CE fichier, pas au dossier depuis lequel on lance
@@ -36,6 +42,10 @@ sessions:
     command: echo "remplacez-moi"
     env:
       PORT: "3000"
+    # env_files:             # optionnel — s'ajoutent à ceux du dessus, pour
+    #   - .env.api            # cette session seulement
+    # no_default_env: false  # optionnel — recharge le ".env" auto même si le
+    #                        # projet l'a désactivé plus haut
 
   - name: shell            # sans command : un simple shell dans le cwd
 `

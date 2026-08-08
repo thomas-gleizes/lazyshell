@@ -95,6 +95,8 @@ func newApp(opts Options, approve approver, errOut io.Writer) *App {
 	sessions := session.NewManager()
 	sessions.ScrollbackSize = cfg.ScrollbackSize
 	sessions.Term = cfg.Term
+	sessions.DefaultEnvFiles = opts.EnvFiles
+	sessions.DisableDefaultEnv = opts.NoEnvFile
 
 	if cfg.KillTimeoutMs > 0 {
 		sessions.KillTimeout = time.Duration(cfg.KillTimeoutMs) * time.Millisecond

@@ -90,11 +90,13 @@ func autostart(sessions *session.Manager, pcfg config.ProjectConfig, shell strin
 
 	for _, spec := range specs {
 		if _, err := sessions.NewWithOptions(session.Options{
-			Name:    spec.Name,
-			Shell:   shell,
-			Cwd:     spec.Cwd,
-			Env:     spec.Env,
-			Command: spec.Command,
+			Name:             spec.Name,
+			Shell:            shell,
+			Cwd:              spec.Cwd,
+			Env:              spec.Env,
+			EnvFiles:         spec.EnvFiles,
+			NoDefaultEnvFile: spec.NoDefaultEnv,
+			Command:          spec.Command,
 		}); err != nil {
 			errs = append(errs, err)
 		}

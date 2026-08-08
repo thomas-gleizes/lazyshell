@@ -293,6 +293,67 @@ func TestValidateDropsBadEntriesAndKeepsTheRest(t *testing.T) {
 	}
 }
 
+// env_files resolve project-wide first, then a session's own get appended;
+// no_default_env falls back from the session to the project when the session
+// does not say anything.
+func TestValidateResolvesEnvFiles(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "lazyshell.yml")
+
+	noDefault := true
+	pcfg := ProjectConfig{
+		Path:         path,
+		EnvFiles:     []string{".env.shared"},
+		NoDefaultEnv: &noDefault,
+		Sessions: []SessionSpec{
+			{Name: "api", EnvFiles: []string{".env.api"}},
+			{Name: "worker"},
+		},
+	}
+
+	valid, errs := pcfg.Validate()
+	if len(errs) != 0 {
+		t.Fatalf("errs = %v, want none", errs)
+	}
+	if len(valid) != 2 {
+		t.Fatalf("len(valid) = %d, want 2", len(valid))
+	}
+
+	api := valid[0]
+	wantFiles := []string{filepath.Join(dir, ".env.shared"), filepath.Join(dir, ".env.api")}
+	if len(api.EnvFiles) != 2 || api.EnvFiles[0] != wantFiles[0] || api.EnvFiles[1] != wantFiles[1] {
+		t.Errorf("api.EnvFiles = %v, want %v", api.EnvFiles, wantFiles)
+	}
+	if api.NoDefaultEnv == nil || *api.NoDefaultEnv != true {
+		t.Errorf("api.NoDefaultEnv = %v, want the project's true (session sets nothing)", api.NoDefaultEnv)
+	}
+
+	worker := valid[1]
+	wantWorkerFiles := []string{filepath.Join(dir, ".env.shared")}
+	if len(worker.EnvFiles) != 1 || worker.EnvFiles[0] != wantWorkerFiles[0] {
+		t.Errorf("worker.EnvFiles = %v, want %v", worker.EnvFiles, wantWorkerFiles)
+	}
+}
+
+// A session's own no_default_env overrides the project's.
+func TestValidateSessionNoDefaultEnvOverridesProject(t *testing.T) {
+	sessionSetting := false
+	pcfg := ProjectConfig{
+		Path: filepath.Join(t.TempDir(), "lazyshell.yml"),
+		Sessions: []SessionSpec{
+			{Name: "api", NoDefaultEnv: &sessionSetting},
+		},
+	}
+
+	valid, errs := pcfg.Validate()
+	if len(errs) != 0 {
+		t.Fatalf("errs = %v, want none", errs)
+	}
+	if valid[0].NoDefaultEnv == nil || *valid[0].NoDefaultEnv != false {
+		t.Errorf("NoDefaultEnv = %v, want the session's explicit false", valid[0].NoDefaultEnv)
+	}
+}
+
 func TestValidateCarriesEnvAndCommand(t *testing.T) {
 	pcfg := ProjectConfig{
 		Path: filepath.Join(t.TempDir(), "lazyshell.yml"),

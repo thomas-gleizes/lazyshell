@@ -136,6 +136,124 @@ func TestPositionalConstructorsStillWork(t *testing.T) {
 	}
 }
 
+// A ".env" sitting in the session's cwd is loaded automatically.
+func TestNewWithOptionsLoadsDefaultDotEnv(t *testing.T) {
+	m := newTestManager(t)
+	dir := t.TempDir()
+	writeDotEnv(t, filepath.Join(dir, ".env"), "LAZYSHELL_TEST_PORT=4000\n")
+
+	sess, err := m.NewWithOptions(Options{Name: "api", Shell: testShell, Cwd: dir})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+
+	if _, err := sess.Write([]byte("echo port=$LAZYSHELL_TEST_PORT\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	waitForScreen(t, sess, "port=4000")
+}
+
+// NoDefaultEnvFile skips the automatic ".env" lookup for that session only.
+func TestNewWithOptionsNoDefaultEnvFileSkipsIt(t *testing.T) {
+	m := newTestManager(t)
+	dir := t.TempDir()
+	writeDotEnv(t, filepath.Join(dir, ".env"), "LAZYSHELL_TEST_PORT=4000\n")
+
+	skip := true
+	sess, err := m.NewWithOptions(Options{Name: "api", Shell: testShell, Cwd: dir, NoDefaultEnvFile: &skip})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+
+	if _, err := sess.Write([]byte("echo port=[$LAZYSHELL_TEST_PORT]\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	waitForScreen(t, sess, "port=[]")
+}
+
+// Manager.DisableDefaultEnv turns off the automatic lookup for every session,
+// and a session's own NoDefaultEnvFile=false brings it back for that one.
+func TestManagerDisableDefaultEnvOverriddenPerSession(t *testing.T) {
+	m := newTestManager(t)
+	m.DisableDefaultEnv = true
+	dir := t.TempDir()
+	writeDotEnv(t, filepath.Join(dir, ".env"), "LAZYSHELL_TEST_PORT=4000\n")
+
+	load := false
+	sess, err := m.NewWithOptions(Options{Name: "api", Shell: testShell, Cwd: dir, NoDefaultEnvFile: &load})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+
+	if _, err := sess.Write([]byte("echo port=$LAZYSHELL_TEST_PORT\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	waitForScreen(t, sess, "port=4000")
+}
+
+// EnvFiles are loaded in order, a later file overriding an earlier one, and
+// Env always wins over all of them.
+func TestNewWithOptionsEnvFilesLayerInOrder(t *testing.T) {
+	m := newTestManager(t)
+	dir := t.TempDir()
+	first := filepath.Join(dir, "first.env")
+	second := filepath.Join(dir, "second.env")
+	writeDotEnv(t, first, "LAZYSHELL_TEST_A=from-first\nLAZYSHELL_TEST_B=from-first\n")
+	writeDotEnv(t, second, "LAZYSHELL_TEST_B=from-second\n")
+
+	sess, err := m.NewWithOptions(Options{
+		Name:     "api",
+		Shell:    testShell,
+		Cwd:      dir,
+		EnvFiles: []string{first, second},
+		Env:      map[string]string{"LAZYSHELL_TEST_B": "from-env"},
+	})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+
+	if _, err := sess.Write([]byte("echo a=$LAZYSHELL_TEST_A b=$LAZYSHELL_TEST_B\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	waitForScreen(t, sess, "a=from-first b=from-env")
+}
+
+// A missing explicit env file is an error, unlike a missing default ".env".
+func TestNewWithOptionsMissingEnvFileIsAnError(t *testing.T) {
+	m := newTestManager(t)
+
+	if _, err := m.NewWithOptions(Options{
+		Name:     "api",
+		Shell:    testShell,
+		EnvFiles: []string{filepath.Join(t.TempDir(), "nope.env")},
+	}); err == nil {
+		t.Fatal("NewWithOptions with a missing env file: want error, got nil")
+	}
+}
+
+// Manager.DefaultEnvFiles (the --env-file flag) applies to every session.
+func TestManagerDefaultEnvFilesApplyToEverySession(t *testing.T) {
+	m := newTestManager(t)
+	path := filepath.Join(t.TempDir(), "global.env")
+	writeDotEnv(t, path, "LAZYSHELL_TEST_PORT=5000\n")
+	m.DefaultEnvFiles = []string{path}
+
+	sess, err := m.NewWithOptions(Options{Name: "api", Shell: testShell})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+
+	if _, err := sess.Write([]byte("echo port=$LAZYSHELL_TEST_PORT\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	waitForScreen(t, sess, "port=5000")
+}
+
 // TERM is the environment variable a user might need to lower: some programs
 // behave better when told the terminal can do less than it actually can.
 func TestManagerTermReachesTheChildEnvironment(t *testing.T) {
@@ -147,7 +265,10 @@ func TestManagerTermReachesTheChildEnvironment(t *testing.T) {
 
 	m.Term = "xterm"
 
-	env := buildEnv(m.term(), "session-id", "/tmp/session-id.sock", nil)
+	env, err := buildEnv(m, "session-id", "/tmp/session-id.sock", t.TempDir(), Options{})
+	if err != nil {
+		t.Fatalf("buildEnv: %v", err)
+	}
 
 	var found string
 	for _, entry := range env {

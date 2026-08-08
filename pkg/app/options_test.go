@@ -49,6 +49,29 @@ func TestParseArgsNoAutostart(t *testing.T) {
 	}
 }
 
+func TestParseArgsEnvFileIsRepeatableAndOrdered(t *testing.T) {
+	inv, err := ParseArgs([]string{"--env-file", "/p/a.env", "--env-file", "/p/b.env"})
+	if err != nil {
+		t.Fatalf("ParseArgs: %v", err)
+	}
+
+	want := []string{"/p/a.env", "/p/b.env"}
+	if len(inv.EnvFiles) != 2 || inv.EnvFiles[0] != want[0] || inv.EnvFiles[1] != want[1] {
+		t.Errorf("EnvFiles = %v, want %v in order", inv.EnvFiles, want)
+	}
+}
+
+func TestParseArgsNoEnvFile(t *testing.T) {
+	inv, err := ParseArgs([]string{"--no-env-file"})
+	if err != nil {
+		t.Fatalf("ParseArgs: %v", err)
+	}
+
+	if !inv.NoEnvFile {
+		t.Error("NoEnvFile = false, want true")
+	}
+}
+
 func TestParseArgsSubCommands(t *testing.T) {
 	inv, err := ParseArgs([]string{"init"})
 	if err != nil {

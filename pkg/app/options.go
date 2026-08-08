@@ -50,6 +50,26 @@ type Options struct {
 	// instead of writing lazyshell.yml. Meaningless outside CommandInit, so
 	// checked only there — see PrintAgentHookConfig.
 	Agents bool
+	// EnvFiles is one or more --env-file flags, in the order given: extra
+	// .env-style files loaded for every session this run creates, after each
+	// session's own default "<cwd>/.env" — see session.Manager.DefaultEnvFiles.
+	EnvFiles []string
+	// NoEnvFile is --no-env-file: skip the automatic "<cwd>/.env" lookup
+	// entirely, for every session this run creates.
+	NoEnvFile bool
+}
+
+// envFileFlag collects every occurrence of the repeatable --env-file flag, in
+// the order given on the command line — later files are meant to override
+// earlier ones, so the order must survive parsing.
+type envFileFlag struct{ values *[]string }
+
+func (f envFileFlag) String() string { return "" }
+
+func (f envFileFlag) Set(v string) error {
+	*f.values = append(*f.values, v)
+
+	return nil
 }
 
 // Invocation is a fully parsed command line.
@@ -78,6 +98,8 @@ Usage :
 Options :
   -f, --config-file <fichier>   fichier de projet à utiliser
       --no-autostart            n'ouvre que l'interface, ne démarre aucune session déclarée
+      --env-file <fichier>      charge un fichier .env supplémentaire (répétable, le dernier gagne)
+      --no-env-file             ne charge pas automatiquement le .env du dossier courant
       --agents                  avec init : affiche la config de hooks au lieu du fichier de projet
       --version                 affiche la version et quitte
 `
@@ -107,6 +129,8 @@ func ParseArgs(args []string) (Invocation, error) {
 	fs.StringVar(&inv.ConfigFile, "config-file", "", "fichier de projet à utiliser")
 	fs.StringVar(&inv.ConfigFile, "f", "", "fichier de projet à utiliser (raccourci)")
 	fs.BoolVar(&inv.NoAutostart, "no-autostart", false, "ne démarre aucune session déclarée")
+	fs.Var(envFileFlag{&inv.EnvFiles}, "env-file", "fichier .env supplémentaire à charger (répétable)")
+	fs.BoolVar(&inv.NoEnvFile, "no-env-file", false, "ne charge pas automatiquement le .env du dossier courant")
 	fs.BoolVar(&inv.Version, "version", false, "affiche la version et quitte")
 	fs.BoolVar(&inv.Agents, "agents", false, "avec init : affiche la config de hooks des agents IA")
 

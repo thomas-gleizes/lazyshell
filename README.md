@@ -403,6 +403,12 @@ environment and command — instead of coming up empty.
 # Optional: overrides the user config's shell, for this project only.
 shell: /bin/zsh
 
+# Optional: .env files loaded for every session below, in order — a later
+# file overrides a key set by an earlier one.
+env_files:
+  - .env
+  - .env.local
+
 sessions:
   - name: api
     # Relative to *this file*, not to where you launched lazyshell from.
@@ -413,6 +419,9 @@ sessions:
     command: make dev
     env:
       PORT: "3000"
+    # Optional: on top of env_files above, for this session only.
+    env_files:
+      - .env.api
 
   - name: web
     cwd: ./web
@@ -425,10 +434,27 @@ Sessions start in file order, and the first one is selected. An entry that
 does not validate (empty or duplicate `name`, missing `cwd`) is skipped and
 reported in the status bar — the others still start.
 
-**Only `shell` and `sessions` are read from a project file.** `theme`,
-`keybindings`, `prefix_key` and the rest stay under your control alone: a
-repository you cloned must not be able to remap your keyboard. Other keys are
-ignored, with a warning on stderr.
+**Only `shell`, `env_files`, `no_default_env` and `sessions` are read from a
+project file.** `theme`, `keybindings`, `prefix_key` and the rest stay under
+your control alone: a repository you cloned must not be able to remap your
+keyboard. Other keys are ignored, with a warning on stderr.
+
+### .env files
+
+Every session — declared in a project file or not — automatically loads a
+`.env` from its own working directory, if there is one. Layered on top, each
+overriding a key the previous layer set:
+
+1. `<session cwd>/.env`, automatic, unless disabled (see below)
+2. `--env-file <path>` (repeatable, applies to every session this run starts)
+3. the project's own `env_files:` (applies to every declared session)
+4. a session's own `env_files:` (that session only)
+5. that session's `env:` map — always wins, over every file
+
+To stop the automatic `<cwd>/.env` lookup, pass `--no-env-file` (every
+session this run starts), set `no_default_env: true` at the top of a project
+file (every session it declares), or on one `SessionSpec` (that session
+only — overriding the project's own setting in either direction).
 
 ### Which file is used
 
@@ -451,6 +477,8 @@ as the file's content changes:
 lazyshell allow            # approve the current directory's file, launch nothing
 lazyshell allow ./x.yml    # approve a specific file
 lazyshell --no-autostart   # open the interface without starting anything
+lazyshell --env-file .env.prod   # extra .env file, for every session this run starts
+lazyshell --no-env-file          # skip every session's automatic "<cwd>/.env"
 ```
 
 Approvals live in `trust.yml` next to your user config. When stdin is not a

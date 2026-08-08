@@ -28,6 +28,15 @@ type ProjectConfig struct {
 	Shell string `yaml:"shell"`
 	// Sessions are started at launch, in this order.
 	Sessions []SessionSpec `yaml:"sessions"`
+	// EnvFiles are .env-style files loaded, in order, for every session this
+	// project declares — before each session's own EnvFiles, and before its
+	// inline Env. Relative paths resolve against the project file's
+	// directory, like Cwd.
+	EnvFiles []string `yaml:"env_files"`
+	// NoDefaultEnv disables the automatic "<session cwd>/.env" lookup for
+	// every declared session, unless a session's own NoDefaultEnv overrides
+	// it back on.
+	NoDefaultEnv *bool `yaml:"no_default_env"`
 
 	// Path is the absolute path of the file this was read from. Relative cwds
 	// resolve against its directory, not against the process's.
@@ -47,6 +56,14 @@ type SessionSpec struct {
 	Cwd     string            `yaml:"cwd"`
 	Command string            `yaml:"command"`
 	Env     map[string]string `yaml:"env"`
+	// EnvFiles are .env-style files loaded for this session only, after the
+	// project's own EnvFiles — a later file, and this list, override a key
+	// set by anything earlier. Relative paths resolve against the project
+	// file's directory, like Cwd.
+	EnvFiles []string `yaml:"env_files"`
+	// NoDefaultEnv overrides the project's NoDefaultEnv for this session
+	// only. Nil means "use the project's setting".
+	NoDefaultEnv *bool `yaml:"no_default_env"`
 }
 
 // ResolvedSession is a SessionSpec that passed validation, with its working
@@ -57,6 +74,12 @@ type ResolvedSession struct {
 	Cwd     string
 	Command string
 	Env     map[string]string
+	// EnvFiles is the project's EnvFiles followed by the session's own,
+	// already resolved to absolute paths.
+	EnvFiles []string
+	// NoDefaultEnv is the session's NoDefaultEnv if set, else the project's.
+	// Nil means neither said anything — defer to the Manager's own setting.
+	NoDefaultEnv *bool
 }
 
 // ProjectPath resolves which project file to read: the --config-file flag, then
@@ -182,12 +205,19 @@ func (p ProjectConfig) Validate() ([]ResolvedSession, []error) {
 			continue
 		}
 
+		noDefaultEnv := spec.NoDefaultEnv
+		if noDefaultEnv == nil {
+			noDefaultEnv = p.NoDefaultEnv
+		}
+
 		seen[name] = true
 		resolved = append(resolved, ResolvedSession{
-			Name:    name,
-			Cwd:     cwd,
-			Command: spec.Command,
-			Env:     spec.Env,
+			Name:         name,
+			Cwd:          cwd,
+			Command:      spec.Command,
+			Env:          spec.Env,
+			EnvFiles:     resolveEnvFilePaths(dir, append(append([]string{}, p.EnvFiles...), spec.EnvFiles...)),
+			NoDefaultEnv: noDefaultEnv,
 		})
 	}
 
@@ -224,6 +254,29 @@ func (s SessionSpec) ResolveCwd(configDir string) (string, error) {
 	}
 
 	return abs, nil
+}
+
+// resolveEnvFilePaths makes each path absolute against dir — the project
+// file's directory — exactly like ResolveCwd, but without checking that the
+// file exists: a missing explicit env file is reported by session creation
+// instead (pkg/session.buildEnv), which still lets a project's other
+// sessions start, the same way a bad SessionSpec does not cost the rest.
+func resolveEnvFilePaths(dir string, paths []string) []string {
+	if len(paths) == 0 {
+		return nil
+	}
+
+	resolved := make([]string, 0, len(paths))
+	for _, p := range paths {
+		p = expandHome(strings.TrimSpace(p))
+		if p != "" && !filepath.IsAbs(p) {
+			p = filepath.Join(dir, p)
+		}
+
+		resolved = append(resolved, p)
+	}
+
+	return resolved
 }
 
 // MergeProject applies the project file on top of the user configuration.

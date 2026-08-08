@@ -119,6 +119,64 @@ func TestAutostartCreatesEverySessionInOrder(t *testing.T) {
 	}
 }
 
+// A project's env_files and a session's own layer in, and a session's
+// no_default_env skips its automatic "<cwd>/.env" — the end-to-end path
+// through app.newApp/autostart, not just pkg/config.Validate in isolation.
+func TestAutostartLoadsEnvFiles(t *testing.T) {
+	dir := projectDir(t, `env_files:
+  - shared.env
+sessions:
+  - name: api
+    cwd: ./services/api
+    env_files:
+      - services/api/api.env
+    command: echo port=$LAZYSHELL_TEST_PORT shared=$LAZYSHELL_TEST_SHARED
+  - name: web
+    cwd: ./web
+    no_default_env: true
+    command: echo web-port=[$LAZYSHELL_TEST_WEB_PORT]
+`, "services/api", "web")
+
+	writeFile(t, filepath.Join(dir, "shared.env"), "LAZYSHELL_TEST_SHARED=base\nLAZYSHELL_TEST_PORT=1111\n")
+	writeFile(t, filepath.Join(dir, "services/api/api.env"), "LAZYSHELL_TEST_PORT=3000\n")
+	writeFile(t, filepath.Join(dir, "web/.env"), "LAZYSHELL_TEST_WEB_PORT=9999\n")
+
+	a := newTestApp(t, Options{}, answering("y"))
+
+	sessions := a.sessions.List()
+	waitForScreen(t, sessions[0], "port=3000 shared=base")
+	waitForScreen(t, sessions[1], "web-port=[]")
+}
+
+// --env-file applies to every session this run starts, including the default
+// single session when no project file declares any.
+func TestCLIEnvFileAppliesToTheDefaultSession(t *testing.T) {
+	dir := projectDir(t, "")
+	envPath := filepath.Join(dir, "global.env")
+	writeFile(t, envPath, "LAZYSHELL_TEST_GLOBAL=from-cli\n")
+
+	a := newTestApp(t, Options{EnvFiles: []string{envPath}}, nonInteractive)
+
+	sessions := a.sessions.List()
+	if len(sessions) != 1 {
+		t.Fatalf("len(sessions) = %d, want 1 (the default session)", len(sessions))
+	}
+
+	if _, err := sessions[0].Write([]byte("echo global=$LAZYSHELL_TEST_GLOBAL\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	waitForScreen(t, sessions[0], "global=from-cli")
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
 func TestAutostartRunsTheDeclaredCommandAndEnv(t *testing.T) {
 	projectDir(t, threeSessions, "services/api", "web")
 

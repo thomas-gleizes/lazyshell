@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -64,6 +65,19 @@ type Manager struct {
 	// agent.StateNone, the same as a session running no known agent; this is
 	// NewManager's zero value so every existing test keeps working unchanged.
 	Detector *agent.Detector
+
+	// DefaultEnvFiles are .env-style files loaded, in order, for every
+	// session this Manager creates — after the per-session default "<cwd>/.env"
+	// and before a session's own Options.EnvFiles. pkg/app wires this to the
+	// repeatable --env-file flag, so it applies to sessions created
+	// interactively too, not just ones a project file declares.
+	DefaultEnvFiles []string
+
+	// DisableDefaultEnv turns off the automatic "<cwd>/.env" lookup for every
+	// session this Manager creates, unless a session's own
+	// Options.NoDefaultEnvFile overrides it back on. pkg/app wires this to
+	// --no-env-file.
+	DisableDefaultEnv bool
 }
 
 // NewManager returns an empty Manager, ready to create sessions.
@@ -85,8 +99,17 @@ type Options struct {
 	Shell string
 	// Cwd is the shell's working directory. Empty means the process's own.
 	Cwd string
-	// Env adds to (and overrides within) the inherited environment.
+	// Env adds to (and overrides within) the inherited environment. It has
+	// the final word — it wins over every .env file, default or explicit.
 	Env map[string]string
+	// EnvFiles are .env-style files loaded, in order, after the Manager's own
+	// DefaultEnvFiles: a later file overrides keys set by an earlier one, and
+	// Env always wins over all of them. Relative paths are resolved by the
+	// caller (pkg/config, against the project file's directory), not here.
+	EnvFiles []string
+	// NoDefaultEnvFile overrides the Manager's DisableDefaultEnv for this
+	// session only. Nil means "use the Manager's setting".
+	NoDefaultEnvFile *bool
 	// Command, when non-empty, is typed into the session once it is up — see
 	// NewWithOptions for why it is injected rather than exec'd.
 	Command string
@@ -174,8 +197,13 @@ func (m *Manager) newSession(id string, opts Options) (*Session, error) {
 
 	sockPath := hook.SocketPath(id)
 
+	env, err := buildEnv(m, id, sockPath, cwd, opts)
+	if err != nil {
+		return nil, err
+	}
+
 	cmd := exec.Command(opts.Shell)
-	cmd.Env = buildEnv(m.term(), id, sockPath, opts.Env)
+	cmd.Env = env
 	cmd.Dir = cwd
 
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: defaultRows, Cols: defaultCols})
@@ -231,23 +259,69 @@ func (m *Manager) term() string {
 	return DefaultTerm
 }
 
-// buildEnv is the child's environment: the process's own, TERM/LAZYSHELL_SESSION_ID/
-// LAZYSHELL_SOCK forced, then the session's own overrides. The three forced
-// entries come before extra: a session's identity and its hook channel are
-// not something a project's declarative `env:` should be able to redefine.
-// Sorted so two runs of the same config produce the same environment, which
-// is what makes it testable.
-func buildEnv(term, sessionID, sockPath string, extra map[string]string) []string {
-	env := append(os.Environ(), "TERM="+term, "LAZYSHELL_SESSION_ID="+sessionID, "LAZYSHELL_SOCK="+sockPath)
+// buildEnv is the child's environment, layered in this order — each layer
+// overrides any key a previous one set:
+//
+//  1. the process's own environment
+//  2. TERM/LAZYSHELL_SESSION_ID/LAZYSHELL_SOCK, forced — a session's identity
+//     and its hook channel are not something a .env file or a project's
+//     declarative `env:` should be able to redefine
+//  3. "<cwd>/.env", loaded automatically unless disabled (opts.NoDefaultEnvFile,
+//     else m.DisableDefaultEnv)
+//  4. m.DefaultEnvFiles, in order (the --env-file flag)
+//  5. opts.EnvFiles, in order (a project's env_files, then a session's own)
+//  6. opts.Env — always wins, over every file
+//
+// Each layer's own keys are sorted before being appended, so two runs of the
+// same config produce the same environment, which is what makes it testable.
+func buildEnv(m *Manager, sessionID, sockPath, cwd string, opts Options) ([]string, error) {
+	env := append(os.Environ(), "TERM="+m.term(), "LAZYSHELL_SESSION_ID="+sessionID, "LAZYSHELL_SOCK="+sockPath)
 
-	keys := make([]string, 0, len(extra))
-	for k := range extra {
+	loadDefault := !m.DisableDefaultEnv
+	if opts.NoDefaultEnvFile != nil {
+		loadDefault = !*opts.NoDefaultEnvFile
+	}
+
+	if loadDefault {
+		vars, err := loadDotEnvFileIfExists(filepath.Join(cwd, ".env"))
+		if err != nil {
+			return nil, fmt.Errorf("session: .env par défaut : %w", err)
+		}
+
+		env = appendSortedEnv(env, vars)
+	}
+
+	for _, path := range m.DefaultEnvFiles {
+		vars, err := parseDotEnvFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("session: --env-file %s : %w", path, err)
+		}
+
+		env = appendSortedEnv(env, vars)
+	}
+
+	for _, path := range opts.EnvFiles {
+		vars, err := parseDotEnvFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("session: env_files %s : %w", path, err)
+		}
+
+		env = appendSortedEnv(env, vars)
+	}
+
+	return appendSortedEnv(env, opts.Env), nil
+}
+
+// appendSortedEnv appends vars to env as "KEY=value" entries, sorted by key.
+func appendSortedEnv(env []string, vars map[string]string) []string {
+	keys := make([]string, 0, len(vars))
+	for k := range vars {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
 	for _, k := range keys {
-		env = append(env, k+"="+extra[k])
+		env = append(env, k+"="+vars[k])
 	}
 
 	return env
