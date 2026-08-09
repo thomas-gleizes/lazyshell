@@ -33,6 +33,13 @@ sudo mv lazyshell /usr/local/bin/
 lazyshell --version
 ```
 
+Ou, pour que ce téléchargement/vérification/extraction soit fait pour vous
+(Linux et macOS, amd64/arm64) :
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/thomas-gleizes/lazyshell/main/scripts/install.sh | bash
+```
+
 Avec Go installé :
 
 ```sh
