@@ -49,8 +49,11 @@ func newHeadlessGuiSizedWithConfig(t testing.TB, width, height int, cfg config.C
 	sessions := session.NewManager()
 	// Shortens the SIGTERM-then-SIGKILL fallback so tests that kill a session
 	// (directly or via Shutdown) do not wait on the full production timeout —
-	// same reasoning as pkg/session's own tests.
-	sessions.KillTimeout = 300 * time.Millisecond
+	// same reasoning as pkg/session's own tests. Kept well above 300ms: under
+	// -race on a loaded CI runner, /bin/sh routinely needs most of a 300ms
+	// window just to react to SIGTERM, leaving no margin for the SIGKILL leg
+	// and flaking tests like TestRestartSessionRecreatesAnExitedSession.
+	sessions.KillTimeout = 1 * time.Second
 	t.Cleanup(sessions.Shutdown)
 
 	gui := New(sessions, cfg)

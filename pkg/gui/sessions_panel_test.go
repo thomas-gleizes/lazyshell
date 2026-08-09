@@ -25,7 +25,7 @@ func TestSessionsPanelContentEmpty(t *testing.T) {
 
 func TestSessionsPanelContentListsSessions(t *testing.T) {
 	m := session.NewManager()
-	m.KillTimeout = 300 * time.Millisecond
+	m.KillTimeout = 1 * time.Second
 	t.Cleanup(m.Shutdown)
 
 	a, err := m.New("shell-a", "/bin/sh")
@@ -55,7 +55,7 @@ func TestSessionsPanelContentListsSessions(t *testing.T) {
 // session that has never entered StateWorking.
 func TestSessionsPanelContentShowsTurnDurationAndStats(t *testing.T) {
 	m := session.NewManager()
-	m.KillTimeout = 300 * time.Millisecond
+	m.KillTimeout = 1 * time.Second
 	t.Cleanup(m.Shutdown)
 
 	quiet, err := m.New("quiet", "/bin/sh")

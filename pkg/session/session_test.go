@@ -10,12 +10,15 @@ const testShell = "/bin/sh"
 
 // newTestManager returns a Manager with a short kill timeout, so tests that
 // exercise the SIGKILL escalation path do not have to wait on a
-// production-sized timeout.
+// production-sized timeout. 1s rather than a tighter value: under -race on a
+// loaded CI runner, /bin/sh can need most of a 300ms window just to react to
+// SIGTERM, leaving no margin for the SIGKILL leg and flaking Kill-adjacent
+// tests.
 func newTestManager(t *testing.T) *Manager {
 	t.Helper()
 
 	m := NewManager()
-	m.KillTimeout = 300 * time.Millisecond
+	m.KillTimeout = 1 * time.Second
 
 	t.Cleanup(m.Shutdown)
 
