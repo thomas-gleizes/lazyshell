@@ -313,9 +313,34 @@ func TestGroupHeaderLineFillsTheWidthWithoutOverflowing(t *testing.T) {
 	}
 }
 
-// The "g" key moves the selected session into a group and keeps it selected
-// even though it just changed place in the display order.
-func TestSetSessionGroupMovesTheSessionAndKeepsItSelected(t *testing.T) {
+// selectGroupPickerRow finds the row satisfying match in the currently open
+// picker and highlights it, the setup half of "select this row" — the test
+// itself then calls triggerGroupPickerSelection, the same handler Enter runs.
+func selectGroupPickerRow(t *testing.T, gui *Gui, match func(groupPickerLine) bool) {
+	t.Helper()
+
+	sess, ok := gui.sessions.Get(gui.groupPickerSessionID)
+	if !ok {
+		t.Fatal("selectGroupPickerRow: no picker is open")
+	}
+
+	for i, line := range gui.groupPickerLines(sess.Group()) {
+		if match(line) {
+			gui.groupPickerSelectedIndex = i
+
+			return
+		}
+	}
+
+	t.Fatalf("selectGroupPickerRow: no row matched")
+}
+
+// The "g" key opens a picker listing every group already in use, and
+// selecting one moves the session into it — the common case, since the
+// groups on screen are exactly what a user picking one wants to reuse.
+// Selection stays on the session even though it just changed place in the
+// display order.
+func TestSetSessionGroupPicksAnExistingGroup(t *testing.T) {
 	gui, sessions := newGroupedTestGui(t, "api", "", "api")
 
 	// Select the ungrouped "b", last in display order.
@@ -327,8 +352,13 @@ func TestSetSessionGroupMovesTheSessionAndKeepsItSelected(t *testing.T) {
 	if err := gui.setSessionGroup(gui.g, nil); err != nil {
 		t.Fatalf("setSessionGroup: %v", err)
 	}
-	if err := gui.submitPromptText(t, "api"); err != nil {
-		t.Fatalf("submitPrompt: %v", err)
+
+	selectGroupPickerRow(t, gui, func(l groupPickerLine) bool {
+		return l.action == pickExistingGroup && l.group == "api"
+	})
+
+	if err := gui.triggerGroupPickerSelection(gui.g, nil); err != nil {
+		t.Fatalf("triggerGroupPickerSelection: %v", err)
 	}
 
 	if got := sessions[1].Group(); got != "api" {
@@ -340,20 +370,100 @@ func TestSetSessionGroupMovesTheSessionAndKeepsItSelected(t *testing.T) {
 	}
 }
 
-// An empty submission is how a session leaves every group — the prompt must
-// not treat a blank answer as a cancel.
-func TestSetSessionGroupWithAnEmptyAnswerUngroups(t *testing.T) {
+// Picking "no group" is how a session leaves every group.
+func TestSetSessionGroupPicksNoGroup(t *testing.T) {
 	gui, sessions := newGroupedTestGui(t, "api")
 
 	if err := gui.setSessionGroup(gui.g, nil); err != nil {
 		t.Fatalf("setSessionGroup: %v", err)
 	}
-	if err := gui.submitPromptText(t, ""); err != nil {
-		t.Fatalf("submitPrompt: %v", err)
+
+	selectGroupPickerRow(t, gui, func(l groupPickerLine) bool { return l.action == pickNoGroup })
+
+	if err := gui.triggerGroupPickerSelection(gui.g, nil); err != nil {
+		t.Fatalf("triggerGroupPickerSelection: %v", err)
 	}
 
 	if got := sessions[0].Group(); got != "" {
 		t.Errorf("Group() = %q, want the session ungrouped", got)
+	}
+}
+
+// Picking "+ new group…" falls through to the plain text prompt — the escape
+// hatch for a name that is not on the list yet. An empty submission there is
+// still how a session ends up ungrouped, same as picking "no group" directly.
+func TestSetSessionGroupPicksNewGroupThenTypes(t *testing.T) {
+	gui, sessions := newGroupedTestGui(t, "api", "")
+
+	// Select the ungrouped session; only "api" and "no group" are on the list.
+	gui.setSelectedIndex(1)
+
+	if err := gui.setSessionGroup(gui.g, nil); err != nil {
+		t.Fatalf("setSessionGroup: %v", err)
+	}
+
+	selectGroupPickerRow(t, gui, func(l groupPickerLine) bool { return l.action == pickNewGroup })
+
+	if err := gui.triggerGroupPickerSelection(gui.g, nil); err != nil {
+		t.Fatalf("triggerGroupPickerSelection: %v", err)
+	}
+
+	if _, err := gui.g.View(promptViewName); err != nil {
+		t.Fatalf("prompt view not found after picking \"new group\": %v", err)
+	}
+
+	if err := gui.submitPromptText(t, "web"); err != nil {
+		t.Fatalf("submitPrompt: %v", err)
+	}
+
+	if got := sessions[1].Group(); got != "web" {
+		t.Errorf("Group() = %q, want the typed %q", got, "web")
+	}
+}
+
+// With no group anywhere yet, a picker holding only "+ new group…" is not
+// worth showing: "g" goes straight to the text prompt, exactly the old
+// single-popup behaviour.
+func TestSetSessionGroupWithNoGroupsGoesStraightToThePrompt(t *testing.T) {
+	gui, _ := newGroupedTestGui(t, "")
+
+	if err := gui.setSessionGroup(gui.g, nil); err != nil {
+		t.Fatalf("setSessionGroup: %v", err)
+	}
+
+	if _, err := gui.g.View(groupPickerViewName); err == nil {
+		t.Error("the picker opened even though no group exists to pick from")
+	}
+
+	if _, err := gui.g.View(promptViewName); err != nil {
+		t.Fatalf("prompt view not found: %v", err)
+	}
+}
+
+// The session's current group is marked in the list, not excluded from it —
+// re-picking it is a harmless no-op, and the mark is what tells the user
+// where they already are.
+func TestGroupPickerMarksTheCurrentGroup(t *testing.T) {
+	gui, sessions := newGroupedTestGui(t, "api", "web")
+
+	gui.setSelectedIndex(0)
+
+	lines := gui.groupPickerLines(sessions[0].Group())
+
+	found := false
+
+	for _, l := range lines {
+		if l.action == pickExistingGroup && l.group == "api" {
+			found = true
+
+			if !strings.HasPrefix(l.text, "✓") {
+				t.Errorf("current group row = %q, want it marked", l.text)
+			}
+		}
+	}
+
+	if !found {
+		t.Fatal("the session's own group is not in its picker list")
 	}
 }
 

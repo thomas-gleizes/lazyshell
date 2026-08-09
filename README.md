@@ -73,7 +73,7 @@ to open an in-app help popup listing every binding below.
 | `w` | Export the selected session's scrollback to a file |
 | `b` | Mark/unmark the session for broadcast |
 | `B` | Jump to the next blocked agent session |
-| `g` | Put the selected session in a group (empty answer = no group) |
+| `g` | Assign the selected session to a group, from a list of existing ones or by typing a new one |
 | `G` | Show only the selected session's group; press again to clear |
 | `A` | Mark the whole group for broadcast, or unmark it |
 | `X` | Kill every session of the group |
@@ -149,8 +149,10 @@ grouped there are no headers at all — the list is exactly the flat one it has
 always been.
 
 Declare groups and assign sessions to them in `lazyshell.yml` (see [Project
-configuration](#project-configuration)), or set one at any time with `g`. Four
-keys then act on the selected session's whole group: `A` broadcasts to it, `X`
+configuration](#project-configuration)), or set one at any time with `g`,
+which opens a picker: every group already in use, plus "no group" and "+ new
+group…" for one that isn't on the list yet. Four keys then act on the
+selected session's whole group: `A` broadcasts to it, `X`
 kills it, `W` restarts whichever of its sessions have exited, and `G` narrows
 the list to it. A group action always reaches every member, including any a
 filter is currently hiding — "kill the group" means the group, not the part of

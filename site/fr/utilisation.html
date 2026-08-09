@@ -99,7 +99,7 @@
     <tr><td><kbd>w</kbd></td><td>Exporter l'historique de la session vers un fichier</td></tr>
     <tr><td><kbd>b</kbd></td><td>Marquer / démarquer la session pour la diffusion</td></tr>
     <tr><td><kbd>B</kbd></td><td>Sauter à la prochaine session d'agent <em>bloquée</em></td></tr>
-    <tr><td><kbd>g</kbd></td><td>Affecter la session à un groupe (réponse vide = aucun)</td></tr>
+    <tr><td><kbd>g</kbd></td><td>Affecter la session à un groupe, choisi dans une liste ou tapé</td></tr>
     <tr><td><kbd>G</kbd></td><td>N'afficher que le groupe de la session ; à nouveau pour annuler</td></tr>
     <tr><td><kbd>A</kbd></td><td>Marquer / démarquer tout le groupe pour la diffusion</td></tr>
     <tr><td><kbd>X</kbd></td><td>Tuer toutes les sessions du groupe</td></tr>
@@ -278,7 +278,9 @@
 
 <p>
   Déclarez les groupes dans <a href="projet.html">le fichier de projet</a>, ou posez-en un à tout
-  moment avec <kbd>g</kbd>. Quatre touches agissent ensuite sur tout le groupe de la session
+  moment avec <kbd>g</kbd>, qui ouvre une liste : tous les groupes déjà utilisés, plus « sans
+  groupe » et « + nouveau groupe… » pour un nom encore absent. Quatre touches agissent ensuite sur
+  tout le groupe de la session
   sélectionnée : <kbd>A</kbd> y diffuse, <kbd>X</kbd> le tue, <kbd>W</kbd> relance celles de ses
   sessions qui se sont terminées, et <kbd>G</kbd> restreint la liste à lui. Une action de groupe
   atteint toujours tous ses membres, y compris ceux qu'un filtre masque — « tuer le groupe » veut

@@ -169,6 +169,28 @@ textuel : le préfixe rendrait ambiguë une session réellement nommée `group:x
 analyseur, et — la vraie raison — ne pourrait se poser qu'en ouvrant la popup, là où `G` le pose en
 une frappe. Les deux se composent en ET, et `Échap` les efface tous les deux.
 
+## Décision 8 — `g` ouvre une liste plutôt qu'un simple champ texte
+
+La première version faisait de `g` une popup texte unique, pré-remplie du groupe courant, où une
+réponse vide désaffectait. À l'usage, retaper de mémoire un nom déjà visible dans un en-tête à
+l'écran est exactement le genre de friction que cette fonctionnalité devait supprimer. `g` ouvre
+donc un sélecteur (`pkg/gui/group_picker.go`, même mécanique que la popup d'aide : liste
+navigable au j/k, un clic équivaut à sélection + validation) qui énumère tous les groupes déjà en
+usage — dans l'ordre de `groupOrderOf`, le même que celui des en-têtes — plus deux lignes fixes :
+« sans groupe » et « + nouveau groupe… ». Choisir un groupe existant l'affecte immédiatement ;
+choisir « + nouveau groupe… » retombe sur l'ancienne popup texte, désormais vide plutôt que
+pré-remplie, puisqu'y arriver signifie qu'aucune des options de la liste ne convenait.
+
+La ligne du groupe courant porte une coche plutôt que d'être retirée de la liste : la retirer
+économiserait une ligne mais retirerait aussi le repère visuel « c'est ici que vous êtes » ; la
+re-choisir est de toute façon un no-op inoffensif (`SetGroup` avec la même valeur).
+
+Cas particulier gardé délibérément simple : si aucun groupe n'existe encore nulle part, la liste
+serait réduite à sa seule ligne fixe « + nouveau groupe… », ce qui n'a rien d'un choix — `g` va
+alors directement à la popup texte, exactement le comportement d'avant cette décision. C'est la
+seule branche où l'ancien chemin subsiste, et elle est couverte par un test dédié
+(`TestSetSessionGroupWithNoGroupsGoesStraightToThePrompt`).
+
 ## Conséquences
 
 - L'invariant « exactement une ligne par session », documenté comme contrainte dure dans

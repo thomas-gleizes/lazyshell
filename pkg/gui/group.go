@@ -199,34 +199,40 @@ func (gui *Gui) killSessions(ids []string) (int, error) {
 	return killed, errors.Join(errs...)
 }
 
-// setSessionGroup is the "g" key: move the selected session into a group,
-// typed into a popup pre-filled with the one it is in. An empty submission
-// takes it out of every group, which is the only way back to ungrouped and
-// is why the prompt does not refuse a blank answer.
+// setSessionGroup is the "g" key: open the group picker (pkg/gui/group_picker.go)
+// on the selected session — a list of every group already in use, plus
+// "no group" and "new group…", so the common case is one selection rather
+// than retyping a name that is already on screen in a header.
 func (gui *Gui) setSessionGroup(*gocui.Gui, *gocui.View) error {
 	sess := gui.selectedSession()
 	if sess == nil {
 		return nil
 	}
 
-	return gui.showPrompt(gui.tr.T("prompt.set_group"), sess.Group(), func(group string) error {
-		group = strings.TrimSpace(group)
+	return gui.showGroupPicker(sess)
+}
 
-		// A newline cannot be typed into the single-line prompt, but a paste
-		// can carry one, and it would tear the header line in two — the same
-		// rule pkg/config enforces on the project file.
-		group = strings.ReplaceAll(strings.ReplaceAll(group, "\n", " "), "\r", " ")
+// applySessionGroup moves sess into group ("" ungroups it) — the one place
+// that actually writes Session.group, shared by every path that can end in
+// an assignment: picking an existing group, picking "no group", and typing a
+// new one.
+func (gui *Gui) applySessionGroup(sess *session.Session, group string) error {
+	group = strings.TrimSpace(group)
 
-		sess.SetGroup(group)
-		gui.debug.Event("session %s (%s) grouped into %q", sess.Name(), sess.ID, group)
+	// A newline cannot be typed into the single-line "new group" prompt, but
+	// a paste can carry one, and it would tear the header line in two — the
+	// same rule pkg/config enforces on the project file.
+	group = strings.ReplaceAll(strings.ReplaceAll(group, "\n", " "), "\r", " ")
 
-		// The session almost certainly moved in display order, so the
-		// selection is re-derived from its id — the same tool a filter change
-		// uses, and for the same reason: the old index now points elsewhere.
-		gui.reselectAfterFilterChange(sess)
+	sess.SetGroup(group)
+	gui.debug.Event("session %s (%s) grouped into %q", sess.Name(), sess.ID, group)
 
-		return gui.renderSessionsPanel()
-	})
+	// The session almost certainly moved in display order, so the selection
+	// is re-derived from its id — the same tool a filter change uses, and for
+	// the same reason: the old index now points elsewhere.
+	gui.reselectAfterFilterChange(sess)
+
+	return gui.renderSessionsPanel()
 }
 
 // toggleGroupFilter is the "G" key: narrow the list to the selected session's

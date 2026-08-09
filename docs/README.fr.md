@@ -74,7 +74,7 @@ les raccourcis ci-dessous.
 | `w` | Exporter le scrollback de la session sélectionnée vers un fichier |
 | `b` | Marquer/démarquer la session pour la diffusion (broadcast) |
 | `B` | Sauter à la prochaine session d'agent bloquée |
-| `g` | Affecter la session sélectionnée à un groupe (réponse vide = aucun) |
+| `g` | Affecter la session sélectionnée à un groupe, choisi dans une liste ou tapé au clavier |
 | `G` | N'afficher que le groupe de la session sélectionnée ; à nouveau pour annuler |
 | `A` | Marquer tout le groupe pour la diffusion, ou le démarquer |
 | `X` | Tuer toutes les sessions du groupe |
@@ -155,7 +155,9 @@ aucun en-tête : la liste est exactement celle, plate, qu'elle a toujours été.
 
 Déclarez les groupes et affectez-y les sessions dans `lazyshell.yml` (voir
 [Configuration de projet](#configuration-de-projet)), ou posez-en un à tout
-moment avec `g`. Quatre touches agissent ensuite sur tout le groupe de la
+moment avec `g`, qui ouvre une liste : tous les groupes déjà utilisés, plus
+« sans groupe » et « + nouveau groupe… » pour un nom qui n'y figure pas
+encore. Quatre touches agissent ensuite sur tout le groupe de la
 session sélectionnée : `A` y diffuse, `X` le tue, `W` relance celles de ses
 sessions qui se sont terminées, et `G` restreint la liste à lui. Une action de
 groupe atteint toujours tous ses membres, y compris ceux qu'un filtre masque —

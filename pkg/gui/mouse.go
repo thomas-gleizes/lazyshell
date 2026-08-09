@@ -73,6 +73,11 @@ func (gui *Gui) mouseBindings() []*gocui.ViewMouseBinding {
 			Handler:  gui.clickHelp,
 		},
 		{
+			ViewName: groupPickerViewName,
+			Key:      gocui.MouseLeft,
+			Handler:  gui.clickGroupPicker,
+		},
+		{
 			// The drag: gocui reports a moved-with-the-button-down event as
 			// MouseLeft carrying ModMotion, so it needs its own entry — a
 			// binding with Modifier ModNone does not match it.
@@ -195,6 +200,26 @@ func (gui *Gui) clickHelp(opts gocui.ViewMouseBindingOpts) error {
 	}
 
 	return gui.triggerHelpSelection(gui.g, nil)
+}
+
+// clickGroupPicker is clickHelp's counterpart for the "g" key's popup: a
+// click selects the row under the pointer and immediately runs it, since
+// every row there is actionable (there is no dimmed/unavailable state to
+// check first, unlike a help row).
+func (gui *Gui) clickGroupPicker(opts gocui.ViewMouseBindingOpts) error {
+	sess, ok := gui.sessions.Get(gui.groupPickerSessionID)
+	if !ok {
+		return nil
+	}
+
+	lines := gui.groupPickerLines(sess.Group())
+	if opts.Y < 0 || opts.Y >= len(lines) {
+		return nil
+	}
+
+	gui.groupPickerSelectedIndex = opts.Y
+
+	return gui.triggerGroupPickerSelection(gui.g, nil)
 }
 
 // wheelSessions moves the selection rather than scrolling the view. The

@@ -394,9 +394,21 @@ var messages = map[string]map[string]string{
 		"fr": "renommer la session",
 		"en": "rename the session",
 	},
-	"prompt.set_group": {
-		"fr": "groupe de la session (vide pour aucun)",
-		"en": "session group (empty for none)",
+	"prompt.new_group": {
+		"fr": "nouveau groupe",
+		"en": "new group",
+	},
+	"group_picker.title": {
+		"fr": " groupe de la session ",
+		"en": " session group ",
+	},
+	"group_picker.none": {
+		"fr": "sans groupe",
+		"en": "no group",
+	},
+	"group_picker.new": {
+		"fr": "+ nouveau groupe…",
+		"en": "+ new group…",
 	},
 	"prompt.new_named": {
 		"fr": "nom de la session (vide = automatique)",

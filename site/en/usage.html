@@ -99,7 +99,7 @@
     <tr><td><kbd>w</kbd></td><td>Export the session's scrollback to a file</td></tr>
     <tr><td><kbd>b</kbd></td><td>Mark / unmark the session for broadcast</td></tr>
     <tr><td><kbd>B</kbd></td><td>Jump to the next <em>blocked</em> agent session</td></tr>
-    <tr><td><kbd>g</kbd></td><td>Put the session in a group (empty answer = no group)</td></tr>
+    <tr><td><kbd>g</kbd></td><td>Assign the session to a group, picked from a list or typed</td></tr>
     <tr><td><kbd>G</kbd></td><td>Show only the session's group; press again to clear</td></tr>
     <tr><td><kbd>A</kbd></td><td>Mark / unmark the whole group for broadcast</td></tr>
     <tr><td><kbd>X</kbd></td><td>Kill every session of the group</td></tr>
@@ -275,7 +275,8 @@
 
 <p>
   Declare groups in <a href="project.html">the project file</a>, or set one at any time with
-  <kbd>g</kbd>. Four keys then act on the selected session's whole group: <kbd>A</kbd> broadcasts
+  <kbd>g</kbd>, which opens a picker: every group already in use, plus "no group" and "+ new
+  group…" for one that isn't listed yet. Four keys then act on the selected session's whole group: <kbd>A</kbd> broadcasts
   to it, <kbd>X</kbd> kills it, <kbd>W</kbd> restarts whichever of its sessions have exited, and
   <kbd>G</kbd> narrows the list to it. A group action always reaches every member, including any a
   filter is currently hiding — "kill the group" means the group, not the part of it on screen.

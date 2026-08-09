@@ -119,6 +119,13 @@ type Gui struct {
 	helpSelectedIndex int
 	// promptReturnView is helpReturnView's equivalent for showPrompt's popup.
 	promptReturnView string
+	// groupPickerSessionID/groupPickerSelectedIndex/groupPickerReturnView are
+	// the "g" key's list popup state (pkg/gui/group_picker.go) — the session
+	// being assigned, the highlighted row, and where focus goes when it
+	// closes. Same concurrency rule as helpSelectedIndex above.
+	groupPickerSessionID     string
+	groupPickerSelectedIndex int
+	groupPickerReturnView    string
 	// busyActive/busyMessage/busyFrame/busyReturnView/busyStop are the
 	// spinner popup's state (pkg/gui/busy.go): whether one is up, what it
 	// says, which animation frame it is on, where focus goes when it closes,
