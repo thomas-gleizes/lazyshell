@@ -45,6 +45,7 @@
     <li><a href="#groupes">Groupes</a></li>
     <li><a href="#diffusion">Diffusion (broadcast)</a></li>
     <li><a href="#souris">Souris</a></li>
+    <li><a href="#osc133">Intégration shell (OSC 133)</a></li>
     <li><a href="#debug">Mode debug</a></li>
   </ul>
 </aside>
@@ -129,6 +130,8 @@
     <tr><td><kbd>/</kbd></td><td>Rechercher dans l'historique ; <kbd>n</kbd> / <kbd>N</kbd> pour l'occurrence suivante / précédente</td></tr>
     <tr><td><kbd>v</kbd></td><td>Démarrer (ou étendre) une sélection de lignes — mode copie</td></tr>
     <tr><td><kbd>y</kbd> ou un second <kbd>v</kbd></td><td>Copier la sélection (OSC 52, ou la commande de repli configurée)</td></tr>
+    <tr><td><kbd>{</kbd> / <kbd>}</kbd></td><td>Sauter au prompt précédent/suivant (nécessite l'<a href="#osc133">intégration shell OSC 133</a>)</td></tr>
+    <tr><td><kbd>Y</kbd></td><td>Copier la sortie de la dernière commande terminée (nécessite l'<a href="#osc133">intégration shell OSC 133</a>)</td></tr>
     <tr><td><kbd>Esc</kbd></td><td>Quitter la recherche ou annuler la sélection en cours</td></tr>
   </tbody>
 </table>
@@ -182,6 +185,7 @@
     <tr><td><code>●</code></td><td>La session a produit de la sortie alors qu'elle n'était pas à l'écran. Effacé à la sélection.</td></tr>
     <tr><td><code>+</code></td><td>La session est marquée pour la diffusion — voir plus bas.</td></tr>
     <tr><td><code>·</code> <code>…</code> <code>‼</code> <code>✓</code></td><td>État d'une session d'<a href="agents.html">agent IA</a> : au repos, en travail, bloquée (elle vous attend), terminée.</td></tr>
+    <tr><td><code>✗ &lt;code&gt;</code></td><td>La dernière commande d'une session sans agent a échoué — voir l'<a href="#osc133">intégration shell OSC 133</a>. Jamais affiché en même temps que le marqueur d'état d'une session d'agent ci-dessus.</td></tr>
   </tbody>
 </table>
 </div>
@@ -342,6 +346,46 @@
     <code>mouse.enabled: false</code> les récupère, au prix des gestes ci-dessus.
   </p>
 </div>
+
+<h2 id="osc133">Intégration shell (OSC 133)</h2>
+
+<p>
+  Un shell qui émet les marques standard <code>OSC 133;A/B/C/D</code> autour de chaque prompt et
+  de chaque commande — zsh, fish et bash le supportent tous, en général derrière une ligne à
+  ajouter au fichier de démarrage du shell (chercher « shell integration » ou « semantic prompt »
+  dans la doc de votre shell/prompt) — débloque trois choses sans configuration supplémentaire :
+</p>
+
+<ul>
+  <li><kbd>{</kbd> / <kbd>}</kbd> sautent au prompt précédent/suivant dans le scrollback.</li>
+  <li><kbd>Y</kbd> copie la sortie de la dernière commande terminée en une frappe, sans entrer en
+    mode copie.</li>
+  <li>La liste des sessions affiche <code>✗ &lt;code&gt;</code> pour une session sans agent dont
+    la dernière commande a échoué (voir <a href="#liste">Lire la liste des sessions</a>), et une
+    notification de bureau se déclenche de la même façon qu'une session d'agent
+    <code>blocked</code>/<code>done</code> — pour une session sans agent seulement, puisqu'une
+    session d'agent a déjà la sienne.</li>
+</ul>
+
+<p>
+  Rien ici n'a besoin d'un hook câblé comme pour <a href="agents.html">l'état des agents</a> : un
+  shell avec l'intégration activée émet ces marques tout seul, et un shell sans elle ne déclenche
+  simplement jamais rien de tout ça — aucun marqueur à désactiver, aucune clé de config à
+  éteindre, rien à détecter du tout. Seul le glyphe <code>✗</code> de la liste des sessions est
+  configurable (<code>markers.command_failed</code>, voir <a href="configuration.html#reference">
+  la référence</a>) ; le reste n'a ni glyphe ni touche à remapper en dehors des trois identifiants
+  d'action (<code>jump_prev_prompt</code>, <code>jump_next_prompt</code>,
+  <code>copy_last_output</code>) dans la map de raccourcis.
+</p>
+
+<p>
+  Les marques sont suivies par session, survivent à la troncature du scrollback (voir
+  <a href="https://github.com/thomas-gleizes/lazyshell/blob/main/docs/adr/0008-integration-shell-osc-133.md">l'ADR 0008</a>
+  pour le comment), et sont suspendues tant qu'une application plein écran tient la session — le
+  même principe « ça signale, ça ne change jamais de mode tout seul » que la souris et le mode
+  copie ci-dessus : rien de ce que tape <code>vim</code> ou <code>htop</code> n'est jamais pris
+  pour un prompt ou une borne de commande du shell.
+</p>
 
 <h2 id="debug">Mode debug</h2>
 

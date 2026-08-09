@@ -62,6 +62,10 @@ const (
 	defaultAgentWorkingMarker = "…"
 	defaultAgentBlockedMarker = "‼"
 	defaultAgentDoneMarker    = "✓"
+	// defaultCommandFailedMarker is prepended to a non-agent session's detail
+	// column when its last command (per OSC 133 shell integration) exited
+	// non-zero (pkg/gui/sessions_panel.go's commandExitIndicator).
+	defaultCommandFailedMarker = "✗"
 	// defaultHalfPageDivisor is what the output panel's height is divided by for
 	// a Ctrl-U/Ctrl-D scroll (pkg/gui/input.go's scrollHalfPage).
 	defaultHalfPageDivisor = 2
@@ -199,6 +203,11 @@ type Markers struct {
 	AgentWorking string `yaml:"agent_working"`
 	AgentBlocked string `yaml:"agent_blocked"`
 	AgentDone    string `yaml:"agent_done"`
+	// CommandFailed flags a non-agent session whose last command (per OSC 133
+	// shell integration) exited non-zero. Not part of the fixed gutter above:
+	// it is prepended to the detail column instead, alongside its exit code,
+	// which the gutter's fixed width has no room for.
+	CommandFailed string `yaml:"command_failed"`
 }
 
 // Clipboard configures how copy-mode's yank leaves lazyshell. There is no
@@ -323,14 +332,15 @@ func Default() Config {
 		PrefixKey:           defaultPrefixKey,
 		Keybindings:         map[string]string{},
 		Markers: Markers{
-			Bell:         defaultBellMarker,
-			AltScreen:    defaultAltScreenMarker,
-			Activity:     defaultActivityMarker,
-			Broadcast:    defaultBroadcastMarker,
-			AgentIdle:    defaultAgentIdleMarker,
-			AgentWorking: defaultAgentWorkingMarker,
-			AgentBlocked: defaultAgentBlockedMarker,
-			AgentDone:    defaultAgentDoneMarker,
+			Bell:          defaultBellMarker,
+			AltScreen:     defaultAltScreenMarker,
+			Activity:      defaultActivityMarker,
+			Broadcast:     defaultBroadcastMarker,
+			AgentIdle:     defaultAgentIdleMarker,
+			AgentWorking:  defaultAgentWorkingMarker,
+			AgentBlocked:  defaultAgentBlockedMarker,
+			AgentDone:     defaultAgentDoneMarker,
+			CommandFailed: defaultCommandFailedMarker,
 		},
 		Scroll: Scroll{
 			PageLines:       0,

@@ -2,6 +2,8 @@ package gui
 
 import (
 	"fmt"
+
+	"github.com/jesseduffield/gocui"
 )
 
 // enterCopyMode arms copy-mode at the line currently at the top of the
@@ -115,8 +117,18 @@ func (gui *Gui) yankCopySelection() {
 	}
 
 	from, to := gui.copySelectionRange()
-	text := sess.Screen().TextRange(from, to)
+	gui.copyText(sess.Screen().TextRange(from, to))
 
+	gui.restartOutput()
+	gui.refreshChrome()
+}
+
+// copyText is yankCopySelection's and copyLastCommandOutput's shared
+// dispatch tail: OSC 52 to the host terminal, or the configured fallback
+// command instead, with the same either/or shape gui.notifyAgentState uses
+// for OSC 9/777. A failure is reported in the status bar, never by getting
+// stuck — there is no mode here to get stuck in either way.
+func (gui *Gui) copyText(text string) {
 	report := func(err error) error {
 		if err != nil {
 			return gui.reportSessionError(fmt.Errorf("%s", gui.tr.T("copymode.copy_failed", err)))
@@ -134,18 +146,49 @@ func (gui *Gui) yankCopySelection() {
 	// only that branch goes behind the spinner.
 	if gui.clipboardFallback == "" {
 		_ = report(gui.copyToClipboard(text))
-	} else {
-		_ = gui.runBusyThen(gui.tr.T("busy.clipboard"), func() error {
-			return gui.copyToClipboard(text)
-		}, func(err error) error {
-			if err := report(err); err != nil {
-				return err
-			}
 
-			return gui.refreshAfterBusy()
-		})
+		return
 	}
 
-	gui.restartOutput()
+	_ = gui.runBusyThen(gui.tr.T("busy.clipboard"), func() error {
+		return gui.copyToClipboard(text)
+	}, func(err error) error {
+		if err := report(err); err != nil {
+			return err
+		}
+
+		return gui.refreshAfterBusy()
+	})
+}
+
+// copyLastCommandOutput copies the most recently finished command's output
+// (per OSC 133 shell integration) to the clipboard in one keystroke, without
+// entering copy-mode's interactive line selection at all. Reports a status
+// message rather than doing nothing when no command has finished yet, or its
+// start has since scrolled out of the addressable scrollback.
+func (gui *Gui) copyLastCommandOutput() {
+	sess := gui.selectedSession()
+	if sess == nil {
+		return
+	}
+
+	from, to, ok := sess.Screen().LastCommandOutputRange()
+	if !ok {
+		_ = gui.reportSessionError(fmt.Errorf("%s", gui.tr.T("copymode.no_last_command")))
+
+		return
+	}
+
+	gui.copyText(sess.Screen().TextRange(from, to))
 	gui.refreshChrome()
+}
+
+// copyLastCommandOutputAction is copyLastCommandOutput wrapped as a
+// keybinding handler — see bindings() in keybindings.go, and editDuringScroll
+// in input.go for the hand-matched path that reaches it while the output
+// view is Editable.
+func (gui *Gui) copyLastCommandOutputAction(*gocui.Gui, *gocui.View) error {
+	gui.copyLastCommandOutput()
+
+	return nil
 }

@@ -72,6 +72,69 @@ func (gui *Gui) notifyAgentState(sess *session.Session, state agent.State) {
 	oscNotifyWrite(msg)
 }
 
+// checkCommandExitNotifications scans every non-agent session for a fresh
+// OSC-133 command exit (per pkg/screen's LastCommandExit) and fires one
+// notification per finished command that exited non-zero — never a repeat
+// for the same command, keyed on seq rather than the exit code itself, since
+// two consecutive failing commands can share a code and both deserve their
+// own notification.
+//
+// Agent sessions (sess.AgentState() != agent.StateNone) are skipped
+// entirely: they already get their own blocked/done notifications from
+// checkAgentNotifications, and a manifest-detected agent with no hooks wired
+// is still "a detected AI agent session" by this codebase's own definition
+// (pkg/session's AgentState), so this checks the same accessor rather than
+// only "has a hook ever fired".
+//
+// Runs on the same shared tick as checkAgentNotifications, for the same
+// reason: it must fire even on a renderSessionsPanel tick skipped by that
+// function's own content-diffing.
+func (gui *Gui) checkCommandExitNotifications() error {
+	for _, sess := range gui.sessions.List() {
+		if sess.AgentState() != agent.StateNone {
+			continue
+		}
+
+		code, hasCode, seq, ok := sess.Screen().LastCommandExit()
+		if !ok {
+			continue
+		}
+
+		gui.mu.Lock()
+		last, seen := gui.notifiedCommandExit[sess.ID]
+		if gui.notifiedCommandExit == nil {
+			gui.notifiedCommandExit = map[string]int64{}
+		}
+		gui.notifiedCommandExit[sess.ID] = seq
+		gui.mu.Unlock()
+
+		if seen && last == seq {
+			continue
+		}
+
+		if hasCode && code != 0 {
+			gui.notifyCommandExit(sess, code)
+		}
+	}
+
+	return nil
+}
+
+// notifyCommandExit fires the desktop notification for sess's last command
+// having exited with code — same either/or shape (OSC, or the configured
+// fallback command) as notifyAgentState.
+func (gui *Gui) notifyCommandExit(sess *session.Session, code int) {
+	msg := gui.tr.T("notify.command_failed", sess.Name(), code)
+
+	if gui.notifyFallback != "" {
+		go runNotifyFallback(gui.notifyFallback, msg)
+
+		return
+	}
+
+	oscNotifyWrite(msg)
+}
+
 // oscNotifyWrite writes msg to the host terminal via OSC 9 and OSC 777 —
 // both, unconditionally: an OSC code a terminal does not understand is
 // simply ignored, so sending both reaches more terminals than guessing

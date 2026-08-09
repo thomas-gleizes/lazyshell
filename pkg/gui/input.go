@@ -421,6 +421,23 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 		gui.switchTab(-1)
 
 		return true
+
+	case gui.matchesAction("jump_prev_prompt", key, ch):
+		gui.debug.Action("editor jump_prev_prompt")
+		gui.jumpToPrompt(-1)
+
+		return true
+	case gui.matchesAction("jump_next_prompt", key, ch):
+		gui.debug.Action("editor jump_next_prompt")
+		gui.jumpToPrompt(1)
+
+		return true
+
+	case gui.matchesAction("copy_last_output", key, ch):
+		gui.debug.Action("editor copy_last_output")
+		gui.copyLastCommandOutput()
+
+		return true
 	}
 
 	return false

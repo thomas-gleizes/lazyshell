@@ -93,6 +93,18 @@ var messages = map[string]map[string]string{
 		"fr": "Sauter à la prochaine session bloquée",
 		"en": "Jump to the next blocked session",
 	},
+	"action.jump_prev_prompt": {
+		"fr": "Sauter au prompt précédent",
+		"en": "Jump to the previous prompt",
+	},
+	"action.jump_next_prompt": {
+		"fr": "Sauter au prompt suivant",
+		"en": "Jump to the next prompt",
+	},
+	"action.copy_last_output": {
+		"fr": "Copier la sortie de la dernière commande",
+		"en": "Copy the last command's output",
+	},
 	"action.set_group": {
 		"fr": "Affecter la session à un groupe",
 		"en": "Assign the session to a group",
@@ -317,6 +329,10 @@ var messages = map[string]map[string]string{
 		"fr": "%s a terminé",
 		"en": "%s is done",
 	},
+	"notify.command_failed": {
+		"fr": "%s : commande en échec (%d)",
+		"en": "%s: command failed (%d)",
+	},
 
 	"welcome.empty": {
 		"fr": "Aucune session ouverte.",
@@ -440,6 +456,10 @@ var messages = map[string]map[string]string{
 	"copymode.copy_failed": {
 		"fr": "copie impossible : %s",
 		"en": "copy failed: %s",
+	},
+	"copymode.no_last_command": {
+		"fr": "aucune commande terminée à copier",
+		"en": "no finished command to copy",
 	},
 
 	"export.success": {

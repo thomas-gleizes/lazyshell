@@ -211,6 +211,13 @@ lazyshell ctl group-kill agents</code></pre>
   notification both.
 </p>
 
+<p>
+  A non-agent session notifies the same way when its last command — per
+  <a href="usage.html#osc133">shell-integration OSC 133</a> — exits non-zero, so a build or a
+  long-running script does not need to be watched to know it failed. An agent session never
+  fires this second notification on top of its own.
+</p>
+
 <h2 id="stats">Turn duration and stats</h2>
 
 <p>

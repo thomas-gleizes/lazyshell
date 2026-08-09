@@ -219,6 +219,13 @@ lazyshell ctl group-kill agents</code></pre>
   notification réunis.
 </p>
 
+<p>
+  Une session sans agent notifie de la même façon quand sa dernière commande — via
+  l'<a href="utilisation.html#osc133">intégration shell OSC 133</a> — échoue, pour qu'un build ou
+  un script long n'ait pas besoin d'être surveillé pour savoir qu'il a échoué. Une session d'agent
+  ne déclenche jamais cette seconde notification en plus de la sienne.
+</p>
+
 <h2 id="stats">Durée de tour et statistiques</h2>
 
 <p>

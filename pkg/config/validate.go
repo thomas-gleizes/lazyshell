@@ -100,6 +100,10 @@ func (c *Config) Validate() []error {
 		errs = append(errs, err)
 	}
 
+	if err := singleColumn("markers.command_failed", &c.Markers.CommandFailed, def.Markers.CommandFailed); err != nil {
+		errs = append(errs, err)
+	}
+
 	return errs
 }
 

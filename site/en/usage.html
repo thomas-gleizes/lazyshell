@@ -45,6 +45,7 @@
     <li><a href="#groups">Groups</a></li>
     <li><a href="#broadcast">Broadcast</a></li>
     <li><a href="#mouse">Mouse</a></li>
+    <li><a href="#osc133">Shell integration (OSC 133)</a></li>
     <li><a href="#debug">Debug mode</a></li>
   </ul>
 </aside>
@@ -129,6 +130,8 @@
     <tr><td><kbd>/</kbd></td><td>Search the scrollback; <kbd>n</kbd> / <kbd>N</kbd> for the next / previous match</td></tr>
     <tr><td><kbd>v</kbd></td><td>Start (or extend) a line selection — copy mode</td></tr>
     <tr><td><kbd>y</kbd> or a second <kbd>v</kbd></td><td>Copy the selection (OSC 52, or the configured fallback command)</td></tr>
+    <tr><td><kbd>{</kbd> / <kbd>}</kbd></td><td>Jump to the previous/next prompt (needs <a href="#osc133">shell-integration OSC 133</a>)</td></tr>
+    <tr><td><kbd>Y</kbd></td><td>Copy the last finished command's output (needs <a href="#osc133">shell-integration OSC 133</a>)</td></tr>
     <tr><td><kbd>Esc</kbd></td><td>Leave the search, or cancel the selection in progress</td></tr>
   </tbody>
 </table>
@@ -179,6 +182,7 @@
     <tr><td><code>●</code></td><td>The session produced output while it wasn't the one on screen. Cleared when you select it.</td></tr>
     <tr><td><code>+</code></td><td>The session is marked for broadcast — see below.</td></tr>
     <tr><td><code>·</code> <code>…</code> <code>‼</code> <code>✓</code></td><td>State of an <a href="agents.html">AI agent</a> session: idle, working, blocked (waiting on you), done.</td></tr>
+    <tr><td><code>✗ &lt;code&gt;</code></td><td>A non-agent session's last command exited non-zero — see <a href="#osc133">shell-integration OSC 133</a>. Never shown alongside an agent session's own state marker above.</td></tr>
   </tbody>
 </table>
 </div>
@@ -338,6 +342,45 @@
     Set <code>mouse.enabled: false</code> to get them back, at the price of the gestures above.
   </p>
 </div>
+
+<h2 id="osc133">Shell integration (OSC 133)</h2>
+
+<p>
+  A shell that emits the standard <code>OSC 133;A/B/C/D</code> marks around each prompt and
+  command — zsh, fish and bash all support this, usually behind a one-line addition to your
+  shell's startup file (check your shell/prompt's own docs for "shell integration" or
+  "semantic prompt") — unlocks three things with no further configuration needed:
+</p>
+
+<ul>
+  <li><kbd>{</kbd> / <kbd>}</kbd> jump to the previous/next prompt in the scrollback.</li>
+  <li><kbd>Y</kbd> copies the last finished command's output in one keystroke, without entering
+    copy mode.</li>
+  <li>The sessions list shows <code>✗ &lt;code&gt;</code> for a non-agent session whose last
+    command exited non-zero (see <a href="#list">Reading the sessions list</a>), and a desktop
+    notification fires the same way an agent session's <code>blocked</code>/<code>done</code>
+    does — for a non-agent session only, since an agent session already gets its own.</li>
+</ul>
+
+<p>
+  Nothing here needs a hook wired up the way <a href="agents.html">agent state does</a>: a
+  shell with integration enabled emits these marks on its own, and a shell without it simply
+  never triggers any of the above — no marker to turn off, no config key to disable it, nothing
+  to detect. Only the sessions list's <code>✗</code> glyph is configurable
+  (<code>markers.command_failed</code>, see <a href="configuration.html#reference">the
+  reference</a>); everything else here has no glyph or key to remap beyond the three action ids
+  (<code>jump_prev_prompt</code>, <code>jump_next_prompt</code>, <code>copy_last_output</code>)
+  in the keybindings map.
+</p>
+
+<p>
+  Marks are tracked per session, survive scrollback truncation (see
+  <a href="https://github.com/thomas-gleizes/lazyshell/blob/main/docs/adr/0008-integration-shell-osc-133.md">ADR 0008</a>
+  for how), and are suspended while a full-screen application has the session — the same
+  "signals, never switches mode on its own" principle as the mouse and copy mode above: nothing
+  typed by <code>vim</code> or <code>htop</code> is ever mistaken for a shell's own prompt or
+  command boundary.
+</p>
 
 <h2 id="debug">Debug mode</h2>
 

@@ -351,6 +351,41 @@ func (gui *Gui) staticBindings() []Binding {
 			Description: gui.tr.T("action.jump_next_blocked"),
 			Enabled:     hasSessions,
 		},
+		// Prompt navigation (OSC 133 shell integration). Scoped to
+		// sessionsViewName like "zoom" and the tab keys above, for the same
+		// reason: these must also work while the output view is focused and
+		// scrolling, where it is Editable and SetKeybinding is never
+		// consulted — editDuringScroll matches them by hand instead.
+		{
+			ViewName:    sessionsViewName,
+			Action:      "jump_prev_prompt",
+			Key:         '{',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.jumpToPreviousPrompt,
+			Description: gui.tr.T("action.jump_prev_prompt"),
+			Enabled:     hasSelectedSession,
+		},
+		{
+			ViewName:    sessionsViewName,
+			Action:      "jump_next_prompt",
+			Key:         '}',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.jumpToNextPrompt,
+			Description: gui.tr.T("action.jump_next_prompt"),
+			Enabled:     hasSelectedSession,
+		},
+		// Also OSC 133 shell integration: copies the last finished command's
+		// output without entering copy-mode. Same dual-registration reasoning
+		// as the prompt-jump actions above.
+		{
+			ViewName:    sessionsViewName,
+			Action:      "copy_last_output",
+			Key:         'Y',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.copyLastCommandOutputAction,
+			Description: gui.tr.T("action.copy_last_output"),
+			Enabled:     hasSelectedSession,
+		},
 		// Global, and declared whether or not --debug was given: bindings() has
 		// to be a constant list, since the help popup, knownActions() and the
 		// README doc-tests all read it. Enabled is what keeps it out of the

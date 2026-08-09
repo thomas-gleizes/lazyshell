@@ -43,6 +43,10 @@ const (
 	agentWorkingMarker = "…"
 	agentBlockedMarker = "‼"
 	agentDoneMarker    = "✓"
+	// commandFailedMarker flags a non-agent session whose last command (per
+	// OSC 133 shell integration, pkg/screen's Screen.LastCommandExit) exited
+	// non-zero. Not part of the gutter above — see commandExitIndicator.
+	commandFailedMarker = "✗"
 )
 
 // gutterColumns is the gutter's width, in characters: one per marker kind.
@@ -63,6 +67,8 @@ type markerSet struct {
 	agentWorking string
 	agentBlocked string
 	agentDone    string
+
+	commandFailed string
 }
 
 // markerSet resolves the configured markers against the built-in defaults. A
@@ -72,14 +78,15 @@ type markerSet struct {
 // anything empty at this point was asked for.
 func (gui *Gui) markerSet() markerSet {
 	set := markerSet{
-		bell:         gui.markers.Bell,
-		altScreen:    gui.markers.AltScreen,
-		activity:     gui.markers.Activity,
-		broadcast:    gui.markers.Broadcast,
-		agentIdle:    gui.markers.AgentIdle,
-		agentWorking: gui.markers.AgentWorking,
-		agentBlocked: gui.markers.AgentBlocked,
-		agentDone:    gui.markers.AgentDone,
+		bell:          gui.markers.Bell,
+		altScreen:     gui.markers.AltScreen,
+		activity:      gui.markers.Activity,
+		broadcast:     gui.markers.Broadcast,
+		agentIdle:     gui.markers.AgentIdle,
+		agentWorking:  gui.markers.AgentWorking,
+		agentBlocked:  gui.markers.AgentBlocked,
+		agentDone:     gui.markers.AgentDone,
+		commandFailed: gui.markers.CommandFailed,
 	}
 
 	// The zero-value Gui case only: a bare struct literal (tests) never went
@@ -89,6 +96,7 @@ func (gui *Gui) markerSet() markerSet {
 		set.bell, set.altScreen, set.activity, set.broadcast = bellMarker, altScreenMarker, activityMarker, broadcastMarker
 		set.agentIdle, set.agentWorking, set.agentBlocked, set.agentDone =
 			agentIdleMarker, agentWorkingMarker, agentBlockedMarker, agentDoneMarker
+		set.commandFailed = commandFailedMarker
 	}
 
 	return set
@@ -241,6 +249,10 @@ func sessionLine(sess *session.Session, markers markerSet, selectedID string, br
 		detail = turn + "  " + detail
 	}
 
+	if indicator := commandExitIndicator(sess, markers); indicator != "" {
+		detail = indicator + detail
+	}
+
 	gutter := sessionMarkers(sess, markers, sess.ID == selectedID, broadcastMarks[sess.ID])
 	status := statusColumn(sess)
 
@@ -316,6 +328,31 @@ func sessionIndexForRowLine(rows []panelRow, y int) int {
 // Duration's own String() would otherwise print e.g. "1m32.114837s".
 func formatTurnDuration(d time.Duration) string {
 	return d.Round(time.Second).String()
+}
+
+// commandExitIndicator renders "✗ <code>  " for a non-agent session whose
+// last command (per OSC 133 shell integration) exited non-zero, "" otherwise
+// — prepended onto detail in sessionLine, the same way TurnDuration's block
+// above it is. Not a gutter marker: the code is variable-width, which the
+// gutter's fixed columns have no room for (see gutterColumns).
+//
+// Scoped to sess.AgentState() == agent.StateNone: an agent session already
+// carries its own state marker in the gutter, and stacking a second,
+// differently-sourced "something happened" signal next to it would say less,
+// not more. A non-agent session has no such marker, so this is what fills
+// that gap — supplementing markers.activity, not replacing it, since a REPL
+// session with no full OSC-133 command cycle still wants the generic signal.
+func commandExitIndicator(sess *session.Session, markers markerSet) string {
+	if markers.commandFailed == "" || sess.AgentState() != agent.StateNone {
+		return ""
+	}
+
+	code, hasCode, _, ok := sess.Screen().LastCommandExit()
+	if !ok || !hasCode || code == 0 {
+		return ""
+	}
+
+	return colorizeMarker(markers.commandFailed, "31") + fmt.Sprintf(" %d  ", code)
 }
 
 // sessionMarkers builds a session's gutter, padded to gutterColumns visible

@@ -8,10 +8,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 phase 13 ("onglets du panneau de sortie"), is built. This is an active Go codebase with a real
 `go.mod`, CI, goreleaser packaging, and a test suite — do not treat this as a design-stage repo.
 
-`ROADMAP.md` no longer exists (removed in `04e4d9c`): the phase-by-phase history it carried is in
-the git log, and what it said about the architecture lives in the two sections below. Code comments
-and ADRs still cite phase numbers ("phase 11b", "the phase-1 spike") — those are historical
-coordinates into that history, not a pointer to a file you can open.
+The *phased* `ROADMAP.md` no longer exists (removed in `04e4d9c`): the phase-by-phase history it
+carried is in the git log, and what it said about the architecture lives in the two sections below.
+Code comments and ADRs still cite phase numbers ("phase 11b", "the phase-1 spike") — those are
+historical coordinates into that history, not a pointer to a file you can open.
+
+The `ROADMAP.md` that exists today is a *forward-looking* one: candidate features, each with a
+status (`idée` / `à concevoir` / `en cours` / `fait` / `abandonné`). It carries no history and is
+not the record of what is built — the code is. Keep the statuses honest when work lands there, and
+note that "Open items" below stays the reference for what was already decided and why.
 
 `docs/repports/RAPPORT_ANALYSE_LAZYGIT_LAZYDOCKER.md` and
 `docs/repports/RAPPORT_ANALYSE_INTEGRATION_AGENTS_IA.md` are historical design docs (the first drove
@@ -79,7 +84,9 @@ docs/
                   multi-panneaux, 0003: souris, 0004: sortie du pass-through — remplace la
                   décision 3 de l'ADR 0001, 0005: `Esc` `Esc` comme seconde sortie — complète
                   l'ADR 0004 sans le remplacer, 0007: groupes de sessions — remplace l'invariant
-                  « une ligne = une session » et étend l'ADR 0006)
+                  « une ligne = une session » et étend l'ADR 0006, 0008: intégration shell OSC 133
+                  — bornes de prompt/commande survivant à la troncature du scrollback via un
+                  compteur d'éviction ajouté au fork `charmbracelet/x/vt`)
   repports/       (sic) historical analysis reports
 site/             sources of the bilingual GitHub Pages site (site/en/, site/fr/)
 ```

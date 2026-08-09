@@ -13,6 +13,13 @@ const DefaultScrollbackSize = 10000
 type Scrollback struct {
 	lines    []uv.Line
 	maxLines int
+	// evicted is the total number of lines ever dropped from the front of
+	// lines, by Push, SetMaxLines or Clear. It only ever grows, which is what
+	// lets a caller turn a line's position at the moment it was seen into a
+	// monotonic id (evicted + that position) that keeps meaning the same
+	// thing after later lines get evicted, instead of shifting like a plain
+	// index into lines does.
+	evicted int
 }
 
 // NewScrollback creates a new scrollback buffer with the given maximum number of lines.
@@ -50,6 +57,7 @@ func (s *Scrollback) Push(line uv.Line) {
 	if len(s.lines) >= s.maxLines {
 		// Remove oldest line and append new one
 		s.lines = slices.Delete(s.lines, 0, 1)
+		s.evicted++
 	}
 	s.lines = append(s.lines, cloned)
 }
@@ -93,6 +101,7 @@ func (s *Scrollback) SetMaxLines(maxLines int) {
 	s.maxLines = maxLines
 	if len(s.lines) > maxLines {
 		// Remove oldest lines
+		s.evicted += len(s.lines) - maxLines
 		s.lines = s.lines[len(s.lines)-maxLines:]
 	}
 }
@@ -121,7 +130,24 @@ func (s *Scrollback) Clear() {
 	if s == nil {
 		return
 	}
+	s.evicted += len(s.lines)
 	s.lines = s.lines[:0]
+}
+
+// Evicted returns the total number of lines ever dropped from the front of
+// the buffer, by Push, SetMaxLines or Clear. It only ever grows.
+//
+// A caller that wants a position in the buffer to keep meaning the same
+// thing even after later eviction should record it as a monotonic id —
+// Evicted() plus that position, at the moment it was observed — and later
+// translate a monotonic id back to a current position with
+// id - Evicted(); a negative result means the line it pointed to has been
+// evicted.
+func (s *Scrollback) Evicted() int {
+	if s == nil {
+		return 0
+	}
+	return s.evicted
 }
 
 // CellAt returns the cell at the given position in the scrollback buffer.

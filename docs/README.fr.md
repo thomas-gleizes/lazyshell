@@ -102,6 +102,8 @@ s'appliquent :
 | `/` | Rechercher dans l'historique ; `n` / `N` pour l'occurrence suivante/précédente |
 | `v` | Démarrer (ou étendre) une sélection de lignes — mode copie |
 | `y` ou un second `v` | Copier la sélection (OSC 52, ou la commande de repli configurée) |
+| `{` / `}` | Sauter au prompt précédent/suivant (nécessite l'intégration shell OSC 133) |
+| `Y` | Copier la sortie de la dernière commande terminée (nécessite l'intégration shell OSC 133) |
 | `Esc` | Quitter la recherche ou annuler la sélection en cours |
 
 Démarrer une session (`n`, `N`, `c`) ou en relancer une (`R`) vous dépose
@@ -143,6 +145,12 @@ nom, son état, son PID, et soit le titre de terminal posé par le shell
 | `#` | Une application plein écran (`vim`, `htop`, `less`) tient la session. Affiché `[ALT]` dans la barre d'état pour la session sélectionnée. |
 | `●` | La session a produit de la sortie alors qu'elle n'était pas à l'écran. Effacé quand vous la sélectionnez. |
 | `+` | La session est marquée pour la diffusion — voir ci-dessous. |
+
+Une session sans agent dont le shell a l'[intégration shell OSC
+133](#intégration-shell-osc-133) activée affiche aussi `✗ <code>` devant son
+titre/répertoire une fois que sa dernière commande a échoué — une session
+d'agent porte déjà son propre marqueur d'état à la place, donc ça ne fait
+jamais doublon avec lui.
 
 ### Groupes
 
@@ -216,6 +224,42 @@ l'application. `lazyshell` ne change jamais de mode tout seul : utiliser `i` ou
 `Enter` pour donner le clavier au shell, et la touche de préfixe pour le
 reprendre.
 
+### Intégration shell (OSC 133)
+
+Un shell qui émet les marques standard `OSC 133;A/B/C/D` autour de chaque
+prompt et de chaque commande — zsh, fish et bash le supportent tous, en
+général derrière une ligne à ajouter au fichier de démarrage du shell
+(chercher « shell integration » ou « semantic prompt » dans la doc de votre
+shell/prompt) — débloque trois choses sans configuration supplémentaire :
+
+- `{` / `}` sautent au prompt précédent/suivant dans le scrollback.
+- `Y` copie la sortie de la dernière commande terminée en une frappe, sans
+  entrer en mode copie.
+- La liste des sessions affiche `✗ <code>` pour une session sans agent dont la
+  dernière commande a échoué (voir [Lire la liste des
+  sessions](#lire-la-liste-des-sessions)), et une notification de bureau se
+  déclenche de la même façon qu'une session d'agent `blocked`/`done` (voir
+  [Notifications](#notifications-saut-vers-ce-qui-attend-et-stats-de-tour)) —
+  pour une session sans agent seulement, puisqu'une session d'agent a déjà la
+  sienne.
+
+Rien ici n'a besoin d'un hook câblé comme pour [l'état des
+agents](#état-autoritatif-via-des-hooks) : un shell avec l'intégration activée
+émet ces marques tout seul, et un shell sans elle ne déclenche simplement
+jamais rien de tout ça — aucun marqueur à désactiver, aucune clé de config à
+éteindre, rien à détecter du tout. Seul le glyphe `✗` de la liste des sessions
+est configurable (`markers.command_failed`, voir le tableau de référence
+ci-dessous) ; le reste n'a ni glyphe ni touche à remapper en dehors des trois
+identifiants d'action (`jump_prev_prompt`, `jump_next_prompt`,
+`copy_last_output`) dans la map de raccourcis.
+
+Les marques sont suivies par session, survivent à la troncature du scrollback
+(voir l'[ADR 0008](adr/0008-integration-shell-osc-133.md) pour le comment), et
+sont suspendues tant qu'une application plein écran tient la session — le même
+principe « ça signale, ça ne change jamais de mode tout seul » que la souris
+et le mode copie ci-dessus : rien de ce que tape `vim` ou `htop` n'est jamais
+pris pour un prompt ou une borne de commande du shell.
+
 ## Configuration
 
 `lazyshell config init` écrit un fichier de configuration entièrement commenté au
@@ -271,6 +315,7 @@ refus de tourner.
 | `markers.agent_working` | 0–1 caractère | `…` | Marqueur pour une session d'agent IA détectée, en train de travailler. `""` le désactive. |
 | `markers.agent_blocked` | 0–1 caractère | `‼` | Marqueur pour une session d'agent IA détectée qui vous attend. `""` le désactive. |
 | `markers.agent_done` | 0–1 caractère | `✓` | Marqueur pour une session d'agent IA détectée ayant fini son tour. `""` le désactive. |
+| `markers.command_failed` | 0–1 caractère | `✗` | Marqueur (à côté de son code de sortie, dans les colonnes nom/état plutôt que dans la gouttière) pour une session sans agent dont la dernière commande — via l'[intégration shell OSC 133](#intégration-shell-osc-133) — a échoué. `""` le désactive. |
 | `scroll.page_lines` | entier ≥ 0 | `0` | Lignes parcourues par `PgUp`/`PgDn`. `0` signifie une hauteur de panneau entière. |
 | `scroll.half_page_divisor` | entier ≥ 1 | `2` | `Ctrl-U`/`Ctrl-D` parcourent la hauteur du panneau divisée par cette valeur. |
 | `theme.active_border_color` | couleur | `green` | Bordure du panneau qui a le focus. |
@@ -310,7 +355,8 @@ ou `brightblue` pour l'emplacement vif du terminal.
 Les identifiants d'action remappables sont `new_session`, `new_named_session`, `new_session_in_dir`,
 `kill_session`, `delete_session`, `rename_session`, `duplicate_session`,
 `restart_session`, `zoom`, `filter_sessions`, `export_session`,
-`toggle_broadcast`, `jump_next_blocked`, `next_tab`, `prev_tab`,
+`toggle_broadcast`, `jump_next_blocked`, `jump_prev_prompt`, `jump_next_prompt`,
+`copy_last_output`, `next_tab`, `prev_tab`,
 `toggle_debug`, `select_next`, `select_prev`,
 `cycle_focus`, `help` et `quit`. Un identifiant hors de cette liste est signalé
 plutôt qu'ignoré.
@@ -354,6 +400,9 @@ keybindings:
   export_session: "w"
   toggle_broadcast: "b"
   jump_next_blocked: "B"
+  jump_prev_prompt: "{"
+  jump_next_prompt: "}"
+  copy_last_output: "Y"
   toggle_debug: F12
   select_next: "j"
   select_prev: "k"
@@ -370,6 +419,7 @@ markers:
   agent_working: "…"
   agent_blocked: "‼"
   agent_done: "✓"
+  command_failed: "✗"
 
 scroll:
   page_lines: 0
@@ -525,6 +575,12 @@ commande de `notify.fallback_command`, avec le texte de la notification sur son
 stdin, pour un terminal qui en a besoin. Au-delà de deux ou trois sessions
 d'agent ouvertes, `B` saute directement à la prochaine session `blocked`, en
 cyclant et en bouclant — c'est tout l'intérêt du marqueur et de la notification.
+
+Une session sans agent notifie de la même façon quand sa dernière commande —
+via l'[intégration shell OSC 133](#intégration-shell-osc-133) — échoue, pour
+qu'un build ou un script long n'ait pas besoin d'être surveillé pour savoir
+qu'il a échoué. Une session d'agent ne déclenche jamais cette seconde
+notification en plus de la sienne.
 
 Une session en plein tour (`working`) affiche depuis combien de temps son tour
 tourne dans la liste des sessions, par exemple `⏱ 1m32s`. Définir

@@ -45,6 +45,11 @@ type Screen struct {
 	// off independently too.
 	mouseMode MouseMode
 	mouseSGR  bool
+
+	// si tracks OSC 133 shell-integration marks. Filled from handleOsc133 and
+	// setAltScreen, both reached from term.Write with s.mu already held — see
+	// osc133.go.
+	si shellIntegration
 }
 
 // MouseMode is how much of the mouse an application asked to be told about.
@@ -93,7 +98,9 @@ func NewWithScrollback(cols, rows, scrollback int) *Screen {
 		Bell:             func() { s.bellPending = true },
 		EnableMode:       func(mode ansi.Mode) { s.setMode(mode, true) },
 		DisableMode:      func(mode ansi.Mode) { s.setMode(mode, false) },
+		AltScreen:        func(on bool) { s.setAltScreen(on) },
 	})
+	term.RegisterOscHandler(133, s.handleOsc133)
 
 	return s
 }

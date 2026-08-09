@@ -109,6 +109,7 @@
     <tr><td><code>markers.agent_working</code></td><td>0–1 char</td><td><code>…</code></td><td>Gutter marker for a detected AI agent session that is working.</td></tr>
     <tr><td><code>markers.agent_blocked</code></td><td>0–1 char</td><td><code>‼</code></td><td>Gutter marker for a detected AI agent session waiting on you.</td></tr>
     <tr><td><code>markers.agent_done</code></td><td>0–1 char</td><td><code>✓</code></td><td>Gutter marker for a detected AI agent session that finished its turn.</td></tr>
+    <tr><td><code>markers.command_failed</code></td><td>0–1 char</td><td><code>✗</code></td><td>Marker (next to its exit code, in the name/status columns rather than the gutter) for a non-agent session whose last command — per <a href="usage.html#osc133">shell-integration OSC 133</a> — exited non-zero.</td></tr>
     <tr><td><code>scroll.page_lines</code></td><td>int ≥ 0</td><td><code>0</code></td><td>Lines <kbd>PgUp</kbd>/<kbd>PgDn</kbd> move by. <code>0</code> means one full panel height.</td></tr>
     <tr><td><code>scroll.half_page_divisor</code></td><td>int ≥ 1</td><td><code>2</code></td><td><kbd>Ctrl+U</kbd>/<kbd>Ctrl+D</kbd> move by the panel height divided by this.</td></tr>
     <tr><td><code>theme.active_border_color</code></td><td>colour</td><td><code>green</code></td><td>Focused panel's border.</td></tr>
@@ -144,7 +145,8 @@
   <code>delete_session</code>, <code>rename_session</code>, <code>duplicate_session</code>,
   <code>restart_session</code>, <code>zoom</code>, <code>next_tab</code>, <code>prev_tab</code>,
   <code>filter_sessions</code>, <code>export_session</code>, <code>toggle_broadcast</code>,
-  <code>jump_next_blocked</code>, <code>set_group</code>, <code>filter_group</code>,
+  <code>jump_next_blocked</code>, <code>jump_prev_prompt</code>, <code>jump_next_prompt</code>,
+  <code>copy_last_output</code>, <code>set_group</code>, <code>filter_group</code>,
   <code>broadcast_group</code>, <code>kill_group</code>, <code>restart_group</code>,
   <code>toggle_debug</code>,
   <code>select_next</code>, <code>select_prev</code>,
@@ -221,6 +223,9 @@ keybindings:
   export_session: "w"
   toggle_broadcast: "b"
   jump_next_blocked: "B"
+  jump_prev_prompt: "{"
+  jump_next_prompt: "}"
+  copy_last_output: "Y"
   set_group: "g"
   filter_group: "G"
   broadcast_group: "A"
@@ -242,6 +247,7 @@ markers:
   agent_working: "…"
   agent_blocked: "‼"
   agent_done: "✓"
+  command_failed: "✗"
 
 scroll:
   page_lines: 0

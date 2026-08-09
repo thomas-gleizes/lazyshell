@@ -268,6 +268,13 @@ type Gui struct {
 	// a future caller should not have to rediscover this rule.
 	notifiedState map[string]agent.State
 
+	// notifiedCommandExit is the last OSC-133 command-exit seq a notification
+	// was fired for, per session id (pkg/gui/notify.go's
+	// checkCommandExitNotifications) — same shape and same concurrency rule as
+	// notifiedState, seq rather than state because a finished command has no
+	// "state" to compare, just "did seq change since we last looked".
+	notifiedCommandExit map[string]int64
+
 	// statsSessionID/statsLine/statsCheckedAt cache AgentStatsCommand's last
 	// output (pkg/gui/stats.go): which session it was computed for, the
 	// trimmed first line of its stdout, and when — refreshAgentStats' own
@@ -567,6 +574,7 @@ func (gui *Gui) Run() (err error) {
 	// command it may spawn, and watchSelectedExit only reads a status.
 	gui.goEvery(gui.tick(), func() error {
 		_ = gui.checkAgentNotifications()
+		_ = gui.checkCommandExitNotifications()
 		_ = gui.watchSelectedExit()
 		gui.updateWindowTitle()
 

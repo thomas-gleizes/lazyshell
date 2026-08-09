@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/thomas-gleizes/lazyshell/pkg/agent"
+	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
 func TestOscNotifyWriteEmitsOSC9AndOSC777(t *testing.T) {
@@ -99,5 +100,80 @@ func TestCheckAgentNotificationsFallbackDoesNotBlock(t *testing.T) {
 
 	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
 		t.Fatalf("checkAgentNotifications took %v, want it to return well before the fallback command finishes", elapsed)
+	}
+}
+
+func writeOsc133Command(t *testing.T, sess *session.Session, exitCode string) {
+	t.Helper()
+
+	seq := "\x1b]133;A\x07$ \x1b]133;B\x07cmd\r\n\x1b]133;D"
+	if exitCode != "" {
+		seq += ";" + exitCode
+	}
+	seq += "\x07"
+
+	if _, err := sess.Screen().Write([]byte(seq)); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+}
+
+// A non-agent session's failed command fires exactly one notification, never
+// a repeat for the same command.
+func TestCheckCommandExitNotificationsFiresOnceForNonAgentFailure(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+	sess := newTestSession(t, gui, "s")
+
+	writeOsc133Command(t, sess, "1")
+
+	read := redirectStdout(t)
+	if err := gui.checkCommandExitNotifications(); err != nil {
+		t.Fatalf("checkCommandExitNotifications: %v", err)
+	}
+	if got := read(); !strings.Contains(got, "\x1b]9;") {
+		t.Fatalf("no notification fired for a non-agent session's failed command: %q", got)
+	}
+
+	// Same command again (seq unchanged): must not re-fire.
+	read = redirectStdout(t)
+	if err := gui.checkCommandExitNotifications(); err != nil {
+		t.Fatalf("checkCommandExitNotifications: %v", err)
+	}
+	if got := read(); got != "" {
+		t.Fatalf("notification re-fired for the same finished command: %q", got)
+	}
+}
+
+// A successful command must never notify — this feature is about failure,
+// not "a command ran".
+func TestCheckCommandExitNotificationsSkipsSuccess(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+	sess := newTestSession(t, gui, "s")
+
+	writeOsc133Command(t, sess, "0")
+
+	read := redirectStdout(t)
+	if err := gui.checkCommandExitNotifications(); err != nil {
+		t.Fatalf("checkCommandExitNotifications: %v", err)
+	}
+	if got := read(); got != "" {
+		t.Fatalf("notification fired for a successful command: %q", got)
+	}
+}
+
+// A detected AI agent session already gets its own blocked/done
+// notifications; a failed command inside one must not double up.
+func TestCheckCommandExitNotificationsSkipsAgentSessions(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+	sess := newTestSession(t, gui, "s")
+	sess.SetAgentState(agent.StateWorking)
+
+	writeOsc133Command(t, sess, "1")
+
+	read := redirectStdout(t)
+	if err := gui.checkCommandExitNotifications(); err != nil {
+		t.Fatalf("checkCommandExitNotifications: %v", err)
+	}
+	if got := read(); got != "" {
+		t.Fatalf("notification fired for a detected agent session: %q", got)
 	}
 }

@@ -100,6 +100,8 @@ While the **output panel** is focused, these apply instead:
 | `/` | Search the history; `n` / `N` for the next/previous match |
 | `v` | Start (or extend) a line selection — copy mode |
 | `y`, or a second `v` | Copy the selection (OSC 52, or the configured fallback command) |
+| `{` / `}` | Jump to the previous/next prompt (needs shell-integration OSC 133) |
+| `Y` | Copy the last finished command's output (needs shell-integration OSC 133) |
 | `Esc` | Leave the search, or cancel the selection in progress |
 
 Starting a session (`n`, `N`, `c`) or restarting one (`R`) lands you straight
@@ -139,6 +141,11 @@ its working directory.
 | `#` | A full-screen application (`vim`, `htop`, `less`) has the session. Shown as `[ALT]` in the status bar for the selected one. |
 | `●` | The session produced output while it wasn't the one on screen. Cleared when you select it. |
 | `+` | The session is marked for broadcast — see below. |
+
+A non-agent session whose shell has [shell-integration OSC 133](#shell-integration-osc-133)
+enabled also shows `✗ <code>` ahead of its title/directory once its last command exited
+non-zero — an agent session already carries its own state marker instead, so this never
+doubles up with it.
 
 ### Groups
 
@@ -211,6 +218,41 @@ application. `lazyshell` never switches mode on its own: use `i`
 or `Enter` to give the keyboard to the shell, and the prefix key to take it
 back.
 
+### Shell integration (OSC 133)
+
+A shell that emits the standard `OSC 133;A/B/C/D` marks around each prompt and
+command — zsh, fish and bash all support this, usually behind a one-line
+addition to your shell's startup file (check your shell/prompt's own docs for
+"shell integration" or "semantic prompt") — unlocks three things with no
+further configuration needed:
+
+- `{` / `}` jump to the previous/next prompt in the scrollback.
+- `Y` copies the last finished command's output in one keystroke, without
+  entering copy-mode.
+- The sessions list shows `✗ <code>` for a non-agent session whose last
+  command exited non-zero (see [Reading the sessions
+  list](#reading-the-sessions-list)), and a desktop notification fires the
+  same way an agent session's `blocked`/`done` does (see
+  [Notifications](#notifications-jumping-to-whats-waiting-and-turn-stats)) —
+  for a non-agent session only, since an agent session already gets its own.
+
+Nothing here needs a hook wired up the way [agent state
+does](#authoritative-state-via-hooks): a shell with integration enabled emits
+these marks on its own, and a shell without it simply never triggers any of
+the above — there is no marker to turn off, no config key to disable it, just
+nothing to detect. Only the sessions list's `✗` glyph is configurable
+(`markers.command_failed`, see the reference table below); everything else
+here has no glyph or key to remap beyond the three action ids
+(`jump_prev_prompt`, `jump_next_prompt`, `copy_last_output`) in the
+keybindings map.
+
+Marks are tracked per session, survive scrollback truncation (see
+[ADR 0008](docs/adr/0008-integration-shell-osc-133.md) for how), and are
+suspended while a full-screen application has the session — the same "signals,
+never switches mode on its own" principle as the mouse and copy-mode above:
+nothing typed by `vim` or `htop` is ever mistaken for a shell's own prompt or
+command boundary.
+
 ## Configuration
 
 Run `lazyshell config init` to write a fully commented config file at the right
@@ -264,6 +306,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `markers.agent_working` | 0–1 char | `…` | Gutter marker for a detected AI agent session that is working. `""` turns it off. |
 | `markers.agent_blocked` | 0–1 char | `‼` | Gutter marker for a detected AI agent session waiting on you. `""` turns it off. |
 | `markers.agent_done` | 0–1 char | `✓` | Gutter marker for a detected AI agent session that finished its turn. `""` turns it off. |
+| `markers.command_failed` | 0–1 char | `✗` | Marker (next to its exit code, in the name/status columns rather than the gutter) for a non-agent session whose last command — per [shell-integration OSC 133](#shell-integration-osc-133) — exited non-zero. `""` turns it off. |
 | `scroll.page_lines` | int ≥ 0 | `0` | Lines `PgUp`/`PgDn` move by. `0` means one full panel height. |
 | `scroll.half_page_divisor` | int ≥ 1 | `2` | `Ctrl-U`/`Ctrl-D` move by the panel height divided by this. |
 | `theme.active_border_color` | color | `green` | Focused panel's border. |
@@ -303,7 +346,8 @@ terminal shows as *bright* blue. lazyshell resolves the ANSI names first, so
 The remappable action ids are `new_session`, `new_named_session`, `new_session_in_dir`,
 `kill_session`, `delete_session`, `rename_session`, `duplicate_session`,
 `restart_session`, `zoom`, `filter_sessions`, `export_session`,
-`toggle_broadcast`, `jump_next_blocked`, `set_group`, `filter_group`,
+`toggle_broadcast`, `jump_next_blocked`, `jump_prev_prompt`, `jump_next_prompt`,
+`copy_last_output`, `set_group`, `filter_group`,
 `broadcast_group`, `kill_group`, `restart_group`, `next_tab`, `prev_tab`,
 `toggle_debug`, `select_next`, `select_prev`,
 `cycle_focus`, `help` and `quit`. An id outside
@@ -348,6 +392,9 @@ keybindings:
   export_session: "w"
   toggle_broadcast: "b"
   jump_next_blocked: "B"
+  jump_prev_prompt: "{"
+  jump_next_prompt: "}"
+  copy_last_output: "Y"
   set_group: "g"
   filter_group: "G"
   broadcast_group: "A"
@@ -369,6 +416,7 @@ markers:
   agent_working: "…"
   agent_blocked: "‼"
   agent_done: "✓"
+  command_failed: "✗"
 
 scroll:
   page_lines: 0
@@ -522,6 +570,11 @@ terminal that does not understand one just ignores it), or the command in
 for a terminal that needs one. At more than a couple of agent sessions open,
 `B` jumps the selection straight to the next `blocked` one, cycling and
 wrapping — the point of the marker and the notification both.
+
+A non-agent session notifies the same way when its last command — per
+[shell-integration OSC 133](#shell-integration-osc-133) — exits non-zero, so a
+build or a long-running script does not need to be watched to know it failed.
+An agent session never fires this second notification on top of its own.
 
 A session currently mid-turn (`working`) shows how long its turn has been
 running in the sessions list, e.g. `⏱ 1m32s`. Setting `agent_stats_command`

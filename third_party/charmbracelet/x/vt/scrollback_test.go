@@ -143,6 +143,67 @@ func TestScrollback(t *testing.T) {
 		t.Logf("scrollback after ED 2: %d lines", newLen)
 	})
 
+	t.Run("evicted counts each drop from push", func(t *testing.T) {
+		sb := NewScrollback(5)
+		if sb.Evicted() != 0 {
+			t.Fatalf("expected evicted 0 before overflow, got %d", sb.Evicted())
+		}
+		for i := 0; i < 8; i++ {
+			sb.Push(nil)
+		}
+		// 8 pushes into a 5-line buffer: the first 5 fill it, the next 3 each
+		// evict one line.
+		if sb.Evicted() != 3 {
+			t.Errorf("expected evicted 3, got %d", sb.Evicted())
+		}
+		if sb.Len() != 5 {
+			t.Errorf("expected len 5, got %d", sb.Len())
+		}
+	})
+
+	t.Run("evicted counts bulk drop on shrink", func(t *testing.T) {
+		sb := NewScrollback(10)
+		for i := 0; i < 10; i++ {
+			sb.Push(nil)
+		}
+		if sb.Evicted() != 0 {
+			t.Fatalf("expected evicted 0 before shrink, got %d", sb.Evicted())
+		}
+		sb.SetMaxLines(4)
+		if sb.Evicted() != 6 {
+			t.Errorf("expected evicted 6 after shrinking 10 lines to 4, got %d", sb.Evicted())
+		}
+		if sb.Len() != 4 {
+			t.Errorf("expected len 4, got %d", sb.Len())
+		}
+
+		// Growing back must not retroactively "un-evict" anything.
+		sb.SetMaxLines(20)
+		if sb.Evicted() != 6 {
+			t.Errorf("expected evicted to stay 6 after growing maxLines, got %d", sb.Evicted())
+		}
+	})
+
+	t.Run("evicted counts everything on clear", func(t *testing.T) {
+		sb := NewScrollback(10)
+		for i := 0; i < 7; i++ {
+			sb.Push(nil)
+		}
+		sb.Clear()
+		if sb.Evicted() != 7 {
+			t.Errorf("expected evicted 7 after clearing 7 lines, got %d", sb.Evicted())
+		}
+		if sb.Len() != 0 {
+			t.Errorf("expected len 0 after clear, got %d", sb.Len())
+		}
+
+		// Clearing an already-empty buffer must not double count.
+		sb.Clear()
+		if sb.Evicted() != 7 {
+			t.Errorf("expected evicted to stay 7 after clearing an empty buffer, got %d", sb.Evicted())
+		}
+	})
+
 	t.Run("ED 3 clears scrollback", func(t *testing.T) {
 		e := NewEmulator(20, 5)
 
