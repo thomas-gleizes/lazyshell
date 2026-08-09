@@ -73,6 +73,12 @@ les raccourcis ci-dessous.
 | `M` | Nouvelle session dans un dossier choisi |
 | `w` | Exporter le scrollback de la session sélectionnée vers un fichier |
 | `b` | Marquer/démarquer la session pour la diffusion (broadcast) |
+| `B` | Sauter à la prochaine session d'agent bloquée |
+| `g` | Affecter la session sélectionnée à un groupe (réponse vide = aucun) |
+| `G` | N'afficher que le groupe de la session sélectionnée ; à nouveau pour annuler |
+| `A` | Marquer tout le groupe pour la diffusion, ou le démarquer |
+| `X` | Tuer toutes les sessions du groupe |
+| `W` | Relancer les sessions terminées du groupe |
 | `F12` | Afficher/masquer le panneau de debug (ne fait quelque chose qu'avec `--debug`) |
 
 Quand c'est le **panneau de sortie** qui a le focus, ce sont ces touches-ci qui
@@ -130,6 +136,37 @@ nom, son état, son PID, et soit le titre de terminal posé par le shell
 | `#` | Une application plein écran (`vim`, `htop`, `less`) tient la session. Affiché `[ALT]` dans la barre d'état pour la session sélectionnée. |
 | `●` | La session a produit de la sortie alors qu'elle n'était pas à l'écran. Effacé quand vous la sélectionnez. |
 | `+` | La session est marquée pour la diffusion — voir ci-dessous. |
+
+### Groupes
+
+Une session appartient à un groupe, ou à aucun. Les sessions groupées sont
+affichées sous une ligne d'en-tête qui nomme le groupe, ce qui est précisément
+ce qui rend lisible une liste de huit sessions d'agents IA : on voit d'un coup
+d'œil lesquelles travaillent sur le même chantier. Les en-têtes sont purement
+visuels — ils ne sont ni sélectionnables, ni cliquables, ni repliables, et
+`j` / `k` passent directement par-dessus.
+
+L'ordre est : les groupes déclarés par le fichier de projet, dans l'ordre où il
+les déclare, puis les groupes créés à chaud dans leur ordre de première
+apparition, puis les sessions sans groupe en dernier. Un groupe dont aucune
+session n'est visible n'affiche aucun en-tête, donc un filtre qui masque tout un
+groupe ne laisse pas de case vide derrière lui. Sans aucun groupe, il n'y a
+aucun en-tête : la liste est exactement celle, plate, qu'elle a toujours été.
+
+Déclarez les groupes et affectez-y les sessions dans `lazyshell.yml` (voir
+[Configuration de projet](#configuration-de-projet)), ou posez-en un à tout
+moment avec `g`. Quatre touches agissent ensuite sur tout le groupe de la
+session sélectionnée : `A` y diffuse, `X` le tue, `W` relance celles de ses
+sessions qui se sont terminées, et `G` restreint la liste à lui. Une action de
+groupe atteint toujours tous ses membres, y compris ceux qu'un filtre masque —
+« tuer le groupe » veut dire le groupe, pas la partie visible à l'écran.
+
+`W` saute les sessions encore en cours plutôt que de refuser d'agir : un groupe
+en partie terminé et en partie vivant est le cas normal. Contrairement au `R`
+d'une seule session, il ne vous donne pas le clavier ensuite.
+
+Les agents pilotent tout cela par le socket de contrôle — voir
+[API de contrôle par les agents](#api-de-contrôle-par-les-agents).
 
 ### Diffusion (broadcast)
 
@@ -416,13 +453,34 @@ C'est ce dont un agent « chef d'orchestre » a besoin : lister les autres
 sessions, lire ce qu'elles ont affiché, en démarrer de nouvelles, y taper.
 
 ```sh
-lazyshell ctl list                                # id, nom, statut, état d'agent
+lazyshell ctl list                                # id, nom, statut, état d'agent, groupe
+lazyshell ctl list --group agents                 # seulement ce groupe
 lazyshell ctl read session-2 --tail 40            # texte brut, sans séquences d'échappement
-lazyshell ctl new --name build --cwd ./api --command 'make test'
+lazyshell ctl new --name build --cwd ./api --command 'make test' --group agents
 lazyshell ctl send build 'echo bonjour' --enter   # comme si c'était tapé
 lazyshell ctl kill build
 lazyshell ctl rename build tests
 ```
+
+Les groupes (voir [Groupes](#groupes)) sont lisibles et modifiables depuis ici,
+ce qui est justement ce qui permet à un agent d'en orchestrer plusieurs autres
+comme un bloc :
+
+```sh
+lazyshell ctl group build agents                  # affecte une session à un groupe
+lazyshell ctl ungroup build                       # l'en retire
+lazyshell ctl group-send agents 'git pull' --enter
+lazyshell ctl group-kill agents
+```
+
+Les deux verbes de diffusion affichent combien de sessions ils ont touchées. Un
+groupe vide ou inexistant est une erreur, jamais un « 0 session » silencieux :
+celui qui a fait une faute de frappe dans un nom de groupe ne doit pas s'entendre
+dire que son kill a réussi. `group-send` saute les sessions déjà terminées.
+
+Relancer un groupe n'est délibérément **pas** exposé : aucun verbe `restart`
+n'existe pour une session seule non plus, et n'en ajouter un que pour les
+groupes serait incohérent. Cela reste la touche `W`, dans l'interface.
 
 Une session se désigne par son id (`session-2`, la valeur de
 `$LAZYSHELL_SESSION_ID`) ou par son nom exact. `--json` affiche la réponse brute
@@ -489,8 +547,19 @@ env_files:
   - .env
   - .env.local
 
+# Optionnel : déclare les groupes utilisés par ce projet et — la seule raison
+# d'écrire ce bloc — l'ordre dans lequel leurs en-têtes apparaissent dans le
+# panneau des sessions. Une session peut citer un groupe absent d'ici ; il se
+# place simplement après les groupes déclarés.
+groups:
+  - name: services
+  - name: agents
+
 sessions:
   - name: api
+    # Optionnel : le groupe dans lequel la session démarre. Modifiable ensuite
+    # avec `g`.
+    group: services
     # Relatif à *ce fichier*, pas à l'endroit d'où lazyshell a été lancé.
     # `~` est expansé. Omis, il vaut le dossier de ce fichier.
     cwd: ./services/api
@@ -505,18 +574,25 @@ sessions:
       - .env.api
 
   - name: web
+    group: services
     cwd: ./web
     command: npm run dev
 
-  - name: shell          # pas de commande : un shell simple dans le dossier du projet
+  - name: shell          # pas de groupe : affichée sous « sans groupe », en bas
 ```
 
 Les sessions démarrent dans l'ordre du fichier, et la première est sélectionnée.
 Une entrée qui ne valide pas (`name` vide ou dupliqué, `cwd` manquant) est
-ignorée et signalée dans la barre d'état — les autres démarrent quand même.
+ignorée et signalée dans la barre d'état — les autres démarrent quand même. Il
+en va de même d'une mauvaise entrée de `groups:` (`name` vide ou dupliqué) :
+elle est écartée et signalée, et les groupes corrects s'appliquent quand même.
 
-**Seuls `shell`, `env_files`, `no_default_env` et `sessions` sont lus depuis un
-fichier de projet.** `theme`, `keybindings`, `prefix_key` et le reste restent
+Un groupe déclare un nom et rien d'autre — pas de couleur, pas de glyphe, pas de
+touche. C'est la même règle que pour le reste de ce fichier : un dépôt dit ce
+qui existe, pas à quoi ressemble votre interface.
+
+**Seuls `shell`, `env_files`, `no_default_env`, `groups` et `sessions` sont lus
+depuis un fichier de projet.** `theme`, `keybindings`, `prefix_key` et le reste restent
 sous votre seul contrôle : un dépôt que vous avez cloné ne doit pas pouvoir
 remapper votre clavier. Les autres clés sont ignorées, avec un avertissement sur
 stderr.

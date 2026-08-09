@@ -9,17 +9,21 @@ import (
 )
 
 // filterActive reports whether a sessions-list filter is currently narrowing
-// what filteredSessions returns.
+// what filteredSessions returns — either kind. Covering both is what makes Esc
+// (clearFilterKey) and the hasActiveFilter binding predicate apply to a group
+// filter without either of them having to know it exists.
 func (gui *Gui) filterActive() bool {
-	return gui.filterPattern != ""
+	return gui.filterPattern != "" || gui.groupFilter != ""
 }
 
-// filteredSessions is what every part of the sessions panel that displays or
-// navigates the list must read instead of gui.sessions.List() directly: with
-// no filter it is that same list, unchanged; with one, it is the subset whose
-// name or cwd contains the pattern (case-insensitive). This is the single
-// place that definition lives, so "1"-"9", j/k and the rendered list can never
-// disagree about what is currently selectable.
+// filteredSessions is the visible subset of the manager's list, in the
+// manager's own order: with no filter it is that list unchanged; with the text
+// filter it is the sessions whose name or cwd contains the pattern
+// (case-insensitive); with the group filter it is one group. The two compose
+// as an AND, and this is the single place that definition lives.
+//
+// Navigation reads displaySessions(), not this — same set, but in the order it
+// is drawn in. This function is the *predicate*, that one is the order.
 func (gui *Gui) filteredSessions() []*session.Session {
 	all := gui.sessions.List()
 
@@ -31,9 +35,15 @@ func (gui *Gui) filteredSessions() []*session.Session {
 
 	filtered := make([]*session.Session, 0, len(all))
 	for _, sess := range all {
-		if strings.Contains(strings.ToLower(sess.Name()+" "+sess.Cwd), lower) {
-			filtered = append(filtered, sess)
+		if gui.groupFilter != "" && sess.Group() != gui.groupFilter {
+			continue
 		}
+
+		if gui.filterPattern != "" && !strings.Contains(strings.ToLower(sess.Name()+" "+sess.Cwd), lower) {
+			continue
+		}
+
+		filtered = append(filtered, sess)
 	}
 
 	return filtered
@@ -70,12 +80,15 @@ func (gui *Gui) onFilterSubmit(text string) error {
 	return nil
 }
 
-// clearFilter resets the filter, keeping the current selection by ID the same
-// way onFilterSubmit does.
+// clearFilter resets both filters, keeping the current selection by ID the
+// same way onFilterSubmit does. Both, because Esc means "get me back to the
+// unfiltered view" and having to press it twice for two kinds of narrowing
+// the user thinks of as one would be a distinction without a purpose.
 func (gui *Gui) clearFilter() {
 	previous := gui.selectedSession()
 
 	gui.filterPattern = ""
+	gui.groupFilter = ""
 
 	gui.reselectAfterFilterChange(previous)
 }
@@ -100,7 +113,7 @@ func (gui *Gui) clearFilterKey(*gocui.Gui, *gocui.View) error {
 // no longer visible (or there was none) — never leaving selectedIndex
 // pointing past the end of a list that just shrank.
 func (gui *Gui) reselectAfterFilterChange(previous *session.Session) {
-	filtered := gui.filteredSessions()
+	filtered := gui.displaySessions()
 
 	index := 0
 	if previous != nil {

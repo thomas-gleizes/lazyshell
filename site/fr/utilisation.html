@@ -42,6 +42,7 @@
     <li><a href="#liste">Lire la liste des sessions</a></li>
     <li><a href="#onglets">Onglets du panneau de sortie</a></li>
     <li><a href="#recherche">Recherche et copie</a></li>
+    <li><a href="#groupes">Groupes</a></li>
     <li><a href="#diffusion">Diffusion (broadcast)</a></li>
     <li><a href="#souris">Souris</a></li>
     <li><a href="#debug">Mode debug</a></li>
@@ -98,6 +99,11 @@
     <tr><td><kbd>w</kbd></td><td>Exporter l'historique de la session vers un fichier</td></tr>
     <tr><td><kbd>b</kbd></td><td>Marquer / démarquer la session pour la diffusion</td></tr>
     <tr><td><kbd>B</kbd></td><td>Sauter à la prochaine session d'agent <em>bloquée</em></td></tr>
+    <tr><td><kbd>g</kbd></td><td>Affecter la session à un groupe (réponse vide = aucun)</td></tr>
+    <tr><td><kbd>G</kbd></td><td>N'afficher que le groupe de la session ; à nouveau pour annuler</td></tr>
+    <tr><td><kbd>A</kbd></td><td>Marquer / démarquer tout le groupe pour la diffusion</td></tr>
+    <tr><td><kbd>X</kbd></td><td>Tuer toutes les sessions du groupe</td></tr>
+    <tr><td><kbd>W</kbd></td><td>Relancer les sessions terminées du groupe</td></tr>
     <tr><td><kbd>/</kbd></td><td>Filtrer la liste des sessions</td></tr>
     <tr><td><kbd>z</kbd></td><td>Zoom : le panneau de sortie prend tout l'écran</td></tr>
     <tr><td><kbd>[</kbd> / <kbd>]</kbd></td><td>Onglet précédent / suivant du panneau de sortie</td></tr>
@@ -252,6 +258,38 @@
   Pendant qu'une application plein écran est aux commandes, le défilement dans l'historique — et
   donc le mode copie, qui sélectionne dans ce même historique — est désactivé : l'écran alterné
   n'alimente pas l'historique, et ces touches appartiennent à l'application.
+</p>
+
+<h2 id="groupes">Groupes</h2>
+
+<p>
+  Une session appartient à un groupe, ou à aucun. Les sessions groupées sont affichées sous une
+  ligne d'en-tête qui nomme le groupe, ce qui rend lisible une liste de huit sessions d'agents IA :
+  on voit d'un coup d'œil lesquelles travaillent sur le même chantier.
+</p>
+
+<p>
+  Les en-têtes sont purement visuels — ni sélectionnables, ni cliquables, ni repliables, et
+  <kbd>j</kbd> / <kbd>k</kbd> passent directement par-dessus. L'ordre est : les groupes déclarés par
+  le fichier de projet, dans l'ordre où il les déclare, puis les groupes créés à chaud dans leur
+  ordre de première apparition, puis les sessions sans groupe en dernier. Sans aucun groupe, il n'y
+  a aucun en-tête : la liste est exactement celle, plate, qu'elle a toujours été.
+</p>
+
+<p>
+  Déclarez les groupes dans <a href="projet.html">le fichier de projet</a>, ou posez-en un à tout
+  moment avec <kbd>g</kbd>. Quatre touches agissent ensuite sur tout le groupe de la session
+  sélectionnée : <kbd>A</kbd> y diffuse, <kbd>X</kbd> le tue, <kbd>W</kbd> relance celles de ses
+  sessions qui se sont terminées, et <kbd>G</kbd> restreint la liste à lui. Une action de groupe
+  atteint toujours tous ses membres, y compris ceux qu'un filtre masque — « tuer le groupe » veut
+  dire le groupe, pas la partie visible à l'écran.
+</p>
+
+<p>
+  <kbd>W</kbd> saute les sessions encore en cours plutôt que de refuser d'agir : un groupe en partie
+  terminé et en partie vivant est le cas normal. Contrairement au <kbd>R</kbd> d'une seule session,
+  il ne vous donne pas le clavier ensuite. Les agents pilotent tout cela par
+  <a href="agents.html">le socket de contrôle</a>.
 </p>
 
 <h2 id="diffusion">Diffusion (broadcast)</h2>

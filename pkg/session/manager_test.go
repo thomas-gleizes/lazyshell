@@ -186,6 +186,36 @@ func TestManagerRestartRecreatesAnExitedSession(t *testing.T) {
 	}
 }
 
+// A group assigned at runtime — through the panel's "g" key or the control
+// API, not through Options — must survive a restart. It is the one mutable
+// field Restart carries across explicitly, so this is the test that pins that
+// down: reading it back out of the original opts would silently reset the
+// session to whatever group it was born in.
+func TestManagerRestartKeepsARuntimeAssignedGroup(t *testing.T) {
+	m := newTestManager(t)
+
+	original, err := m.NewWithOptions(Options{Name: "api", Shell: testShell, Group: "build"})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+
+	original.SetGroup("agents")
+
+	if _, err := original.Write([]byte("exit 0\n")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	waitForStatus(t, original, StatusExited)
+
+	restarted, err := m.Restart(original.ID)
+	if err != nil {
+		t.Fatalf("Restart: %v", err)
+	}
+
+	if got := restarted.Group(); got != "agents" {
+		t.Errorf("Restart() Group() = %q, want the reassigned %q, not the original %q", got, "agents", "build")
+	}
+}
+
 // A session still running must not be restarted out from under itself.
 func TestManagerRestartRefusesARunningSession(t *testing.T) {
 	m := newTestManager(t)

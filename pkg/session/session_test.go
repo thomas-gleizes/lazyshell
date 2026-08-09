@@ -138,6 +138,48 @@ func TestSessionSetNameRenames(t *testing.T) {
 	}
 }
 
+// A session starts in Options.Group, and SetGroup moves it — including back
+// out of every group, which "" means and which the panel's "g" key submits as
+// an empty prompt. Like a rename, it must not touch the running shell.
+func TestSessionGroupStartsFromOptionsAndIsReassignable(t *testing.T) {
+	m := newTestManager(t)
+
+	sess, err := m.NewWithOptions(Options{Name: "api", Shell: testShell, Group: "backend"})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+
+	if got := sess.Group(); got != "backend" {
+		t.Errorf("Group() = %q, want the Options group %q", got, "backend")
+	}
+
+	sess.SetGroup("agents")
+	if got := sess.Group(); got != "agents" {
+		t.Errorf("Group() after SetGroup = %q, want %q", got, "agents")
+	}
+
+	sess.SetGroup("")
+	if got := sess.Group(); got != "" {
+		t.Errorf("Group() after SetGroup(\"\") = %q, want the session ungrouped", got)
+	}
+
+	if sess.Status() != StatusRunning {
+		t.Errorf("Status() after SetGroup = %v, want %v (grouping must not touch the shell)", sess.Status(), StatusRunning)
+	}
+}
+
+// A session created without a Group is ungrouped — the state every session in
+// a lazyshell with no project file is in, and the one the panel must render
+// exactly as it did before groups existed.
+func TestSessionWithoutOptionsGroupIsUngrouped(t *testing.T) {
+	m := newTestManager(t)
+	sess := newTestSession(t, m, "s")
+
+	if got := sess.Group(); got != "" {
+		t.Errorf("Group() = %q, want \"\" for a session created with no group", got)
+	}
+}
+
 func TestWriteReachesTheShellAndAppearsOnScreen(t *testing.T) {
 	m := newTestManager(t)
 	sess := newTestSession(t, m, "t")

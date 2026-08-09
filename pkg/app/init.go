@@ -32,8 +32,19 @@ const projectTemplate = `# lazyshell.yml — sessions démarrées automatiquemen
 # no_default_env: true      # optionnel — désactive le ".env" auto du cwd de
 #                            # chaque session (chargé par défaut sinon)
 
+# Les groupes rassemblent les sessions sous un en-tête dans la liste de gauche,
+# et permettent de les piloter en bloc (A diffuse une saisie au groupe, X le
+# tue, W le relance, G le filtre). Déclarer un groupe ici n'est pas obligatoire
+# — c'est ce qui fixe l'ORDRE des en-têtes ; un groupe cité par une session
+# sans être déclaré s'affiche après ceux-ci. Les sessions sans groupe passent
+# en dernier.
+groups:
+  - name: services
+  - name: agents
+
 sessions:
   - name: api
+    group: services
     # cwd est relatif à CE fichier, pas au dossier depuis lequel on lance
     # lazyshell ; ~ est étendu. Absent, il vaut le dossier de ce fichier.
     cwd: .

@@ -1,8 +1,10 @@
 package gui
 
 import (
+	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/jesseduffield/gocui"
@@ -28,13 +30,14 @@ const onGUITimeout = 2 * time.Second
 // Each runs on one of pkg/control's per-connection goroutines, never on
 // gocui's, which splits them in two:
 //
-//   - List, Read and Send touch only things that carry their own mutex —
-//     session.Manager's map, pkg/screen's emulator, Session.Write's pty — and
-//     so run inline.
-//   - New and Rename go through onGUI: they spend gui.sessionCounter or repaint
-//     the panel, both of which belong to gocui's goroutine.
-//   - Kill is both. The killing runs inline because it is *slow* (see its own
-//     comment); only the repaint crosses over.
+//   - List, Read, Send and GroupSend touch only things that carry their own
+//     mutex — session.Manager's map, pkg/screen's emulator, Session.Write's
+//     pty — and so run inline.
+//   - New, Rename and SetGroup go through onGUI: they spend gui.sessionCounter,
+//     repaint the panel, or move a session in the display order the selection
+//     indexes into — all of which belong to gocui's goroutine.
+//   - Kill and GroupKill are both. The killing runs inline because it is
+//     *slow* (see Kill's own comment); only the repaint crosses over.
 //
 // Two ways to get this wrong, and they fail differently. Doing GUI-owned work
 // inline is a data race the tests will not reliably catch. Doing slow work
@@ -89,16 +92,25 @@ func (gui *Gui) resolveSession(idOrName string) (*session.Session, error) {
 
 // List reports every session, in creation order, exited ones included — the
 // same list the panel shows, so an agent and a human are looking at the same
-// thing.
-func (gui *Gui) List() []control.SessionInfo {
+// thing. A non-empty group narrows it to that group's sessions.
+//
+// Creation order, deliberately not the panel's group-clustered display order:
+// this is an inventory, and a caller that wants them grouped has the group on
+// every entry to do it with.
+func (gui *Gui) List(group string) []control.SessionInfo {
 	sessions := gui.sessions.List()
 	infos := make([]control.SessionInfo, 0, len(sessions))
 
 	for _, sess := range sessions {
+		if group != "" && sess.Group() != group {
+			continue
+		}
+
 		info := control.SessionInfo{
 			ID:     sess.ID,
 			Name:   sess.Name(),
 			Status: sess.Status().String(),
+			Group:  sess.Group(),
 			Cwd:    sess.Cwd,
 		}
 
@@ -108,8 +120,12 @@ func (gui *Gui) List() []control.SessionInfo {
 			info.AgentState = state.String()
 		}
 
+		// Only for an exited session, and by pointer so that exit code 0 —
+		// success, the answer most often being waited on — is reported as 0
+		// rather than vanishing. See SessionInfo.ExitCode.
 		if sess.Status() == session.StatusExited {
-			info.ExitCode = sess.ExitCode()
+			code := sess.ExitCode()
+			info.ExitCode = &code
 		}
 
 		infos = append(infos, info)
@@ -149,14 +165,15 @@ func (gui *Gui) Read(idOrName string, tail int) (string, error) {
 // keyboard (selectNewlyCreatedSession, focusSelectedShell): that is right when
 // the user pressed a key and wrong when a background agent did, since it would
 // yank the cursor out of whatever the user was typing into.
-func (gui *Gui) New(name, cwd, command string) (string, error) {
+func (gui *Gui) New(spec control.NewSpec) (string, error) {
 	var id string
 
 	err := gui.onGUI(func() error {
 		sess, err := gui.createSessionWithOptions(session.Options{
-			Name:    name,
-			Cwd:     cwd,
-			Command: command,
+			Name:    spec.Name,
+			Cwd:     spec.Cwd,
+			Command: spec.Command,
+			Group:   spec.Group,
 		})
 		if err != nil {
 			return err
@@ -182,7 +199,7 @@ func (gui *Gui) Send(idOrName, text string) error {
 	}
 
 	if sess.Status() == session.StatusExited {
-		return fmt.Errorf("session %s terminée : rien pour lire ce qui serait envoyé", sess.ID)
+		return fmt.Errorf("session %s terminée : plus aucun processus pour recevoir ce texte", sess.ID)
 	}
 
 	gui.debug.Event("control: send %s (%d octets)", sess.ID, len(text))
@@ -239,6 +256,150 @@ func (gui *Gui) Rename(idOrName, name string) error {
 
 		return gui.renderSessionsPanel()
 	})
+}
+
+// SetGroup moves a session into a group, or out of every group when group is
+// empty — the socket's half of the "g" key.
+//
+// Through onGUI, unlike Rename which only writes a name: a regrouping changes
+// the panel's display order, which the selection is an index into, so the
+// reselection and the repaint have to happen together on gocui's goroutine or
+// the cursor can end up on a different session than it was on.
+func (gui *Gui) SetGroup(idOrName, group string) error {
+	sess, err := gui.resolveSession(idOrName)
+	if err != nil {
+		return err
+	}
+
+	group, err = controlGroupName(group)
+	if err != nil {
+		return err
+	}
+
+	return gui.onGUI(func() error {
+		gui.debug.Event("control: group %s (%s -> %s)", sess.ID, sess.Group(), group)
+		sess.SetGroup(group)
+
+		// The session moved in display order, so the selection is re-derived
+		// from its id rather than left pointing at an index that now means
+		// something else — same reason the "g" key does it.
+		gui.reselectAfterFilterChange(gui.selectedSession())
+
+		return gui.renderSessionsPanel()
+	})
+}
+
+// GroupSend writes text into every session of a group and reports how many it
+// reached — VerbSend's fan-out, and the point of the whole feature for an
+// orchestrating agent: one call to give the same instruction to four workers.
+//
+// Inline, like Send: every write goes to a pty that carries its own mutex, and
+// nothing here belongs to gocui.
+//
+// Exited sessions are skipped rather than failing the call, unlike Send's
+// single target. A group in which one worker has finished is the normal state,
+// and refusing to reach the other three because of it would make the verb
+// useless exactly when it is wanted. The count says how many actually got it.
+func (gui *Gui) GroupSend(group, text string) (int, error) {
+	members, err := gui.resolveGroup(group)
+	if err != nil {
+		return 0, err
+	}
+
+	gui.debug.Event("control: group-send %s (%d sessions, %d octets)", group, len(members), len(text))
+
+	sent := 0
+
+	var errs []error
+
+	for _, sess := range members {
+		if sess.Status() == session.StatusExited {
+			continue
+		}
+
+		if _, err := sess.Write([]byte(text)); err != nil {
+			errs = append(errs, fmt.Errorf("écriture dans %s : %w", sess.ID, err))
+
+			continue
+		}
+
+		sent++
+	}
+
+	return sent, errors.Join(errs...)
+}
+
+// GroupKill terminates every session of a group, leaving them listed as
+// exited — VerbKill's fan-out, with the same "kill, never delete" limit.
+//
+// Same split as Kill, for the same reason and more so: the killing runs
+// inline (killSessions), and only the repaint crosses over.
+//
+// killSessions kills concurrently, which here is a correctness requirement and
+// not a speed-up: run in sequence, a group of two already exceeds
+// pkg/control's 3 s callTimeout, and the caller would get a transport timeout
+// for kills that in fact succeeded — the one answer this API must never give.
+func (gui *Gui) GroupKill(group string) (int, error) {
+	members, err := gui.resolveGroup(group)
+	if err != nil {
+		return 0, err
+	}
+
+	gui.debug.Event("control: group-kill %s (%d sessions)", group, len(members))
+
+	ids := make([]string, 0, len(members))
+	for _, sess := range members {
+		ids = append(ids, sess.ID)
+	}
+
+	killed, err := gui.killSessions(ids)
+
+	errs := []error{err}
+	if err := gui.onGUI(gui.renderSessionsPanel); err != nil {
+		errs = append(errs, err)
+	}
+
+	return killed, errors.Join(errs...)
+}
+
+// resolveGroup is resolveSession's group counterpart: the members of group, or
+// an error naming what went wrong.
+//
+// An empty group and a group with no sessions are both errors. Answering "ok,
+// 0 sessions" would leave the caller unable to tell a typo'd group name from a
+// group that really is empty — and this is the API where that difference means
+// "your kill did nothing and you think it worked".
+func (gui *Gui) resolveGroup(group string) ([]*session.Session, error) {
+	group, err := controlGroupName(group)
+	if err != nil {
+		return nil, err
+	}
+
+	if group == "" {
+		return nil, fmt.Errorf("groupe vide")
+	}
+
+	members := gui.groupSessions(group)
+	if len(members) == 0 {
+		return nil, fmt.Errorf("groupe inconnu : %s", group)
+	}
+
+	return members, nil
+}
+
+// controlGroupName trims a group name coming off the socket and rejects the
+// one shape that would break the panel: a name spanning several lines would
+// tear a header in two. The same rule pkg/config applies to the project file —
+// the socket is no less a source of hand-written group names than a
+// lazyshell.yml is.
+func controlGroupName(group string) (string, error) {
+	name := strings.TrimSpace(group)
+
+	if strings.ContainsAny(name, "\n\r") {
+		return "", fmt.Errorf("nom de groupe %q : saut de ligne interdit", group)
+	}
+
+	return name, nil
 }
 
 // startControlServer opens the control socket, or reports why it could not.

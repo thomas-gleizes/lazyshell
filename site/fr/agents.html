@@ -162,6 +162,27 @@ lazyshell ctl kill build
 lazyshell ctl rename build tests</code></pre>
 
 <p>
+  Les groupes (voir <a href="utilisation.html#groupes">Groupes</a>) sont lisibles et modifiables
+  depuis ici, ce qui permet à un agent d'en orchestrer plusieurs autres comme un bloc :
+</p>
+
+<pre><code>lazyshell ctl list --group agents                  # seulement ce groupe
+lazyshell ctl new --name w1 --group agents
+lazyshell ctl group build agents                  # affecte une session à un groupe
+lazyshell ctl ungroup build                       # l'en retire
+lazyshell ctl group-send agents 'git pull' --enter
+lazyshell ctl group-kill agents</code></pre>
+
+<p>
+  Les deux verbes de diffusion affichent combien de sessions ils ont touchées. Un groupe vide ou
+  inexistant est une erreur, jamais un « 0 session » silencieux : celui qui a fait une faute de
+  frappe dans un nom de groupe ne doit pas s'entendre dire que son kill a réussi.
+  <code>group-send</code> saute les sessions déjà terminées. Relancer un groupe n'est délibérément
+  pas exposé — aucun verbe <code>restart</code> n'existe pour une session seule non plus ; cela
+  reste la touche <kbd>W</kbd>, dans l'interface.
+</p>
+
+<p>
   Une session se désigne par son id (<code>session-2</code>, la valeur de
   <code>$LAZYSHELL_SESSION_ID</code>) ou par son nom exact ; <code>--json</code> affiche la réponse
   brute. Contrairement à <code>lazyshell hook</code>, qui sort toujours en 0 pour ne jamais casser

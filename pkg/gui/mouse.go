@@ -137,21 +137,24 @@ func (gui *Gui) shouldHandleMouseEvent(view *gocui.View, _ gocui.Key) bool {
 // clickSession selects the session on the clicked line, and focuses its shell
 // on a double click.
 //
-// opts.Y is the line index within the view's content, which is the session's
-// index outright: sessionsPanelContent guarantees exactly one line per session
-// (that same invariant is what view.SetCursor and Highlight already rely on).
-// A click past the end of the list, or on the "no sessions" placeholder line,
-// lands out of range and selectIndex ignores it.
+// opts.Y is a line index within the view's content, and the mouse is the only
+// input that arrives that way — so this is one of the two places (the other is
+// renderSessionsPanel) that converts between line numbers and session indexes.
+// sessionIndexForRowLine answers -1 for a line that is not a session's: a
+// group header, the "no sessions" placeholder, or past the end of the list.
+// Clicking a header is therefore a deliberate no-op — a header names a group
+// but is not a thing you can be "on".
 func (gui *Gui) clickSession(opts gocui.ViewMouseBindingOpts) error {
 	if err := gui.cutControlToSessions(); err != nil {
 		return err
 	}
 
-	if opts.Y < 0 || opts.Y >= len(gui.filteredSessions()) {
+	index := sessionIndexForRowLine(gui.panelRows(), opts.Y)
+	if index < 0 {
 		return nil
 	}
 
-	if err := gui.applySelection(opts.Y); err != nil {
+	if err := gui.applySelection(index); err != nil {
 		return err
 	}
 

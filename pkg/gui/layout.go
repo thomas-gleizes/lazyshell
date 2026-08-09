@@ -154,6 +154,15 @@ func (gui *Gui) layout(g *gocui.Gui) error {
 		// entirely instead of being clipped.
 		view.Footer = gui.panelFooter(name, view.InnerWidth())
 
+		if name == sessionsViewName {
+			// Cached because the group headers' rule fills the panel's width,
+			// and renderSessionsPanel builds them from goEvery's background
+			// goroutine — where reading view.InnerWidth(), a plain field read
+			// gocui's own render pass writes, would be a race. Written here on
+			// the GUI goroutine, read under the same mutex.
+			gui.setSessionsHeaderWidth(view.InnerWidth())
+		}
+
 		// Same reasoning as the footer, and the same reason it cannot be done
 		// once in initView: gocui truncates a tab strip that does not fit
 		// instead of shortening it, so which set of labels is right depends on

@@ -30,9 +30,14 @@ type Binding struct {
 // Binding.Enabled predicates for the sessionsViewName bindings whose
 // Handler no-ops without the state they check — see staticBindings.
 func hasSelectedSession(gui *Gui) bool { return gui.selectedSession() != nil }
-func hasSessions(gui *Gui) bool        { return len(gui.filteredSessions()) > 0 }
+func hasSessions(gui *Gui) bool        { return len(gui.displaySessions()) > 0 }
 func hasAnySessions(gui *Gui) bool     { return len(gui.sessions.List()) > 0 }
 func hasActiveFilter(gui *Gui) bool    { return gui.filterActive() }
+
+// hasSelectedGroup gates the four group actions, which all address the group
+// through the selection: with nothing selected, or with the selection
+// ungrouped, there is no group to act on and the help popup dims them.
+func hasSelectedGroup(gui *Gui) bool { return gui.selectedGroup() != "" }
 
 // bindings returns every keybinding of the application, in the order
 // setKeybindings registers them and the help panel (pkg/gui/help.go) lists
@@ -285,6 +290,57 @@ func (gui *Gui) staticBindings() []Binding {
 			Modifier:    gocui.ModNone,
 			Handler:     gui.prevTab,
 			Description: gui.tr.T("action.prev_tab"),
+		},
+		// The group actions (ADR 0007). Plain uppercase letters rather than a
+		// Ctrl form of each session action's key, which would have read better:
+		// keyLabel prints "Ctrl-B" while gocui.Parse only understands "CtrlB",
+		// and the README's keybindings example is checked against keyLabel's
+		// output *and* run through ValidateConfig — so a Ctrl-keyed remappable
+		// action fails the build until that round-trip is fixed.
+		{
+			ViewName:    sessionsViewName,
+			Action:      "set_group",
+			Key:         'g',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.setSessionGroup,
+			Description: gui.tr.T("action.set_group"),
+			Enabled:     hasSelectedSession,
+		},
+		{
+			ViewName:    sessionsViewName,
+			Action:      "filter_group",
+			Key:         'G',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.toggleGroupFilter,
+			Description: gui.tr.T("action.filter_group"),
+			Enabled:     hasSelectedGroup,
+		},
+		{
+			ViewName:    sessionsViewName,
+			Action:      "broadcast_group",
+			Key:         'A',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.toggleGroupBroadcast,
+			Description: gui.tr.T("action.broadcast_group"),
+			Enabled:     hasSelectedGroup,
+		},
+		{
+			ViewName:    sessionsViewName,
+			Action:      "kill_group",
+			Key:         'X',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.killGroup,
+			Description: gui.tr.T("action.kill_group"),
+			Enabled:     hasSelectedGroup,
+		},
+		{
+			ViewName:    sessionsViewName,
+			Action:      "restart_group",
+			Key:         'W',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.restartGroup,
+			Description: gui.tr.T("action.restart_group"),
+			Enabled:     hasSelectedGroup,
 		},
 		{
 			ViewName:    sessionsViewName,

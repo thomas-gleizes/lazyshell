@@ -98,6 +98,12 @@ type Gui struct {
 	// agentStatsCommand is pkg/config's AgentStatsCommand — see
 	// pkg/gui/stats.go's refreshAgentStats.
 	agentStatsCommand string
+	// groupOrder is the groups the project file declared, in declaration
+	// order, which is the order their headers are drawn in (ADR 0007);
+	// undeclared groups sort after them. Set once by pkg/app before Run and
+	// never written again, which is what lets the render goroutine read it
+	// with no mutex — unlike a session's own group, which is mutable.
+	groupOrder []string
 	// keymap is pkg/config's Keybindings: action id -> gocui.Parse key spec,
 	// consulted by resolveBinding for every Binding with a non-empty Action.
 	keymap map[string]string
@@ -183,6 +189,13 @@ type Gui struct {
 	// searchPattern — only ever touched from gocui's own goroutine (the "/"
 	// binding on sessionsViewName and the prompt it opens).
 	filterPattern string
+	// groupFilter narrows the list to a single group ("" means no narrowing),
+	// and composes with filterPattern as an AND. A field of its own rather
+	// than a "group:" prefix inside filterPattern: that would be ambiguous for
+	// a session actually named "group:x", would need a parser, and — the real
+	// reason — could only be set by opening the prompt, whereas "G" sets this
+	// in one keystroke. Same concurrency rule as filterPattern.
+	groupFilter string
 
 	// copyModeActive, copyAnchorLine and copyCursorLine are copy-mode's state
 	// (pkg/gui/copymode.go): a whole-line selection in the output panel,
@@ -210,8 +223,19 @@ type Gui struct {
 	// by output.go at task-start time from the same call sites, so the same
 	// guard is reused for both rather than reasoning about two policies.
 	mu sync.Mutex
-	// selectedIndex is the currently highlighted line in the sessions panel.
+	// selectedIndex is the currently selected *session*, as an index into
+	// displaySessions() — never a view line. Grouping puts header lines
+	// between sessions, so the two stopped being the same number (ADR 0007);
+	// rowLineForSessionIndex converts, at the two places that genuinely need
+	// a line.
 	selectedIndex int
+	// sessionsInnerWidth is the sessions panel's inner width as actually laid
+	// out, which the group headers' rule fills. Distinct from the configured
+	// sessionsPanelWidth above: that one is the box request, this one is what
+	// the layout pass ended up with (portrait mode makes the panel full
+	// width). Written from gocui's goroutine (layout), read from goEvery's
+	// (renderSessionsPanel).
+	sessionsInnerWidth int
 	// scrollOffset is how many lines the output panel is scrolled back from
 	// the live bottom; 0 means "live". Reset to 0 whenever the selection
 	// changes or pass-through is (re-)armed.
@@ -389,6 +413,20 @@ func (gui *Gui) SetDebug(logger *debug.Logger) {
 	gui.debugPanelVisible = logger != nil
 }
 
+// SetGroupOrder fixes the order the sessions panel draws group headers in,
+// from the project file's `groups:` block. Must be called before Run: the
+// render goroutine reads groupOrder with no mutex, which is only sound
+// because nothing writes it once the interface is up.
+func (gui *Gui) SetGroupOrder(groups []string) {
+	gui.groupOrder = groups
+}
+
+// GroupOrder reports what SetGroupOrder recorded — pkg/app's bootstrap tests
+// assert on it, the same way they do on StartupError.
+func (gui *Gui) GroupOrder() []string {
+	return gui.groupOrder
+}
+
 // StartupError reports what SetStartupError recorded, so pkg/app's bootstrap
 // tests can assert on what the user will be told without standing up a
 // terminal.
@@ -409,6 +447,24 @@ func (gui *Gui) getSelectedIndex() int {
 func (gui *Gui) setSelectedIndex(i int) {
 	gui.mu.Lock()
 	gui.selectedIndex = i
+	gui.mu.Unlock()
+}
+
+// sessionsHeaderWidth/setSessionsHeaderWidth carry the sessions panel's
+// inner width from the layout pass to the group headers' rule, across the
+// goroutine boundary — same rule as the pair above. Zero before the first
+// layout pass (and in tests built from a bare Gui), which groupHeaderLine
+// reads as "draw the label with no rule".
+func (gui *Gui) sessionsHeaderWidth() int {
+	gui.mu.Lock()
+	defer gui.mu.Unlock()
+
+	return gui.sessionsInnerWidth
+}
+
+func (gui *Gui) setSessionsHeaderWidth(width int) {
+	gui.mu.Lock()
+	gui.sessionsInnerWidth = width
 	gui.mu.Unlock()
 }
 
@@ -586,7 +642,14 @@ func (gui *Gui) renderStatus(view *gocui.View) {
 	case gui.searchActive():
 		text = gui.tr.T("status.search", gui.searchPattern, gui.searchIndex+1, len(gui.searchMatches))
 	case gui.filterActive():
-		text = gui.tr.T("status.filter", gui.filterPattern, len(gui.filteredSessions()))
+		// The group narrowing gets its own wording: reusing status.filter
+		// would print an empty pattern for a filter the user very much did
+		// set, and leave them with no clue why the list is short.
+		if gui.filterPattern == "" {
+			text = gui.tr.T("status.filter_group", gui.groupFilter, len(gui.filteredSessions()))
+		} else {
+			text = gui.tr.T("status.filter", gui.filterPattern, len(gui.filteredSessions()))
+		}
 	}
 
 	if gui.selectedIsAltScreen() {

@@ -88,11 +88,13 @@ type Session struct {
 	// the socket file never outlives the session.
 	hookServer *hook.Server
 
-	// mu guards name, status, exitCode, cols, rows, agentState, hookDriven
-	// and the agent-recheck bookkeeping below: name is written by SetName
-	// (the "renommage de session" ergonomics feature, phase 5) from gocui's
-	// main goroutine and read from sessionsPanelContent on goEvery's
-	// background goroutine; status/exitCode are written by the drain
+	// mu guards name, group, status, exitCode, cols, rows, agentState,
+	// hookDriven and the agent-recheck bookkeeping below: name is written by
+	// SetName (the "renommage de session" ergonomics feature, phase 5) from
+	// gocui's main goroutine and read from sessionsPanelContent on goEvery's
+	// background goroutine; group has exactly that same shape, plus a read
+	// from the control API's own connection goroutine (pkg/gui/control.go's
+	// List, which runs inline); status/exitCode are written by the drain
 	// goroutine and read from whichever goroutine owns the GUI; cols/rows
 	// are written by Resize, which the roadmap expects to be called from the
 	// layout pass, again a different goroutine than drain's; agentState and
@@ -102,6 +104,7 @@ type Session struct {
 	// from pkg/hook's own connection-handling goroutine.
 	mu         sync.Mutex
 	name       string
+	group      string
 	status     Status
 	exitCode   int
 	cols       int
@@ -155,6 +158,27 @@ func (s *Session) Name() string {
 func (s *Session) SetName(name string) {
 	s.mu.Lock()
 	s.name = name
+	s.mu.Unlock()
+}
+
+// Group reports the session's group, "" for an ungrouped one. Grouping is a
+// display property: it changes how the sessions panel arranges and addresses
+// this session, never how its shell runs.
+func (s *Session) Group() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.group
+}
+
+// SetGroup moves the session into a group, or out of every group when given
+// "". Deliberately does not write back into s.opts: Manager.Restart reads
+// old.opts with no lock held, a read that is only safe because opts is
+// immutable after construction — Restart carries the live group across itself
+// instead.
+func (s *Session) SetGroup(group string) {
+	s.mu.Lock()
+	s.group = group
 	s.mu.Unlock()
 }
 

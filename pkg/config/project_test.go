@@ -375,3 +375,108 @@ func TestValidateCarriesEnvAndCommand(t *testing.T) {
 		t.Errorf("valid[0] = %+v, want command and env carried through", valid[0])
 	}
 }
+
+// A project file declares its groups and assigns sessions to them. The group
+// is trimmed and carried onto the ResolvedSession, and `groups:` fixes the
+// display order.
+func TestProjectGroupsParseAndResolve(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "lazyshell.yml")
+	writeFile(t, path, `groups:
+  - name: services
+  - name: agents
+
+sessions:
+  - name: api
+    group: "  services  "
+  - name: claude
+    group: agents
+  - name: scratch
+`)
+
+	pcfg, err := LoadProject(path)
+	if err != nil {
+		t.Fatalf("LoadProject: %v", err)
+	}
+
+	if len(pcfg.Warnings) != 0 {
+		t.Errorf("Warnings = %v, want none: groups and group are whitelisted keys", pcfg.Warnings)
+	}
+
+	groups, errs := pcfg.ResolvedGroups()
+	if len(errs) != 0 {
+		t.Fatalf("ResolvedGroups errs = %v, want none", errs)
+	}
+	if len(groups) != 2 || groups[0] != "services" || groups[1] != "agents" {
+		t.Errorf("ResolvedGroups() = %v, want [services agents] in declaration order", groups)
+	}
+
+	valid, errs := pcfg.Validate()
+	if len(errs) != 0 {
+		t.Fatalf("Validate errs = %v, want none", errs)
+	}
+
+	want := []string{"services", "agents", ""}
+	for i, group := range want {
+		if valid[i].Group != group {
+			t.Errorf("valid[%d].Group = %q, want %q", i, valid[i].Group, group)
+		}
+	}
+}
+
+// Naming a group no `groups:` block declares is legitimate, not an error: the
+// block only fixes the header order, and `group: api` must work on its own.
+func TestValidateAcceptsAnUndeclaredGroup(t *testing.T) {
+	pcfg := ProjectConfig{
+		Path:     filepath.Join(t.TempDir(), "lazyshell.yml"),
+		Sessions: []SessionSpec{{Name: "api", Group: "never-declared"}},
+	}
+
+	valid, errs := pcfg.Validate()
+	if len(errs) != 0 {
+		t.Fatalf("errs = %v, want none: an undeclared group is not an error", errs)
+	}
+	if valid[0].Group != "never-declared" {
+		t.Errorf("valid[0].Group = %q, want the undeclared group carried through", valid[0].Group)
+	}
+}
+
+// Bad group declarations are dropped and reported, like bad sessions — one
+// hand-edit slip must not cost the groups that were fine.
+func TestResolvedGroupsDropsBadEntriesAndKeepsTheRest(t *testing.T) {
+	pcfg := ProjectConfig{
+		Path: filepath.Join(t.TempDir(), "lazyshell.yml"),
+		Groups: []GroupSpec{
+			{Name: "services"},
+			{Name: "   "},
+			{Name: "services"},
+			{Name: "agents"},
+		},
+	}
+
+	groups, errs := pcfg.ResolvedGroups()
+
+	if len(groups) != 2 || groups[0] != "services" || groups[1] != "agents" {
+		t.Errorf("ResolvedGroups() = %v, want [services agents]", groups)
+	}
+	if len(errs) != 2 {
+		t.Errorf("errs = %v, want one per bad entry (empty name, duplicate)", errs)
+	}
+}
+
+// A group name spanning two lines would tear the panel's single-line header
+// in two, so it is the one shape that is rejected outright.
+func TestValidateRejectsAMultilineGroupName(t *testing.T) {
+	pcfg := ProjectConfig{
+		Path:     filepath.Join(t.TempDir(), "lazyshell.yml"),
+		Sessions: []SessionSpec{{Name: "api", Group: "two\nlines"}},
+	}
+
+	valid, errs := pcfg.Validate()
+	if len(valid) != 0 {
+		t.Errorf("valid = %v, want the entry dropped", valid)
+	}
+	if len(errs) != 1 {
+		t.Errorf("errs = %v, want exactly one", errs)
+	}
+}

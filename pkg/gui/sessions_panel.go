@@ -134,57 +134,181 @@ func colorizeMarker(ch, sgrCode string) string {
 	return "\x1b[" + sgrCode + "m" + ch + "\x1b[0m"
 }
 
-// sessionsPanelContent renders one line per session: a four-column gutter of
-// markers, then name, status (or exit result), PID, and either the terminal
-// title the shell set (usually the running command, which is what you
-// actually want to read in a session list) or the working directory when it
-// set none.
+// panelRow is one rendered line of the sessions panel.
 //
-// Exactly one line per session is a hard constraint, not a style choice:
-// renderSessionsPanel's view.SetCursor(0, selected) and the view's Highlight
-// both address sessions by line number.
+// sess is what makes the row addressable: non-nil for a session line, nil for
+// a line the user can never select — a group header, or the "no sessions"
+// placeholder. That distinction is the whole point of the type. Since groups
+// arrived (ADR 0007) the panel is a tree, so a line number is no longer a
+// session index, and the two spaces must be converted between explicitly
+// instead of being silently assumed equal.
+//
+// text carries its own line terminator rather than having the renderer add
+// one. Not incidental: the placeholder line deliberately has none, exactly as
+// the panel rendered it before there were rows at all, and folding that rule
+// into the row itself keeps rowsText a plain concatenation with no special
+// case to get wrong.
+type panelRow struct {
+	text string
+	sess *session.Session
+}
+
+// sessionsPanelContent renders the sessions panel: one line per session — a
+// four-column gutter of markers, then name, status (or exit result), PID, and
+// either the terminal title the shell set (usually the running command, which
+// is what you actually want to read in a session list) or the working
+// directory when it set none — with a header line above each group.
 //
 // broadcastMarks is which session IDs are currently marked for broadcast —
 // nil (no marks at all) is a valid, common value, not a special case.
 //
 // A pure function, kept separate from the gocui-writing side so it can be
-// tested directly, the same way keys.Translate and spike.edit are.
-func sessionsPanelContent(sessions []*session.Session, markers markerSet, selectedID string, broadcastMarks map[string]bool, statsLines map[string]string, tr *i18n.Catalog) string {
+// tested directly, the same way keys.Translate and spike.edit are. Kept as a
+// function of its own, rather than inlined into its two callers, because it is
+// the seam the panel's rendering is tested through.
+func sessionsPanelContent(sessions []*session.Session, markers markerSet, selectedID string, broadcastMarks map[string]bool, statsLines map[string]string, tr *i18n.Catalog, width int) string {
+	return rowsText(sessionRows(sessions, markers, selectedID, broadcastMarks, statsLines, tr, width))
+}
+
+// sessionRows builds the panel's rows from sessions, which must already be in
+// display order (orderByGroup's, not the manager's). It does not sort: the
+// ordering decision and the rendering decision are kept apart so each can be
+// tested on its own. It reads the group boundaries straight off that order —
+// a header goes wherever the group changes — rather than being told them,
+// which is what keeps the two halves from ever disagreeing.
+//
+// width is the panel's inner width, which the headers' rule fills; 0 draws
+// the labels with no rule.
+//
+// When nothing is grouped there are no headers at all, not even an "ungrouped"
+// one: a lazyshell with no project file must render exactly the flat list it
+// always did.
+func sessionRows(sessions []*session.Session, markers markerSet, selectedID string, broadcastMarks map[string]bool, statsLines map[string]string, tr *i18n.Catalog, width int) []panelRow {
 	if len(sessions) == 0 {
-		return tr.T("sessions.empty")
+		return []panelRow{{text: tr.T("sessions.empty")}}
 	}
 
-	var b strings.Builder
+	grouped := false
 	for _, sess := range sessions {
-		pid := 0
-		if sess.Cmd.Process != nil {
-			pid = sess.Cmd.Process.Pid
-		}
+		if sess.Group() != "" {
+			grouped = true
 
-		detail := sess.Screen().Title()
-		if detail == "" {
-			detail = sess.Cwd
+			break
 		}
+	}
 
-		if d, ok := sess.TurnDuration(); ok {
-			turn := "⏱ " + formatTurnDuration(d)
-			if line := statsLines[sess.ID]; line != "" {
-				turn += " · " + line
+	rows := make([]panelRow, 0, len(sessions))
+
+	// "" is a real group (the ungrouped tail) but not a possible first value
+	// of current, so the first session always opens a header when grouped.
+	current, first := "", true
+
+	for _, sess := range sessions {
+		if group := sess.Group(); grouped && (first || group != current) {
+			label := group
+			if label == "" {
+				label = tr.T("sessions.group_ungrouped")
 			}
 
-			detail = turn + "  " + detail
+			rows = append(rows, panelRow{text: groupHeaderLine(label, width)})
+			current, first = group, false
 		}
 
-		gutter := sessionMarkers(sess, markers, sess.ID == selectedID, broadcastMarks[sess.ID])
-		status := statusColumn(sess)
+		rows = append(rows, panelRow{text: sessionLine(sess, markers, selectedID, broadcastMarks, statsLines), sess: sess})
+	}
 
-		// gutter is already padded to gutterColumns visible characters by
-		// sessionMarkers (its raw byte length can run longer than that once
-		// it carries a colorized marker) — %s here, not a width spec.
-		fmt.Fprintf(&b, "%s%-12s %-8s %6d  %s\n", gutter, sess.Name(), status, pid, detail)
+	return rows
+}
+
+// sessionLine renders one session's line, terminator included.
+func sessionLine(sess *session.Session, markers markerSet, selectedID string, broadcastMarks map[string]bool, statsLines map[string]string) string {
+	pid := 0
+	if sess.Cmd.Process != nil {
+		pid = sess.Cmd.Process.Pid
+	}
+
+	detail := sess.Screen().Title()
+	if detail == "" {
+		detail = sess.Cwd
+	}
+
+	if d, ok := sess.TurnDuration(); ok {
+		turn := "⏱ " + formatTurnDuration(d)
+		if line := statsLines[sess.ID]; line != "" {
+			turn += " · " + line
+		}
+
+		detail = turn + "  " + detail
+	}
+
+	gutter := sessionMarkers(sess, markers, sess.ID == selectedID, broadcastMarks[sess.ID])
+	status := statusColumn(sess)
+
+	// gutter is already padded to gutterColumns visible characters by
+	// sessionMarkers (its raw byte length can run longer than that once
+	// it carries a colorized marker) — %s here, not a width spec.
+	return fmt.Sprintf("%s%-12s %-8s %6d  %s\n", gutter, sess.Name(), status, pid, detail)
+}
+
+// rowsText is what actually goes into the view: every row's text, in order.
+func rowsText(rows []panelRow) string {
+	var b strings.Builder
+	for _, row := range rows {
+		b.WriteString(row.text)
 	}
 
 	return b.String()
+}
+
+// rowLineForSessionIndex converts a session index (what selectedIndex holds,
+// and what every navigation path works in) into the view line that session is
+// drawn on. Returns -1 when there is no such session.
+//
+// This conversion, applied only where a line number is genuinely required, is
+// what guarantees a group header can never be highlighted: the function has no
+// way to return a header's line, because headers are not sessions.
+func rowLineForSessionIndex(rows []panelRow, sessionIndex int) int {
+	if sessionIndex < 0 {
+		return -1
+	}
+
+	seen := 0
+	for line, row := range rows {
+		if row.sess == nil {
+			continue
+		}
+
+		if seen == sessionIndex {
+			return line
+		}
+
+		seen++
+	}
+
+	return -1
+}
+
+// sessionIndexForRowLine is the inverse: the session index drawn on view line
+// y, or -1 when that line is not a session's — a group header, the "no
+// sessions" placeholder, or past the end of the list. The mouse is the only
+// caller, since a click is the one input that arrives as a line number.
+func sessionIndexForRowLine(rows []panelRow, y int) int {
+	if y < 0 || y >= len(rows) {
+		return -1
+	}
+
+	if rows[y].sess == nil {
+		return -1
+	}
+
+	index := 0
+	for _, row := range rows[:y] {
+		if row.sess != nil {
+			index++
+		}
+	}
+
+	return index
 }
 
 // formatTurnDuration renders a turn's elapsed time to whole seconds — a
@@ -250,13 +374,34 @@ func statusColumn(sess *session.Session) string {
 	return fmt.Sprintf("✗ %d", sess.ExitCode())
 }
 
+// displaySessions is what selectedIndex indexes into, and therefore what
+// every navigation path must read: the visible sessions in the order they are
+// actually drawn, which grouping rearranges. Reading filteredSessions()
+// instead — the manager's order — would leave j/k jumping around the screen
+// as soon as any session carries a group.
+func (gui *Gui) displaySessions() []*session.Session {
+	return orderByGroup(gui.filteredSessions(), gui.groupOrder)
+}
+
+// panelRows builds the panel's rows as they are currently drawn. The single
+// place the row model is produced from Gui state, so the renderer, the click
+// handler and any test all see the same lines.
+func (gui *Gui) panelRows() []panelRow {
+	selectedID := ""
+	if sess := gui.selectedSession(); sess != nil {
+		selectedID = sess.ID
+	}
+
+	return sessionRows(gui.displaySessions(), gui.markerSet(), selectedID, gui.broadcastMarks, gui.statsLinesForRender(), gui.tr, gui.sessionsHeaderWidth())
+}
+
 // selectedSession returns the session at the current selection, clamped to
 // the current list bounds (the list can shrink under us — a session can exit
 // or be killed while it is selected, or a filter can hide it), or nil if
-// there is none. Addresses gui.filteredSessions(), not the manager's raw
+// there is none. Addresses gui.displaySessions(), not the manager's raw
 // list, so this always agrees with what is actually on screen.
 func (gui *Gui) selectedSession() *session.Session {
-	sessions := gui.filteredSessions()
+	sessions := gui.displaySessions()
 	if len(sessions) == 0 {
 		return nil
 	}
@@ -304,8 +449,15 @@ func (gui *Gui) renderSessionsPanel() error {
 		sess.Screen().ClearActivity()
 	}
 
-	content := sessionsPanelContent(gui.filteredSessions(), gui.markerSet(), selectedID, gui.broadcastMarks, gui.statsLinesForRender(), gui.tr)
-	selected := gui.getSelectedIndex()
+	rows := sessionRows(gui.displaySessions(), gui.markerSet(), selectedID, gui.broadcastMarks, gui.statsLinesForRender(), gui.tr, gui.sessionsHeaderWidth())
+	content := rowsText(rows)
+
+	// The line to keep on screen, not the session index: this is one of the
+	// only two places the two spaces meet (the other is clickSession).
+	selected := rowLineForSessionIndex(rows, gui.getSelectedIndex())
+	if selected < 0 {
+		selected = 0
+	}
 
 	if !gui.sessionsPanelChanged(content, selected) {
 		return nil
@@ -331,7 +483,10 @@ func (gui *Gui) renderSessionsPanel() error {
 }
 
 // applySessionsPanelUpdate writes content to the sessions view and scrolls it
-// so the selected line stays visible. Split out from renderSessionsPanel's
+// so the selected line stays visible. selected is a *view line*, already
+// converted from the session index by rowLineForSessionIndex — a group header
+// is never one of them, which is what stops gocui's Highlight from ever
+// painting a header. Split out from renderSessionsPanel's
 // g.Update closure so it can be exercised directly in a test — that closure
 // only runs once gocui's MainLoop drains it, which headless tests never do.
 //
@@ -349,7 +504,11 @@ func applySessionsPanelUpdate(view *gocui.View, content string, selected int) {
 }
 
 // sessionsPanelChanged reports whether the panel differs from what was last
-// pushed, and records the new state as pushed. Guarded by gui.mu because
+// pushed, and records the new state as pushed. selected is the view line, the
+// same value applySessionsPanelUpdate receives — comparing the line rather
+// than the session index is what makes this correct under grouping, since a
+// session can keep its index while the header count above it changes.
+// Guarded by gui.mu because
 // renderSessionsPanel is called both from goEvery's background goroutine and
 // from keybinding handlers on gocui's.
 func (gui *Gui) sessionsPanelChanged(content string, selected int) bool {
@@ -377,7 +536,7 @@ func (gui *Gui) invalidateSessionsPanel() {
 // list bounds, and shows the newly selected session's output.
 func (gui *Gui) selectionMoved(delta int) func(*gocui.Gui, *gocui.View) error {
 	return func(*gocui.Gui, *gocui.View) error {
-		sessions := gui.filteredSessions()
+		sessions := gui.displaySessions()
 		if len(sessions) == 0 {
 			return nil
 		}
@@ -405,7 +564,7 @@ func (gui *Gui) selectionMoved(delta int) func(*gocui.Gui, *gocui.View) error {
 // selectIndex's out-of-range no-op: a false "nothing to see here" beep for
 // what is, most of the time, the normal state would be worse than silence.
 func (gui *Gui) jumpToNextBlockedSession(*gocui.Gui, *gocui.View) error {
-	sessions := gui.filteredSessions()
+	sessions := gui.displaySessions()
 	if len(sessions) == 0 {
 		return nil
 	}
@@ -429,7 +588,7 @@ func (gui *Gui) jumpToNextBlockedSession(*gocui.Gui, *gocui.View) error {
 // with 5 sessions open is not a mistake worth interrupting the user over.
 func (gui *Gui) selectIndex(i int) func(*gocui.Gui, *gocui.View) error {
 	return func(*gocui.Gui, *gocui.View) error {
-		if i >= len(gui.filteredSessions()) {
+		if i >= len(gui.displaySessions()) {
 			return nil
 		}
 
@@ -479,14 +638,15 @@ func (gui *Gui) onSelectionChanged() {
 // working directory, and selects it. A creation failure is shown in the
 // status bar rather than propagated.
 func (gui *Gui) newSession(*gocui.Gui, *gocui.View) error {
-	if err := gui.createSession(""); err != nil {
+	sess, err := gui.createSession("")
+	if err != nil {
 		return gui.reportSessionError(err)
 	}
 
 	gui.lastError = ""
 	gui.lastInfo = ""
 
-	return gui.selectNewlyCreatedSession()
+	return gui.selectNewlyCreatedSession(sess)
 }
 
 // newNamedSession is newSession with the name asked for up front. An empty
@@ -495,11 +655,12 @@ func (gui *Gui) newSession(*gocui.Gui, *gocui.View) error {
 // step that can block creation.
 func (gui *Gui) newNamedSession(*gocui.Gui, *gocui.View) error {
 	return gui.showPrompt(gui.tr.T("prompt.new_named"), "", func(name string) error {
-		if err := gui.createSession(name); err != nil {
+		sess, err := gui.createSession(name)
+		if err != nil {
 			return err
 		}
 
-		return gui.selectNewlyCreatedSession()
+		return gui.selectNewlyCreatedSession(sess)
 	})
 }
 
@@ -507,10 +668,8 @@ func (gui *Gui) newNamedSession(*gocui.Gui, *gocui.View) error {
 // working directory. An empty name gets the generated one; the counter is only
 // spent in that case, so naming a session does not leave a hole in the
 // "session-N" sequence.
-func (gui *Gui) createSession(name string) error {
-	_, err := gui.createSessionWithOptions(session.Options{Name: name})
-
-	return err
+func (gui *Gui) createSession(name string) (*session.Session, error) {
+	return gui.createSessionWithOptions(session.Options{Name: name})
 }
 
 // createSessionWithOptions is createSession's general form: the naming rule
@@ -645,14 +804,15 @@ func (gui *Gui) duplicateSession(*gocui.Gui, *gocui.View) error {
 		return nil
 	}
 
-	if _, err := gui.sessions.NewInDir(sess.Name()+"-copie", gui.defaultShell(), sess.Cwd); err != nil {
+	copie, err := gui.sessions.NewInDir(sess.Name()+"-copie", gui.defaultShell(), sess.Cwd)
+	if err != nil {
 		return gui.reportSessionError(err)
 	}
 
 	gui.lastError = ""
 	gui.lastInfo = ""
 
-	return gui.selectNewlyCreatedSession()
+	return gui.selectNewlyCreatedSession(copie)
 }
 
 // newSessionInDir prompts for a working directory, pre-filled with
@@ -672,25 +832,47 @@ func (gui *Gui) newSessionInDir(*gocui.Gui, *gocui.View) error {
 		gui.sessionCounter++
 		name := fmt.Sprintf("session-%d", gui.sessionCounter)
 
-		if _, err := gui.sessions.NewInDir(name, gui.defaultShell(), dir); err != nil {
+		sess, err := gui.sessions.NewInDir(name, gui.defaultShell(), dir)
+		if err != nil {
 			return err
 		}
 
-		return gui.selectNewlyCreatedSession()
+		return gui.selectNewlyCreatedSession(sess)
 	})
 }
 
-// selectNewlyCreatedSession moves the selection to the last session in the
-// manager's list (creation always appends) and starts rendering its output —
-// the common tail of newSession, duplicateSession and newSessionInDir.
+// selectNewlyCreatedSession moves the selection onto created and starts
+// rendering its output — the common tail of newSession, duplicateSession and
+// newSessionInDir.
+//
+// It looks the session up by identity rather than taking the last index:
+// creation appends in the manager's order, but grouping rearranges the
+// displayed one, so a new session in an early group lands mid-list. A nil
+// created (a caller that has no handle on it) falls back to the last
+// displayed session, which is where an ungrouped new session sits anyway.
 //
 // Clears any active filter first: a filter that does not happen to match the
-// name of a session just created would otherwise hide the very thing the
-// user just asked for, with setSelectedIndex pointing at an index in a
-// filtered list the new session was never added to.
-func (gui *Gui) selectNewlyCreatedSession() error {
+// session just created would otherwise hide the very thing the user just
+// asked for, with setSelectedIndex pointing at an index in a filtered list
+// the new session was never added to.
+func (gui *Gui) selectNewlyCreatedSession(created *session.Session) error {
 	gui.filterPattern = ""
-	gui.setSelectedIndex(len(gui.sessions.List()) - 1)
+	gui.groupFilter = ""
+
+	sessions := gui.displaySessions()
+
+	index := len(sessions) - 1
+	if created != nil {
+		for i, sess := range sessions {
+			if sess.ID == created.ID {
+				index = i
+
+				break
+			}
+		}
+	}
+
+	gui.setSelectedIndex(index)
 	gui.onSelectionChanged()
 
 	if err := gui.focusSelectedShell(); err != nil {

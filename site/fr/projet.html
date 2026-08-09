@@ -75,8 +75,16 @@ env_files:
   - .env
   - .env.local
 
+# Optionnel : déclare les groupes utilisés par ce projet et — la seule raison
+# d'écrire ce bloc — l'ordre de leurs en-têtes dans le panneau des sessions.
+groups:
+  - name: services
+  - name: agents
+
 sessions:
   - name: api
+    # Optionnel : le groupe de démarrage. Modifiable ensuite avec « g ».
+    group: services
     # Relatif à *ce fichier*, pas au dossier depuis lequel vous avez lancé
     # lazyshell. « ~ » est développé. Absent, il vaut le dossier de ce fichier.
     cwd: ./services/api
@@ -91,20 +99,34 @@ sessions:
       - .env.api
 
   - name: web
+    group: services
     cwd: ./web
     command: npm run dev
 
-  - name: shell          # sans commande : un shell nu dans le dossier du projet</code></pre>
+  - name: shell          # sans groupe : affichée sous « sans groupe », en bas</code></pre>
+
+<p>
+  Les groupes sont un regroupement d'affichage — voir
+  <a href="utilisation.html#groupes">Groupes</a>. En déclarer un ici est facultatif et ne fixe que
+  l'ordre des en-têtes : une session peut citer un groupe absent de ce bloc, il se place simplement
+  après les groupes déclarés. Une mauvaise entrée de <code>groups:</code> (<code>name</code> vide ou
+  dupliqué) est écartée et signalée comme une mauvaise session, et les autres s'appliquent quand
+  même.
+</p>
 
 <h2 id="perimetre">Ce qui est lu, ce qui ne l'est pas</h2>
 
 <div class="warn">
   <p>
-    <strong>Seuls <code>shell</code>, <code>env_files</code>, <code>no_default_env</code> et
-    <code>sessions</code> sont lus dans un fichier de projet.</strong> <code>theme</code>,
+    <strong>Seuls <code>shell</code>, <code>env_files</code>, <code>no_default_env</code>,
+    <code>groups</code> et <code>sessions</code> sont lus dans un fichier de projet.</strong> <code>theme</code>,
     <code>keybindings</code>, <code>prefix_key</code> et le reste restent sous votre seul
     contrôle : un dépôt que vous avez cloné ne doit pas pouvoir remapper votre clavier. Les autres
     clés sont ignorées, avec un avertissement sur la sortie d'erreur.
+  </p>
+  <p>
+    Un groupe déclare un nom et rien d'autre — pas de couleur, pas de glyphe, pas de touche. Même
+    règle : un dépôt dit ce qui existe, pas à quoi ressemble votre interface.
   </p>
 </div>
 

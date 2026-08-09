@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jesseduffield/gocui"
+
 	"github.com/thomas-gleizes/lazyshell/pkg/config"
 	"github.com/thomas-gleizes/lazyshell/pkg/control"
 )
@@ -24,7 +26,7 @@ func TestListReportsEverySession(t *testing.T) {
 	a := newTestSession(t, gui, "alpha")
 	newTestSession(t, gui, "beta")
 
-	infos := gui.List()
+	infos := gui.List("")
 	if len(infos) != 2 {
 		t.Fatalf("List() returned %d sessions, want 2", len(infos))
 	}
@@ -217,3 +219,123 @@ func TestControlServerStartsWhenEnabled(t *testing.T) {
 // Compile-time proof that the split above is a complete implementation of the
 // interface pkg/control dispatches against.
 var _ control.Handler = (*Gui)(nil)
+
+// withMainLoop starts a real gocui MainLoop and stops it when the test ends.
+// The onGUI-backed verbs need one: onGUI enqueues through g.Update, which
+// only MainLoop drains, so without it they time out rather than run.
+func withMainLoop(t *testing.T, gui *Gui, g *gocui.Gui) {
+	t.Helper()
+
+	skipMainLoopUnderRace(t)
+
+	g.SetManager(gocui.ManagerFunc(gui.layout), gui.focus)
+
+	loopDone := make(chan error, 1)
+	go func() { loopDone <- g.MainLoop() }()
+
+	t.Cleanup(func() {
+		g.Update(func(*gocui.Gui) error { return gocui.ErrQuit })
+
+		select {
+		case <-loopDone:
+		case <-time.After(2 * time.Second):
+			t.Error("MainLoop did not stop")
+		}
+	})
+
+	waitForView(t, g, sessionsViewName)
+}
+
+// The group reaches the wire, both ways: `ctl new --group` puts the session
+// in one, and `ctl list` reports it. A list filtered by group shows only that
+// group's sessions.
+func TestControlNewAndListCarryTheGroup(t *testing.T) {
+	gui, g := newHeadlessGui(t)
+
+	newTestSession(t, gui, "ungrouped")
+
+	withMainLoop(t, gui, g)
+
+	id, err := gui.New(control.NewSpec{Name: "worker", Group: "agents"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	sess, ok := gui.sessions.Get(id)
+	if !ok {
+		t.Fatalf("session %s not found", id)
+	}
+	if got := sess.Group(); got != "agents" {
+		t.Errorf("Group() = %q, want %q", got, "agents")
+	}
+
+	infos := gui.List("")
+	if len(infos) != 2 {
+		t.Fatalf("List(\"\") = %d sessions, want 2", len(infos))
+	}
+
+	filtered := gui.List("agents")
+	if len(filtered) != 1 || filtered[0].Group != "agents" {
+		t.Errorf("List(\"agents\") = %+v, want only the one grouped session", filtered)
+	}
+}
+
+// SetGroup is the socket's half of the "g" key, empty group included.
+func TestControlSetGroupMovesAndUngroups(t *testing.T) {
+	gui, g := newHeadlessGui(t)
+
+	sess := newTestSession(t, gui, "api")
+
+	withMainLoop(t, gui, g)
+
+	if err := gui.SetGroup("api", "services"); err != nil {
+		t.Fatalf("SetGroup: %v", err)
+	}
+
+	if got := sess.Group(); got != "services" {
+		t.Errorf("Group() = %q, want %q", got, "services")
+	}
+
+	if err := gui.SetGroup(sess.ID, ""); err != nil {
+		t.Fatalf("SetGroup to ungroup: %v", err)
+	}
+
+	if got := sess.Group(); got != "" {
+		t.Errorf("Group() = %q, want the session ungrouped", got)
+	}
+}
+
+// A group verb that matched nothing is an error, never a silent "0 sessions":
+// the caller could not otherwise tell a typo'd group from a kill that worked.
+func TestControlGroupVerbsRejectAnUnknownGroup(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+
+	newTestSession(t, gui, "api")
+
+	if _, err := gui.GroupSend("nope", "ls"); err == nil {
+		t.Error("GroupSend on an unknown group did not error")
+	}
+
+	if _, err := gui.GroupKill(""); err == nil {
+		t.Error("GroupKill with an empty group did not error")
+	}
+}
+
+// GroupSend fans out to every live member and reports how many it reached.
+func TestControlGroupSendReachesEveryMember(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+
+	for _, name := range []string{"a", "b"} {
+		newTestSession(t, gui, name).SetGroup("agents")
+	}
+	newTestSession(t, gui, "other")
+
+	count, err := gui.GroupSend("agents", "")
+	if err != nil {
+		t.Fatalf("GroupSend: %v", err)
+	}
+
+	if count != 2 {
+		t.Errorf("GroupSend reached %d sessions, want the group's 2", count)
+	}
+}

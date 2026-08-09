@@ -53,6 +53,13 @@ func (gui *Gui) sessionsFooterHints() []footerHint {
 		{actions: []string{"duplicate_session"}, label: gui.tr.T("footer.duplicate")},
 		{actions: []string{"new_named_session"}, label: gui.tr.T("footer.new_named")},
 		{actions: []string{"new_session_in_dir"}, label: gui.tr.T("footer.new_in_dir")},
+		// The group keys come last: they only matter once sessions are
+		// grouped, and the panel is narrow enough that anything above them
+		// would cost a hint that applies all the time. Assign before filter,
+		// since you cannot filter on a group before something is in one; the
+		// three group-wide actions are left to the help popup.
+		{actions: []string{"set_group"}, label: gui.tr.T("footer.set_group")},
+		{actions: []string{"filter_group"}, label: gui.tr.T("footer.filter_group")},
 	}
 }
 

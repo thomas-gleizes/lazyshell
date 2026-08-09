@@ -75,8 +75,16 @@ env_files:
   - .env
   - .env.local
 
+# Optional: declares the groups this project uses, and — the reason to write
+# this block at all — the order their headers appear in the sessions panel.
+groups:
+  - name: services
+  - name: agents
+
 sessions:
   - name: api
+    # Optional: the group this session starts in. Change it later with `g`.
+    group: services
     # Relative to *this file*, not to where you launched lazyshell from.
     # `~` is expanded. Left out, it means this file's own directory.
     cwd: ./services/api
@@ -90,20 +98,32 @@ sessions:
       - .env.api
 
   - name: web
+    group: services
     cwd: ./web
     command: npm run dev
 
-  - name: shell          # no command: a plain shell in the project directory</code></pre>
+  - name: shell          # no group: shown under "ungrouped", at the bottom</code></pre>
+
+<p>
+  Groups are a display grouping — see <a href="usage.html#groups">Groups</a>. Declaring one here is
+  optional and only fixes the order of the headers: a session may name a group this block does not
+  list, and it simply sorts after the declared ones. A bad <code>groups:</code> entry (empty or
+  duplicate <code>name</code>) is dropped and reported like a bad session, and the rest still apply.
+</p>
 
 <h2 id="scope">What is read, what is not</h2>
 
 <div class="warn">
   <p>
-    <strong>Only <code>shell</code>, <code>env_files</code>, <code>no_default_env</code> and
-    <code>sessions</code> are read from a project file.</strong> <code>theme</code>,
+    <strong>Only <code>shell</code>, <code>env_files</code>, <code>no_default_env</code>,
+    <code>groups</code> and <code>sessions</code> are read from a project file.</strong> <code>theme</code>,
     <code>keybindings</code>, <code>prefix_key</code> and the rest stay under your control alone: a
     repository you cloned must not be able to remap your keyboard. Other keys are ignored, with a
     warning on stderr.
+  </p>
+  <p>
+    A group declares a name and nothing else — no colour, no glyph, no key. Same rule: a repository
+    says what exists, not what your interface looks like.
   </p>
 </div>
 

@@ -16,7 +16,7 @@ import (
 var testMarkers = markerSet{bell: bellMarker, altScreen: altScreenMarker, activity: activityMarker}
 
 func TestSessionsPanelContentEmpty(t *testing.T) {
-	got := sessionsPanelContent(nil, testMarkers, "", nil, nil, nil)
+	got := sessionsPanelContent(nil, testMarkers, "", nil, nil, nil, 0)
 
 	if !strings.Contains(got, "n pour en créer une") {
 		t.Errorf("empty content = %q, want a hint about the n keybinding", got)
@@ -37,7 +37,7 @@ func TestSessionsPanelContentListsSessions(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	got := sessionsPanelContent([]*session.Session{a, b}, testMarkers, "", nil, nil, nil)
+	got := sessionsPanelContent([]*session.Session{a, b}, testMarkers, "", nil, nil, nil, 0)
 
 	for _, want := range []string{a.Name(), b.Name(), a.Cwd} {
 		if !strings.Contains(got, want) {
@@ -70,7 +70,7 @@ func TestSessionsPanelContentShowsTurnDurationAndStats(t *testing.T) {
 	working.SetAgentState(agent.StateWorking)
 
 	content := sessionsPanelContent([]*session.Session{quiet, working}, testMarkers, "", nil,
-		map[string]string{working.ID: "1.2k tokens"}, nil)
+		map[string]string{working.ID: "1.2k tokens"}, nil, 0)
 
 	lines := strings.Split(strings.TrimRight(content, "\n"), "\n")
 	if len(lines) != 2 {
@@ -130,7 +130,7 @@ func TestApplySessionsPanelUpdateScrollsToKeepSelectionVisible(t *testing.T) {
 		t.Fatalf("test terminal too tall to exercise overflow: InnerHeight=%d, want < %d", innerHeight, total)
 	}
 
-	content := sessionsPanelContent(gui.filteredSessions(), testMarkers, "", nil, nil, nil)
+	content := sessionsPanelContent(gui.filteredSessions(), testMarkers, "", nil, nil, nil, 0)
 
 	// The last session is well past what a 20-row terminal's panel shows.
 	last := total - 1

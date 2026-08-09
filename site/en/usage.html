@@ -42,6 +42,7 @@
     <li><a href="#list">Reading the sessions list</a></li>
     <li><a href="#tabs">Output panel tabs</a></li>
     <li><a href="#search">Search and copy</a></li>
+    <li><a href="#groups">Groups</a></li>
     <li><a href="#broadcast">Broadcast</a></li>
     <li><a href="#mouse">Mouse</a></li>
     <li><a href="#debug">Debug mode</a></li>
@@ -98,6 +99,11 @@
     <tr><td><kbd>w</kbd></td><td>Export the session's scrollback to a file</td></tr>
     <tr><td><kbd>b</kbd></td><td>Mark / unmark the session for broadcast</td></tr>
     <tr><td><kbd>B</kbd></td><td>Jump to the next <em>blocked</em> agent session</td></tr>
+    <tr><td><kbd>g</kbd></td><td>Put the session in a group (empty answer = no group)</td></tr>
+    <tr><td><kbd>G</kbd></td><td>Show only the session's group; press again to clear</td></tr>
+    <tr><td><kbd>A</kbd></td><td>Mark / unmark the whole group for broadcast</td></tr>
+    <tr><td><kbd>X</kbd></td><td>Kill every session of the group</td></tr>
+    <tr><td><kbd>W</kbd></td><td>Restart every exited session of the group</td></tr>
     <tr><td><kbd>/</kbd></td><td>Filter the sessions list</td></tr>
     <tr><td><kbd>z</kbd></td><td>Zoom: the output panel takes the whole screen</td></tr>
     <tr><td><kbd>[</kbd> / <kbd>]</kbd></td><td>Previous / next output panel tab</td></tr>
@@ -249,6 +255,37 @@
   While a full-screen application is in control, scrolling back through history — and copy mode,
   which selects out of that same history — is disabled: the alternate screen does not feed the
   scrollback, and those keys belong to the application.
+</p>
+
+<h2 id="groups">Groups</h2>
+
+<p>
+  A session belongs to one group, or to none. Grouped sessions are drawn under a header line
+  naming the group, which is what makes a list of eight AI agent sessions readable: you see at a
+  glance which ones are working on the same thing.
+</p>
+
+<p>
+  Headers are display only — they cannot be selected, clicked or collapsed, and <kbd>j</kbd> /
+  <kbd>k</kbd> step straight past them. The order is: the groups the project file declares, in the
+  order it declares them, then any group created at runtime in order of first appearance, then the
+  ungrouped sessions last. With nothing grouped there are no headers at all — the list is exactly
+  the flat one it has always been.
+</p>
+
+<p>
+  Declare groups in <a href="project.html">the project file</a>, or set one at any time with
+  <kbd>g</kbd>. Four keys then act on the selected session's whole group: <kbd>A</kbd> broadcasts
+  to it, <kbd>X</kbd> kills it, <kbd>W</kbd> restarts whichever of its sessions have exited, and
+  <kbd>G</kbd> narrows the list to it. A group action always reaches every member, including any a
+  filter is currently hiding — "kill the group" means the group, not the part of it on screen.
+</p>
+
+<p>
+  <kbd>W</kbd> skips the sessions still running rather than refusing to do anything: a group that
+  is part finished and part alive is the normal case. Unlike <kbd>R</kbd> on a single session, it
+  does not hand you the keyboard afterwards. Agents can drive all of this over
+  <a href="agents.html">the control socket</a>.
 </p>
 
 <h2 id="broadcast">Broadcast</h2>

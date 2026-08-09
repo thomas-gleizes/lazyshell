@@ -22,6 +22,7 @@ type recordingHandler struct {
 	sessions []control.SessionInfo
 	output   string
 	newID    string
+	count    int
 	err      error
 }
 
@@ -38,8 +39,8 @@ func (h *recordingHandler) snapshot() control.Request {
 	return h.last
 }
 
-func (h *recordingHandler) List() []control.SessionInfo {
-	h.record(control.Request{Verb: control.VerbList})
+func (h *recordingHandler) List(group string) []control.SessionInfo {
+	h.record(control.Request{Verb: control.VerbList, Group: group})
 
 	return h.sessions
 }
@@ -50,8 +51,10 @@ func (h *recordingHandler) Read(id string, tail int) (string, error) {
 	return h.output, h.err
 }
 
-func (h *recordingHandler) New(name, cwd, command string) (string, error) {
-	h.record(control.Request{Verb: control.VerbNew, Name: name, Cwd: cwd, Command: command})
+func (h *recordingHandler) New(spec control.NewSpec) (string, error) {
+	h.record(control.Request{
+		Verb: control.VerbNew, Name: spec.Name, Cwd: spec.Cwd, Command: spec.Command, Group: spec.Group,
+	})
 
 	return h.newID, h.err
 }
@@ -66,6 +69,24 @@ func (h *recordingHandler) Kill(id string) error {
 	h.record(control.Request{Verb: control.VerbKill, ID: id})
 
 	return h.err
+}
+
+func (h *recordingHandler) SetGroup(id, group string) error {
+	h.record(control.Request{Verb: control.VerbGroup, ID: id, Group: group})
+
+	return h.err
+}
+
+func (h *recordingHandler) GroupSend(group, text string) (int, error) {
+	h.record(control.Request{Verb: control.VerbGroupSend, Group: group, Text: text})
+
+	return h.count, h.err
+}
+
+func (h *recordingHandler) GroupKill(group string) (int, error) {
+	h.record(control.Request{Verb: control.VerbGroupKill, Group: group})
+
+	return h.count, h.err
 }
 
 func (h *recordingHandler) Rename(id, name string) error {
@@ -214,6 +235,10 @@ func TestParseArgsCtlRejectsTyposAndWrongArity(t *testing.T) {
 		{"ctl", "send", "session-1"},
 		{"ctl", "rename", "session-1"},
 		{"ctl", "list", "de", "trop"},
+		{"ctl", "group", "session-1"},
+		{"ctl", "ungroup"},
+		{"ctl", "group-send", "agents"},
+		{"ctl", "group-kill"},
 	}
 
 	for _, args := range tests {
@@ -310,6 +335,87 @@ func TestRunCtlSendsTheRightRequestForEachVerb(t *testing.T) {
 
 		if got := h.snapshot(); got.Name != "chef2" {
 			t.Errorf("rename request = %+v", got)
+		}
+	})
+
+	t.Run("group assigns, ungroup clears", func(t *testing.T) {
+		if _, err := runCtl(t, "group", "session-1", "agents"); err != nil {
+			t.Fatalf("group: %v", err)
+		}
+
+		if got := h.snapshot(); got.Verb != control.VerbGroup || got.ID != "session-1" || got.Group != "agents" {
+			t.Errorf("group request = %+v", got)
+		}
+
+		// The alias collapses to the same verb with an empty group — there is
+		// no second verb on the wire.
+		if _, err := runCtl(t, "ungroup", "session-1"); err != nil {
+			t.Fatalf("ungroup: %v", err)
+		}
+
+		if got := h.snapshot(); got.Verb != control.VerbGroup || got.Group != "" {
+			t.Errorf("ungroup request = %+v, want VerbGroup with no group", got)
+		}
+	})
+
+	t.Run("--group filters list and sets a new session's group", func(t *testing.T) {
+		if _, err := runCtl(t, "list", "--group", "agents"); err != nil {
+			t.Fatalf("list: %v", err)
+		}
+
+		if got := h.snapshot(); got.Verb != control.VerbList || got.Group != "agents" {
+			t.Errorf("list request = %+v", got)
+		}
+
+		if _, err := runCtl(t, "new", "--name", "w1", "--group", "agents"); err != nil {
+			t.Fatalf("new: %v", err)
+		}
+
+		if got := h.snapshot(); got.Verb != control.VerbNew || got.Group != "agents" {
+			t.Errorf("new request = %+v", got)
+		}
+	})
+
+	t.Run("group-send joins the words and group-kill reports a count", func(t *testing.T) {
+		h.count = 3
+
+		out, err := runCtl(t, "group-send", "agents", "echo", "bonjour", "--enter")
+		if err != nil {
+			t.Fatalf("group-send: %v", err)
+		}
+
+		if got := h.snapshot(); got.Group != "agents" || got.Text != "echo bonjour\r" {
+			t.Errorf("group-send request = %+v", got)
+		}
+		if !strings.Contains(out, "3") {
+			t.Errorf("group-send output = %q, want the count of sessions reached", out)
+		}
+
+		out, err = runCtl(t, "group-kill", "agents")
+		if err != nil {
+			t.Fatalf("group-kill: %v", err)
+		}
+
+		if got := h.snapshot(); got.Verb != control.VerbGroupKill || got.Group != "agents" {
+			t.Errorf("group-kill request = %+v", got)
+		}
+		if !strings.Contains(out, "3") {
+			t.Errorf("group-kill output = %q, want the count of sessions killed", out)
+		}
+	})
+
+	t.Run("list shows a session's group", func(t *testing.T) {
+		h.sessions = []control.SessionInfo{
+			{ID: "session-1", Name: "chef", Status: "running", Group: "agents"},
+		}
+
+		out, err := runCtl(t, "list")
+		if err != nil {
+			t.Fatalf("list: %v", err)
+		}
+
+		if !strings.Contains(out, "agents") {
+			t.Errorf("list output = %q, want the group shown", out)
 		}
 	})
 }

@@ -78,7 +78,8 @@ docs/
   adr/            architecture decision records (0001: rendu ANSI et clavier, 0002: rendu
                   multi-panneaux, 0003: souris, 0004: sortie du pass-through — remplace la
                   décision 3 de l'ADR 0001, 0005: `Esc` `Esc` comme seconde sortie — complète
-                  l'ADR 0004 sans le remplacer)
+                  l'ADR 0004 sans le remplacer, 0007: groupes de sessions — remplace l'invariant
+                  « une ligne = une session » et étend l'ADR 0006)
   repports/       (sic) historical analysis reports
 site/             sources of the bilingual GitHub Pages site (site/en/, site/fr/)
 ```
@@ -114,14 +115,26 @@ now that the roadmap that used to hold it is gone.
 - Windows support: explicitly out of scope (no Unix pty).
 - Agent control API (agents creating panels / reading other sessions' output via a socket): **done
   (ADR 0006)**, and the decision it reverses was explicit, so read that ADR before touching any of
-  it. `pkg/control` + `lazyshell ctl`, six verbs (`list`/`read`/`new`/`send`/`kill`/`rename`), on a
+  it. `pkg/control` + `lazyshell ctl`, nine verbs (`list`/`read`/`new`/`send`/`kill`/`rename` plus
+  ADR 0007's `group`/`group-send`/`group-kill`), on a
   *separate* socket with a *separate* protocol (line-JSON, request→response) from the phase 11b hook
   channel — which stays inbound/declarative and open by default precisely because all it can do is
   move a marker. The load-bearing rules: `control.enabled` is false by default and, when false,
   there is no socket at all and no `$LAZYSHELL_CONTROL_SOCK` in any session's environment (its
   absence is the signal); there is no token, so enabling it means every process running as the user
   can drive lazyshell; `ctl` exits non-zero on failure, the exact opposite of `lazyshell hook`; and
-  the goroutine split in `pkg/gui/control.go` (`list`/`read`/`send` inline, `new`/`kill`/`rename`
-  through `onGUI`) is a correctness rule, not a style choice.
+  the goroutine split in `pkg/gui/control.go` (`list`/`read`/`send`/`group-send` inline,
+  `new`/`rename`/`group` through `onGUI`, `kill`/`group-kill` split between the two) is a
+  correctness rule, not a style choice.
+- Session groups: **done (ADR 0007)**. One group per session, a *display* property — `Manager.order`
+  stays the creation order and the grouping is recomputed every tick. The load-bearing rule, and the
+  one to read the ADR before touching: `gui.selectedIndex` indexes **sessions** in display order,
+  never view lines. Group headers are unselectable rows, and `rowLineForSessionIndex` is what makes
+  it impossible for gocui's `Highlight` to ever paint one — the guarantee is the function's return
+  type, not a check anywhere. Only `pkg/gui/sessions_panel.go`'s renderer and `clickSession` may
+  convert between the two spaces. A project file may declare group *names and their order* and
+  nothing else, per `ProjectConfig`'s whitelist doctrine. Ctrl keys are unusable for any remappable
+  action until `keyLabel`'s output round-trips through `gocui.Parse` (see the ADR's decision 6) —
+  which is why the group keys are `g`/`G`/`A`/`X`/`W`.
 - Detach/daemon mode ("agents keep running with the laptop closed"): out of scope unless real demand
   surfaces.

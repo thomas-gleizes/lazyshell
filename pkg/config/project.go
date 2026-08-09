@@ -28,6 +28,15 @@ type ProjectConfig struct {
 	Shell string `yaml:"shell"`
 	// Sessions are started at launch, in this order.
 	Sessions []SessionSpec `yaml:"sessions"`
+	// Groups declares the session groups this project uses, and — this is the
+	// part that matters — the order their headers appear in the sessions
+	// panel. Declaring a group is optional: a session may name a group that is
+	// not listed here, and it simply sorts after the declared ones.
+	//
+	// A group carries a name and a label, and deliberately nothing else. Per
+	// this struct's doc comment above, a project file says what exists; how
+	// the user's interface renders it is not a repository's business.
+	Groups []GroupSpec `yaml:"groups"`
 	// EnvFiles are .env-style files loaded, in order, for every session this
 	// project declares — before each session's own EnvFiles, and before its
 	// inline Env. Relative paths resolve against the project file's
@@ -50,9 +59,22 @@ type ProjectConfig struct {
 	Warnings []string `yaml:"-"`
 }
 
+// GroupSpec is one declared group, as written in the file.
+//
+// A name and nothing else, deliberately. A separate display label was
+// considered and dropped: the name is already the string the panel shows, and
+// a second field saying the same thing is exactly the speculative surface this
+// file's whitelist exists to keep out.
+type GroupSpec struct {
+	Name string `yaml:"name"`
+}
+
 // SessionSpec is one declared session, as written in the file.
 type SessionSpec struct {
-	Name    string            `yaml:"name"`
+	Name string `yaml:"name"`
+	// Group is the group this session starts in, "" for none. It need not be
+	// declared in Groups; that block only fixes the display order.
+	Group   string            `yaml:"group"`
 	Cwd     string            `yaml:"cwd"`
 	Command string            `yaml:"command"`
 	Env     map[string]string `yaml:"env"`
@@ -70,7 +92,9 @@ type SessionSpec struct {
 // directory made absolute. This — not SessionSpec — is what session creation
 // consumes, so an unresolved relative path cannot reach a pty by accident.
 type ResolvedSession struct {
-	Name    string
+	Name string
+	// Group is the session's group, trimmed; "" for an ungrouped session.
+	Group   string
 	Cwd     string
 	Command string
 	Env     map[string]string
@@ -205,6 +229,13 @@ func (p ProjectConfig) Validate() ([]ResolvedSession, []error) {
 			continue
 		}
 
+		group, err := resolveGroupName(spec.Group)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("session %q: %w", name, err))
+
+			continue
+		}
+
 		noDefaultEnv := spec.NoDefaultEnv
 		if noDefaultEnv == nil {
 			noDefaultEnv = p.NoDefaultEnv
@@ -213,6 +244,7 @@ func (p ProjectConfig) Validate() ([]ResolvedSession, []error) {
 		seen[name] = true
 		resolved = append(resolved, ResolvedSession{
 			Name:         name,
+			Group:        group,
 			Cwd:          cwd,
 			Command:      spec.Command,
 			Env:          spec.Env,
@@ -222,6 +254,65 @@ func (p ProjectConfig) Validate() ([]ResolvedSession, []error) {
 	}
 
 	return resolved, errs
+}
+
+// ResolvedGroups returns the declared group names, trimmed, in declaration
+// order — which is the order the sessions panel draws their headers in. Bad
+// entries are dropped and reported, exactly like Validate's bad sessions: a
+// hand-edited file must never cost the user the groups that were fine.
+//
+// Kept separate from Validate rather than folded into it because the two
+// answer different questions and have different consumers: Validate produces
+// sessions to start, this produces a display order. Their errors are joined
+// by the caller.
+func (p ProjectConfig) ResolvedGroups() ([]string, []error) {
+	var (
+		groups []string
+		errs   []error
+	)
+
+	seen := make(map[string]bool, len(p.Groups))
+
+	for i, spec := range p.Groups {
+		name, err := resolveGroupName(spec.Name)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("groupe #%d: %w", i+1, err))
+
+			continue
+		}
+
+		if name == "" {
+			errs = append(errs, fmt.Errorf("groupe #%d: nom vide", i+1))
+
+			continue
+		}
+
+		if seen[name] {
+			errs = append(errs, fmt.Errorf("groupe %q: nom en double", name))
+
+			continue
+		}
+
+		seen[name] = true
+		groups = append(groups, name)
+	}
+
+	return groups, errs
+}
+
+// resolveGroupName trims a group name and rejects the one shape that would
+// actually break something: a name spanning several lines, which would tear
+// the panel's single-line header in two and desynchronise the row model from
+// what is on screen. An empty name is not an error here — it is how a session
+// says "no group" — so callers that do require one check for it themselves.
+func resolveGroupName(group string) (string, error) {
+	name := strings.TrimSpace(group)
+
+	if strings.ContainsAny(name, "\n\r") {
+		return "", fmt.Errorf("groupe %q: saut de ligne interdit dans un nom de groupe", group)
+	}
+
+	return name, nil
 }
 
 // ResolveCwd turns the spec's Cwd into an absolute, existing directory. It is

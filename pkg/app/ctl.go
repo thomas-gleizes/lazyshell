@@ -139,6 +139,8 @@ func buildCtlRequest(inv Invocation) (control.Request, error) {
 
 	switch inv.CtlVerb {
 	case control.VerbList:
+		req.Group = inv.Ctl.Group
+
 	case control.VerbRead:
 		req.ID = inv.CtlArgs[0]
 		req.Tail = inv.Ctl.Tail
@@ -147,6 +149,7 @@ func buildCtlRequest(inv Invocation) (control.Request, error) {
 		req.Name = inv.Ctl.Name
 		req.Cwd = inv.Ctl.Cwd
 		req.Command = inv.Ctl.Command
+		req.Group = inv.Ctl.Group
 
 	case control.VerbSend:
 		req.ID = inv.CtlArgs[0]
@@ -166,6 +169,26 @@ func buildCtlRequest(inv Invocation) (control.Request, error) {
 		req.ID = inv.CtlArgs[0]
 		req.Name = inv.CtlArgs[1]
 
+	case control.VerbGroup:
+		req.ID = inv.CtlArgs[0]
+		req.Group = inv.CtlArgs[1]
+
+	case ctlVerbUngroup:
+		// The alias collapses here: one verb on the wire, an empty group.
+		req.Verb = control.VerbGroup
+		req.ID = inv.CtlArgs[0]
+
+	case control.VerbGroupSend:
+		req.Group = inv.CtlArgs[0]
+		req.Text = strings.Join(inv.CtlArgs[1:], " ")
+
+		if inv.Ctl.Enter {
+			req.Text += "\r"
+		}
+
+	case control.VerbGroupKill:
+		req.Group = inv.CtlArgs[0]
+
 	default:
 		return req, fmt.Errorf("lazyshell ctl : verbe non géré %q", inv.CtlVerb)
 	}
@@ -180,9 +203,23 @@ func printCtlResponse(inv Invocation, resp control.Response, out io.Writer) {
 	switch inv.CtlVerb {
 	case control.VerbList:
 		for _, s := range resp.Sessions {
-			line := fmt.Sprintf("%-12s %-20s %s", s.ID, s.Name, s.Status)
+			status := s.Status
+			// "exited" alone is half the answer to the question this verb is
+			// most often asked ("did it work?"), and the code is right there.
+			if s.ExitCode != nil {
+				status = fmt.Sprintf("%s (%d)", status, *s.ExitCode)
+			}
+
+			line := fmt.Sprintf("%-12s %-20s %s", s.ID, s.Name, status)
 			if s.AgentState != "" {
 				line += " " + s.AgentState
+			}
+
+			// Appended rather than given a column of its own: the three
+			// fixed-width fields above are what a caller scrapes, and
+			// inserting into them would break every existing script.
+			if s.Group != "" {
+				line += " [" + s.Group + "]"
 			}
 
 			fmt.Fprintln(out, line)
@@ -193,5 +230,8 @@ func printCtlResponse(inv Invocation, resp control.Response, out io.Writer) {
 
 	case control.VerbNew:
 		fmt.Fprintln(out, resp.ID)
+
+	case control.VerbGroupSend, control.VerbGroupKill:
+		fmt.Fprintf(out, "%d session(s)\n", resp.Count)
 	}
 }

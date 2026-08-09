@@ -102,6 +102,11 @@ func NewManager() *Manager {
 type Options struct {
 	// Name is the session's display name.
 	Name string
+	// Group is the session's initial group, "" for an ungrouped one. Only the
+	// starting value: the group can be reassigned afterwards through
+	// Session.SetGroup, and Restart carries that reassignment across rather
+	// than resetting to this one.
+	Group string
 	// Shell is the command started behind the pty.
 	Shell string
 	// Cwd is the shell's working directory. Empty means the process's own.
@@ -154,7 +159,8 @@ func (m *Manager) NewWithOptions(opts Options) (*Session, error) {
 
 // Restart re-creates an exited session with the same id and the Options it
 // was originally started with — same name, shell, cwd, env and initial
-// command. The session that just exited cannot be reused directly: killOnce
+// command — plus whichever group it currently belongs to, which may not be the
+// one it started in. The session that just exited cannot be reused directly: killOnce
 // means Kill (and the exit that already happened) can only ever run once on
 // a given *Session*, so this spawns a fresh one and swaps it in under the
 // same id, keeping the session's position in List().
@@ -171,7 +177,16 @@ func (m *Manager) Restart(id string) (*Session, error) {
 		return nil, fmt.Errorf("session %s: still running, cannot restart", id)
 	}
 
-	sess, err := m.newSession(id, old.opts)
+	// The group is the one mutable field that must survive a restart, so it is
+	// carried explicitly rather than read back out of opts: SetGroup writing
+	// into old.opts would race with this very read, which takes no lock and
+	// relies on opts being immutable once constructed. (Name has the opposite
+	// behaviour — a renamed session reverts to opts.Name on restart. That is
+	// pre-existing, and left alone here.)
+	opts := old.opts
+	opts.Group = old.Group()
+
+	sess, err := m.newSession(id, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -232,6 +247,7 @@ func (m *Manager) newSession(id string, opts Options) (*Session, error) {
 		done:      make(chan struct{}),
 	}
 	sess.SetName(opts.Name)
+	sess.SetGroup(opts.Group)
 
 	// A hook listener that fails to start (permission issue on
 	// $XDG_RUNTIME_DIR, an exotic sandbox with no writable temp dir) leaves

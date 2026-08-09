@@ -43,6 +43,14 @@ const (
 	VerbKill = "kill"
 	// VerbRename changes a session's display name.
 	VerbRename = "rename"
+	// VerbGroup moves a session into a group, or out of every group when
+	// Request.Group is empty.
+	VerbGroup = "group"
+	// VerbGroupSend writes text into every session of a group.
+	VerbGroupSend = "group-send"
+	// VerbGroupKill terminates every session of a group, and reports how many
+	// it touched in Response.Count.
+	VerbGroupKill = "group-kill"
 )
 
 // Request is one line sent to the socket. Which fields matter depends on Verb;
@@ -56,6 +64,12 @@ type Request struct {
 	ID string `json:"id,omitempty"`
 	// Name is the session name to give (VerbNew) or to change to (VerbRename).
 	Name string `json:"name,omitempty"`
+	// Group is the group to put a session in (VerbNew, VerbGroup — empty means
+	// ungrouped), the group to act on (VerbGroupSend, VerbGroupKill), or an
+	// optional filter (VerbList). Empty on VerbList means "every session",
+	// which is why the group verbs reject an empty Group themselves rather
+	// than relying on this field alone to say what they mean.
+	Group string `json:"group,omitempty"`
 	// Cwd is the working directory a new session starts in. Empty means
 	// lazyshell's own.
 	Cwd string `json:"cwd,omitempty"`
@@ -83,6 +97,11 @@ type Response struct {
 	Output string `json:"output,omitempty"`
 	// Sessions is VerbList's answer.
 	Sessions []SessionInfo `json:"sessions,omitempty"`
+	// Count is how many sessions a group verb acted on. Only meaningful for
+	// VerbGroupSend and VerbGroupKill; omitempty drops it everywhere else, and
+	// a group verb that matched nothing errors rather than reporting 0, so the
+	// ambiguity a plain int would carry here never arises.
+	Count int `json:"count,omitempty"`
 }
 
 // SessionInfo is what VerbList reports about one session. Deliberately a flat
@@ -96,9 +115,17 @@ type SessionInfo struct {
 	// AgentState is the detected AI agent state ("idle"/"working"/"blocked"/
 	// "done"), empty for a session running no known agent.
 	AgentState string `json:"agent_state,omitempty"`
-	Cwd        string `json:"cwd,omitempty"`
-	// ExitCode is meaningful only once Status is "exited".
-	ExitCode int `json:"exit_code,omitempty"`
+	// Group is the session's group, absent for an ungrouped one.
+	Group string `json:"group,omitempty"`
+	Cwd   string `json:"cwd,omitempty"`
+	// ExitCode is meaningful only once Status is "exited", hence the pointer:
+	// nil is "still running, ask again later", and it is the only shape that
+	// works here. A plain int with omitempty drops the field for exit code
+	// *zero* — the successful case — so a script could not tell a build that
+	// passed from one still going, which is the single most likely thing to
+	// ask this API. A plain int without omitempty is no better: it reports a
+	// confident 0 for every running session.
+	ExitCode *int `json:"exit_code,omitempty"`
 }
 
 // Handler is the seam between this package and the rest of lazyshell:
@@ -109,12 +136,33 @@ type SessionInfo struct {
 // Errors returned here reach the caller as Response.Error, so they are
 // user-facing text.
 type Handler interface {
-	List() []SessionInfo
+	// List reports every session, or only those of group when it is non-empty.
+	List(group string) []SessionInfo
 	Read(idOrName string, tail int) (string, error)
-	New(name, cwd, command string) (id string, err error)
+	New(spec NewSpec) (id string, err error)
 	Send(idOrName, text string) error
 	Kill(idOrName string) error
 	Rename(idOrName, name string) error
+	// SetGroup moves a session into group, or out of every group when it is
+	// empty.
+	SetGroup(idOrName, group string) error
+	// GroupSend and GroupKill act on every session of a group and report how
+	// many that was. An empty group, or one with no sessions, is an error:
+	// silently doing nothing is the worst possible answer to "kill this
+	// group", since the caller cannot tell it from success.
+	GroupSend(group, text string) (int, error)
+	GroupKill(group string) (int, error)
+}
+
+// NewSpec is what VerbNew creates, as a struct rather than four positional
+// arguments. Same reasoning as session.Options, whose doc comment says it
+// outright: this set grows, and each growth would otherwise be a fourth and
+// fifth argument on every call site and every fake in the tests.
+type NewSpec struct {
+	Name    string
+	Cwd     string
+	Command string
+	Group   string
 }
 
 // dispatch turns one Request into its Response. Split out from the connection
@@ -122,7 +170,7 @@ type Handler interface {
 func dispatch(h Handler, req Request) Response {
 	switch req.Verb {
 	case VerbList:
-		return Response{OK: true, Sessions: h.List()}
+		return Response{OK: true, Sessions: h.List(req.Group)}
 
 	case VerbRead:
 		out, err := h.Read(req.ID, req.Tail)
@@ -133,7 +181,7 @@ func dispatch(h Handler, req Request) Response {
 		return Response{OK: true, Output: out}
 
 	case VerbNew:
-		id, err := h.New(req.Name, req.Cwd, req.Command)
+		id, err := h.New(NewSpec{Name: req.Name, Cwd: req.Cwd, Command: req.Command, Group: req.Group})
 		if err != nil {
 			return errorResponse(err)
 		}
@@ -160,6 +208,29 @@ func dispatch(h Handler, req Request) Response {
 		}
 
 		return Response{OK: true}
+
+	case VerbGroup:
+		if err := h.SetGroup(req.ID, req.Group); err != nil {
+			return errorResponse(err)
+		}
+
+		return Response{OK: true}
+
+	case VerbGroupSend:
+		count, err := h.GroupSend(req.Group, req.Text)
+		if err != nil {
+			return errorResponse(err)
+		}
+
+		return Response{OK: true, Count: count}
+
+	case VerbGroupKill:
+		count, err := h.GroupKill(req.Group)
+		if err != nil {
+			return errorResponse(err)
+		}
+
+		return Response{OK: true, Count: count}
 	}
 
 	return Response{OK: false, Error: fmt.Sprintf("verbe inconnu %q", req.Verb)}

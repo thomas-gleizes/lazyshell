@@ -248,7 +248,7 @@ func TestNewNamedSessionEmptySubmitFallsBackToGeneratedName(t *testing.T) {
 func TestNewNamedSessionDoesNotConsumeCounter(t *testing.T) {
 	gui := newSessionsErgonomicsTestGui(t)
 
-	if err := gui.createSession("build"); err != nil {
+	if _, err := gui.createSession("build"); err != nil {
 		t.Fatalf("createSession: %v", err)
 	}
 

@@ -28,7 +28,8 @@ const (
 	// $LAZYSHELL_SOCK. See pkg/hook and pkg/app/hook.go.
 	CommandHook = "hook"
 	// CommandCtl drives a running lazyshell over the agent control socket:
-	// list/read/new/send/kill/rename, in Invocation.CtlVerb. Only works when
+	// list/read/new/send/kill/rename plus the group verbs, in
+	// Invocation.CtlVerb. Only works when
 	// config.Control.Enabled is true — see pkg/control and pkg/app/ctl.go.
 	CommandCtl = "ctl"
 )
@@ -43,7 +44,21 @@ var ctlVerbs = map[string]struct{ minArgs, maxArgs int }{
 	control.VerbSend:   {2, -1}, // target + text, the text possibly several words
 	control.VerbKill:   {1, 1},
 	control.VerbRename: {2, 2},
+
+	control.VerbGroup:     {2, 2}, // session + group
+	control.VerbGroupSend: {2, -1},
+	control.VerbGroupKill: {1, 1},
+
+	// A client-side alias only: it maps to VerbGroup with an empty group.
+	// Spelled out as its own verb because "lazyshell ctl group api" with the
+	// group left off would be a plausible typo, not a request to ungroup.
+	ctlVerbUngroup: {1, 1},
 }
+
+// ctlVerbUngroup is the CLI's name for "VerbGroup with no group". It has no
+// pkg/control counterpart on purpose — the wire protocol needs no second verb
+// to express an empty string.
+const ctlVerbUngroup = "ungroup"
 
 // Verbs of `lazyshell config`. A bare `lazyshell config` means ConfigShow:
 // reading is safe and is what someone typing the command blind most likely
@@ -107,6 +122,11 @@ type CtlOptions struct {
 	Cwd string
 	// Command is `ctl new --command`: typed into the new session's shell.
 	Command string
+	// Group is `ctl new --group` (the group to create the session in) and
+	// `ctl list --group` (show only that group). The group verbs take theirs
+	// as a positional argument instead, since there it is the target rather
+	// than a modifier.
+	Group string
 	// Tail is `ctl read --tail`: last N lines only. Zero is the whole
 	// scrollback.
 	Tail int
@@ -150,15 +170,32 @@ Usage :
                                  appelée par la config de hook de l'agent, pas à la main
 
 Pilotage d'un lazyshell en cours (nécessite control.enabled dans la config) :
-  lazyshell ctl list                        liste les sessions
+  lazyshell ctl list [--group G]            liste les sessions
   lazyshell ctl read <session> [--tail N]   affiche la sortie d'une session
-  lazyshell ctl new [--name N] [--cwd D] [--command C]
+  lazyshell ctl new [--name N] [--cwd D] [--command C] [--group G]
                                             crée une session
   lazyshell ctl send <session> <texte…> [--enter]
                                             écrit dans une session, comme au clavier
   lazyshell ctl kill <session>              termine une session
   lazyshell ctl rename <session> <nom>      renomme une session
+  lazyshell ctl group <session> <groupe>    affecte une session à un groupe
+  lazyshell ctl ungroup <session>           retire la session de son groupe
+  lazyshell ctl group-send <groupe> <texte…> [--enter]
+                                            écrit dans tout un groupe
+  lazyshell ctl group-kill <groupe>         termine tout un groupe
+
   <session> est un id (session-2) ou un nom exact ; --json donne la réponse brute.
+  --command est tapé dans le shell de la session, il ne le remplace pas : une
+    commande bloquante (sleep 300) rend la session sourde aux send suivants,
+    qui iront dans son entrée standard et non dans le shell.
+  send tape le texte sans l'exécuter ; --enter ajoute le retour chariot.
+  kill termine le processus mais laisse la session listée (statut exited, avec
+    son code de sortie) : la retirer pour de bon reste la touche D, dans l'interface.
+  Les verbes de groupe agissent sur toutes les sessions du groupe et affichent
+    combien ont été touchées ; un groupe vide ou inconnu est une erreur, pas un
+    « 0 session » silencieux. group-send saute les sessions déjà terminées.
+  Relancer un groupe n'est pas exposé ici : aucun verbe restart n'existe pour
+    une session seule non plus. C'est la touche W, dans l'interface.
 
 Options :
   -f, --config-file <fichier>   fichier de projet à utiliser
@@ -272,6 +309,7 @@ func parseCtlArgs(inv Invocation, args []string) (Invocation, error) {
 	fs.StringVar(&inv.Ctl.Name, "name", "", "nom de la session à créer")
 	fs.StringVar(&inv.Ctl.Cwd, "cwd", "", "dossier de travail de la session à créer")
 	fs.StringVar(&inv.Ctl.Command, "command", "", "commande tapée dans la session créée")
+	fs.StringVar(&inv.Ctl.Group, "group", "", "groupe de la session créée, ou filtre pour list")
 	fs.IntVar(&inv.Ctl.Tail, "tail", 0, "n'affiche que les N dernières lignes")
 	fs.BoolVar(&inv.Ctl.Enter, "enter", false, "ajoute un retour chariot au texte envoyé")
 	fs.BoolVar(&inv.Ctl.JSON, "json", false, "affiche la réponse brute en JSON")

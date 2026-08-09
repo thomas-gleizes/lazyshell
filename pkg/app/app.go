@@ -146,7 +146,15 @@ func newApp(opts Options, approve approver, errOut io.Writer) *App {
 		startupErrs = append(startupErrs, autostart(sessions, pcfg, resolveShell(cfg.Shell))...)
 	}
 
+	// The declared group order, whether or not any session was started: it is
+	// a display order, and a session assigned to a declared group at runtime
+	// must land where the file said it would. Bad entries are reported like
+	// every other project-file problem and the good ones still apply.
+	groups, groupErrs := pcfg.ResolvedGroups()
+	startupErrs = append(startupErrs, groupErrs...)
+
 	g := gui.New(sessions, cfg)
+	g.SetGroupOrder(groups)
 	g.SetDebug(dbg)
 	g.SetStartupError(joinErrors(startupErrs))
 

@@ -368,3 +368,36 @@ func waitForScreen(t *testing.T, sess *session.Session, want string) {
 
 	t.Fatalf("timed out waiting for %q on screen:\n%s", want, sess.Screen().Render())
 }
+
+const groupedSessions = `groups:
+  - name: services
+  - name: agents
+
+sessions:
+  - name: api
+    group: services
+  - name: claude
+    group: agents
+  - name: scratch
+`
+
+// The end-to-end group path: a declared group reaches the running session's
+// Group(), and the file's declaration order reaches the GUI as the order its
+// headers are drawn in.
+func TestAutostartCarriesGroupsToSessionsAndGui(t *testing.T) {
+	projectDir(t, groupedSessions)
+
+	a := newTestApp(t, Options{}, answering("y"))
+
+	want := map[string]string{"api": "services", "claude": "agents", "scratch": ""}
+
+	for _, sess := range a.sessions.List() {
+		if got := sess.Group(); got != want[sess.Name()] {
+			t.Errorf("session %q Group() = %q, want %q", sess.Name(), got, want[sess.Name()])
+		}
+	}
+
+	if got := a.gui.GroupOrder(); len(got) != 2 || got[0] != "services" || got[1] != "agents" {
+		t.Errorf("gui group order = %v, want [services agents] in declaration order", got)
+	}
+}

@@ -93,6 +93,26 @@ var messages = map[string]map[string]string{
 		"fr": "Sauter à la prochaine session bloquée",
 		"en": "Jump to the next blocked session",
 	},
+	"action.set_group": {
+		"fr": "Affecter la session à un groupe",
+		"en": "Assign the session to a group",
+	},
+	"action.filter_group": {
+		"fr": "Filtrer sur le groupe (à nouveau pour annuler)",
+		"en": "Filter on the group (again to clear)",
+	},
+	"action.broadcast_group": {
+		"fr": "Diffuser au groupe",
+		"en": "Broadcast to the group",
+	},
+	"action.kill_group": {
+		"fr": "Tuer le groupe",
+		"en": "Kill the group",
+	},
+	"action.restart_group": {
+		"fr": "Relancer le groupe",
+		"en": "Restart the group",
+	},
 	"action.toggle_debug": {
 		"fr": "Afficher ou masquer le panneau de debug",
 		"en": "Show or hide the debug panel",
@@ -276,6 +296,10 @@ var messages = map[string]map[string]string{
 		"fr": " filtre : %q — %d session(s) ",
 		"en": " filter: %q — %d session(s) ",
 	},
+	"status.filter_group": {
+		"fr": " groupe : %q — %d session(s) ",
+		"en": " group: %q — %d session(s) ",
+	},
 	"status.copymode": {
 		"fr": " -- SÉLECTION -- %d ligne(s) — y : copier, Esc : annuler ",
 		"en": " -- SELECT -- %d line(s) — y: copy, Esc: cancel ",
@@ -307,6 +331,10 @@ var messages = map[string]map[string]string{
 		"fr": "Aucune session — n pour en créer une",
 		"en": "No sessions — press n to create one",
 	},
+	"sessions.group_ungrouped": {
+		"fr": "sans groupe",
+		"en": "ungrouped",
+	},
 	"sessions.kill_confirm": {
 		"fr": "Tuer la session %q ? (y/n)",
 		"en": "Kill session %q? (y/n)",
@@ -314,6 +342,14 @@ var messages = map[string]map[string]string{
 	"sessions.delete_confirm": {
 		"fr": "Supprimer définitivement la session %q ? Elle ne sera plus listée. (y/n)",
 		"en": "Permanently delete session %q? It will no longer be listed. (y/n)",
+	},
+	"sessions.kill_group_confirm": {
+		"fr": "Tuer les %[2]d session(s) du groupe %[1]q ? (y/n)",
+		"en": "Kill the %[2]d session(s) of group %[1]q? (y/n)",
+	},
+	"sessions.restart_group_none": {
+		"fr": "groupe %s : aucune session terminée à relancer",
+		"en": "group %s: no exited session to restart",
 	},
 	"sessions.restart_running": {
 		"fr": "session %s : encore en cours d'exécution",
@@ -333,6 +369,14 @@ var messages = map[string]map[string]string{
 		"fr": "arrêt de la session %s...",
 		"en": "stopping session %s...",
 	},
+	"busy.kill_group": {
+		"fr": "arrêt du groupe %s...",
+		"en": "stopping group %s...",
+	},
+	"busy.restart_group": {
+		"fr": "relance du groupe %s...",
+		"en": "restarting group %s...",
+	},
 	"busy.delete": {
 		"fr": "suppression de la session %s...",
 		"en": "deleting session %s...",
@@ -349,6 +393,10 @@ var messages = map[string]map[string]string{
 	"prompt.rename": {
 		"fr": "renommer la session",
 		"en": "rename the session",
+	},
+	"prompt.set_group": {
+		"fr": "groupe de la session (vide pour aucun)",
+		"en": "session group (empty for none)",
 	},
 	"prompt.new_named": {
 		"fr": "nom de la session (vide = automatique)",
@@ -427,6 +475,14 @@ var messages = map[string]map[string]string{
 	"footer.new_in_dir": {
 		"fr": "dossier",
 		"en": "folder",
+	},
+	"footer.set_group": {
+		"fr": "groupe",
+		"en": "group",
+	},
+	"footer.filter_group": {
+		"fr": "filtrer groupe",
+		"en": "filter group",
 	},
 	"footer.restart": {
 		"fr": "relancer",

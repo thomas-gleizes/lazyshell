@@ -72,6 +72,12 @@ to open an in-app help popup listing every binding below.
 | `M` | New session in a directory you pick |
 | `w` | Export the selected session's scrollback to a file |
 | `b` | Mark/unmark the session for broadcast |
+| `B` | Jump to the next blocked agent session |
+| `g` | Put the selected session in a group (empty answer = no group) |
+| `G` | Show only the selected session's group; press again to clear |
+| `A` | Mark the whole group for broadcast, or unmark it |
+| `X` | Kill every session of the group |
+| `W` | Restart every exited session of the group |
 | `F12` | Show/hide the debug panel (only does something under `--debug`) |
 
 While the **output panel** is focused, these apply instead:
@@ -126,6 +132,36 @@ its working directory.
 | `#` | A full-screen application (`vim`, `htop`, `less`) has the session. Shown as `[ALT]` in the status bar for the selected one. |
 | `●` | The session produced output while it wasn't the one on screen. Cleared when you select it. |
 | `+` | The session is marked for broadcast — see below. |
+
+### Groups
+
+A session can belong to one group, or to none. Grouped sessions are drawn
+under a header line naming the group, which is what makes a list of eight AI
+agent sessions readable: you see at a glance which ones are working on the
+same thing. Headers are display only — they cannot be selected, clicked or
+collapsed, and `j` / `k` step straight past them.
+
+The order is: the groups the project file declares, in the order it declares
+them, then any group created at runtime in order of first appearance, then the
+ungrouped sessions last. A group with no visible session draws no header, so a
+filter that hides a whole group leaves no empty box behind. With nothing
+grouped there are no headers at all — the list is exactly the flat one it has
+always been.
+
+Declare groups and assign sessions to them in `lazyshell.yml` (see [Project
+configuration](#project-configuration)), or set one at any time with `g`. Four
+keys then act on the selected session's whole group: `A` broadcasts to it, `X`
+kills it, `W` restarts whichever of its sessions have exited, and `G` narrows
+the list to it. A group action always reaches every member, including any a
+filter is currently hiding — "kill the group" means the group, not the part of
+it on screen.
+
+`W` skips the sessions still running rather than refusing to do anything: a
+group that is part finished and part alive is the normal case. Unlike `R` on a
+single session, it does not hand you the keyboard afterwards.
+
+Agents can drive all of this over the control socket — see
+[the agent control API](#agent-control-api).
 
 ### Broadcast
 
@@ -258,7 +294,8 @@ terminal shows as *bright* blue. lazyshell resolves the ANSI names first, so
 The remappable action ids are `new_session`, `new_named_session`, `new_session_in_dir`,
 `kill_session`, `delete_session`, `rename_session`, `duplicate_session`,
 `restart_session`, `zoom`, `filter_sessions`, `export_session`,
-`toggle_broadcast`, `jump_next_blocked`, `next_tab`, `prev_tab`,
+`toggle_broadcast`, `jump_next_blocked`, `set_group`, `filter_group`,
+`broadcast_group`, `kill_group`, `restart_group`, `next_tab`, `prev_tab`,
 `toggle_debug`, `select_next`, `select_prev`,
 `cycle_focus`, `help` and `quit`. An id outside
 that list is reported rather than ignored.
@@ -302,6 +339,11 @@ keybindings:
   export_session: "w"
   toggle_broadcast: "b"
   jump_next_blocked: "B"
+  set_group: "g"
+  filter_group: "G"
+  broadcast_group: "A"
+  kill_group: "X"
+  restart_group: "W"
   toggle_debug: F12
   select_next: "j"
   select_prev: "k"
@@ -408,13 +450,33 @@ It is what an "orchestrator" agent needs: list the other sessions, read what
 they printed, start new ones, type into them.
 
 ```sh
-lazyshell ctl list                                # id, name, status, agent state
+lazyshell ctl list                                # id, name, status, agent state, group
+lazyshell ctl list --group agents                 # only that group
 lazyshell ctl read session-2 --tail 40            # plain text, no escape codes
-lazyshell ctl new --name build --cwd ./api --command 'make test'
+lazyshell ctl new --name build --cwd ./api --command 'make test' --group agents
 lazyshell ctl send build 'echo bonjour' --enter   # as if typed
 lazyshell ctl kill build
 lazyshell ctl rename build tests
 ```
+
+Groups (see [Groups](#groups)) are readable and writable from here, which is
+what lets one agent orchestrate several others as a unit:
+
+```sh
+lazyshell ctl group build agents                  # put a session in a group
+lazyshell ctl ungroup build                       # take it back out
+lazyshell ctl group-send agents 'git pull' --enter
+lazyshell ctl group-kill agents
+```
+
+The two fan-out verbs print how many sessions they reached. A group that is
+empty or does not exist is an error, never a silent "0 sessions": a caller
+that typo'd a group name must not be told its kill succeeded.
+`group-send` skips sessions that have already exited.
+
+Restarting a group is deliberately *not* exposed: there is no `restart` verb
+for a single session either, and adding one only for groups would be
+incoherent. It stays the `W` key, in the interface.
 
 A session is named by its id (`session-2`, the value of
 `$LAZYSHELL_SESSION_ID`) or by its exact name. `--json` prints the raw
@@ -482,8 +544,18 @@ env_files:
   - .env
   - .env.local
 
+# Optional: declares the groups this project uses, and — the reason to write
+# this block at all — the order their headers appear in the sessions panel.
+# A session may name a group that is not listed here; it simply sorts after
+# the declared ones.
+groups:
+  - name: services
+  - name: agents
+
 sessions:
   - name: api
+    # Optional: the group this session starts in. Change it later with `g`.
+    group: services
     # Relative to *this file*, not to where you launched lazyshell from.
     # `~` is expanded. Left out, it means this file's own directory.
     cwd: ./services/api
@@ -497,18 +569,25 @@ sessions:
       - .env.api
 
   - name: web
+    group: services
     cwd: ./web
     command: npm run dev
 
-  - name: shell          # no command: a plain shell in the project directory
+  - name: shell          # no group: shown under "ungrouped", at the bottom
 ```
 
 Sessions start in file order, and the first one is selected. An entry that
 does not validate (empty or duplicate `name`, missing `cwd`) is skipped and
-reported in the status bar — the others still start.
+reported in the status bar — the others still start. The same goes for a bad
+`groups:` entry (empty or duplicate `name`): it is dropped and reported, and
+the groups that were fine still apply.
 
-**Only `shell`, `env_files`, `no_default_env` and `sessions` are read from a
-project file.** `theme`, `keybindings`, `prefix_key` and the rest stay under
+A group declares a name and nothing else — no colour, no glyph, no key. That
+is the same rule as the rest of this file: a repository says what exists, not
+what your interface looks like.
+
+**Only `shell`, `env_files`, `no_default_env`, `groups` and `sessions` are
+read from a project file.** `theme`, `keybindings`, `prefix_key` and the rest stay under
 your control alone: a repository you cloned must not be able to remap your
 keyboard. Other keys are ignored, with a warning on stderr.
 

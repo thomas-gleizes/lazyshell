@@ -23,6 +23,7 @@ type fakeHandler struct {
 	sessions []SessionInfo
 	output   string
 	newID    string
+	count    int
 	err      error
 }
 
@@ -39,8 +40,8 @@ func (h *fakeHandler) snapshot() []string {
 	return append([]string(nil), h.calls...)
 }
 
-func (h *fakeHandler) List() []SessionInfo {
-	h.record("list")
+func (h *fakeHandler) List(group string) []SessionInfo {
+	h.record("list %s", group)
 
 	return h.sessions
 }
@@ -51,8 +52,8 @@ func (h *fakeHandler) Read(id string, tail int) (string, error) {
 	return h.output, h.err
 }
 
-func (h *fakeHandler) New(name, cwd, command string) (string, error) {
-	h.record("new %s %s %s", name, cwd, command)
+func (h *fakeHandler) New(spec NewSpec) (string, error) {
+	h.record("new %s %s %s %s", spec.Name, spec.Cwd, spec.Command, spec.Group)
 
 	return h.newID, h.err
 }
@@ -73,6 +74,24 @@ func (h *fakeHandler) Rename(id, name string) error {
 	h.record("rename %s %s", id, name)
 
 	return h.err
+}
+
+func (h *fakeHandler) SetGroup(id, group string) error {
+	h.record("group %s %s", id, group)
+
+	return h.err
+}
+
+func (h *fakeHandler) GroupSend(group, text string) (int, error) {
+	h.record("group-send %s %q", group, text)
+
+	return h.count, h.err
+}
+
+func (h *fakeHandler) GroupKill(group string) (int, error) {
+	h.record("group-kill %s", group)
+
+	return h.count, h.err
 }
 
 // tempSocketPath returns a socket path under a short, explicit temp dir rather
@@ -110,6 +129,7 @@ func TestEveryVerbReachesTheHandlerAndAnswers(t *testing.T) {
 		sessions: []SessionInfo{{ID: "session-1", Name: "chef", Status: "running"}},
 		output:   "bonjour\n",
 		newID:    "session-2",
+		count:    3,
 	}
 	path := startServer(t, h)
 
@@ -154,6 +174,29 @@ func TestEveryVerbReachesTheHandlerAndAnswers(t *testing.T) {
 		{name: "send", req: Request{Verb: VerbSend, ID: "session-1", Text: "echo hi\r"}},
 		{name: "kill", req: Request{Verb: VerbKill, ID: "session-1"}},
 		{name: "rename", req: Request{Verb: VerbRename, ID: "session-1", Name: "chef2"}},
+		{name: "group", req: Request{Verb: VerbGroup, ID: "session-1", Group: "agents"}},
+		{
+			name: "group-send",
+			req:  Request{Verb: VerbGroupSend, Group: "agents", Text: "ls\r"},
+			want: func(r Response) error {
+				if r.Count != 3 {
+					return fmt.Errorf("count = %d, want the handler's 3", r.Count)
+				}
+
+				return nil
+			},
+		},
+		{
+			name: "group-kill",
+			req:  Request{Verb: VerbGroupKill, Group: "agents"},
+			want: func(r Response) error {
+				if r.Count != 3 {
+					return fmt.Errorf("count = %d, want the handler's 3", r.Count)
+				}
+
+				return nil
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -176,12 +219,15 @@ func TestEveryVerbReachesTheHandlerAndAnswers(t *testing.T) {
 	}
 
 	want := []string{
-		"list",
+		"list ",
 		"read session-1 5",
-		"new worker /tmp sleep 1",
+		"new worker /tmp sleep 1 ",
 		`send session-1 "echo hi\r"`,
 		"kill session-1",
 		"rename session-1 chef2",
+		"group session-1 agents",
+		`group-send agents "ls\r"`,
+		"group-kill agents",
 	}
 
 	got := h.snapshot()
@@ -193,6 +239,36 @@ func TestEveryVerbReachesTheHandlerAndAnswers(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("call %d = %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+// Exit code 0 is the answer a caller most often waits for — "did the build
+// pass?" — and it is exactly the value a plain `int` with omitempty throws
+// away. Found by an agent driving the real API, not by the tests, which is why
+// it is pinned at the wire level rather than at the Go one.
+func TestExitCodeZeroSurvivesSerialisation(t *testing.T) {
+	zero, one := 0, 1
+	h := &fakeHandler{sessions: []SessionInfo{
+		{ID: "session-1", Status: "running"},
+		{ID: "session-2", Status: "exited", ExitCode: &zero},
+		{ID: "session-3", Status: "exited", ExitCode: &one},
+	}}
+
+	resp, err := Call(startServer(t, h), Request{Verb: VerbList})
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+
+	if got := resp.Sessions[0].ExitCode; got != nil {
+		t.Errorf("running session reported exit code %d, want none", *got)
+	}
+
+	if got := resp.Sessions[1].ExitCode; got == nil || *got != 0 {
+		t.Errorf("exit code 0 came back as %v, want 0 — success must be distinguishable from \"still running\"", got)
+	}
+
+	if got := resp.Sessions[2].ExitCode; got == nil || *got != 1 {
+		t.Errorf("exit code 1 came back as %v, want 1", got)
 	}
 }
 

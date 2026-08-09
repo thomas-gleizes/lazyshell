@@ -117,11 +117,11 @@ func TestPerfBudgetSessionsPanelContent(t *testing.T) {
 
 	result := testing.Benchmark(func(b *testing.B) {
 		for range b.N {
-			_ = sessionsPanelContent(sessions, testMarkers, "", nil, nil, nil)
+			_ = sessionsPanelContent(sessions, testMarkers, "", nil, nil, nil, 0)
 		}
 	})
 
 	if got := result.NsPerOp(); got > budgetNsOp {
-		t.Errorf("sessionsPanelContent(%d sessions) = %d ns/op, want <= %d ns/op", n, got, budgetNsOp)
+		t.Errorf("sessionsPanelContent(%d sessions, 0) = %d ns/op, want <= %d ns/op", n, got, budgetNsOp)
 	}
 }
