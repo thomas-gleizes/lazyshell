@@ -260,6 +260,13 @@ place, and `lazyshell config show` to print the configuration actually in
 effect — after every layer below has had its say — together with the sources it
 came from. That second command is the answer to "why is my setting not taking".
 
+`lazyshell config edit` opens that file in your editor — `$VISUAL`, else
+`$EDITOR`, else the first of `nano`, `vim`, `vi` that is installed — creating it
+from the commented template first if it does not exist yet. When the editor
+exits, the saved file is re-read and anything wrong with it (an unknown key, an
+out-of-range value, an unparseable keybinding) is reported straight away rather
+than at the next start.
+
 `lazyshell` reads its YAML config file from (first match wins):
 
 1. `$LAZYSHELL_CONFIG`, if set

@@ -54,6 +54,15 @@
   est la réponse à « pourquoi mon réglage ne prend pas ».
 </p>
 
+<p>
+  <code>lazyshell config edit</code> ouvre ce fichier dans votre éditeur — <code>$VISUAL</code>,
+  sinon <code>$EDITOR</code>, sinon le premier de <code>nano</code>, <code>vim</code>,
+  <code>vi</code> qui est installé — en le créant à partir du modèle commenté s'il n'existe pas
+  encore. À la sortie de l'éditeur, le fichier enregistré est relu et tout ce qui cloche (clé
+  inconnue, valeur hors bornes, raccourci illisible) est signalé immédiatement plutôt qu'au
+  prochain démarrage.
+</p>
+
 <h2 id="ou">Où vit le fichier</h2>
 
 <p>lazyshell lit son fichier YAML au premier emplacement trouvé :</p>

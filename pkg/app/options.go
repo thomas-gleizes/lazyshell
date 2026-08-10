@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -66,7 +67,14 @@ const ctlVerbUngroup = "ungroup"
 const (
 	ConfigShow = "show"
 	ConfigInit = "init"
+	// ConfigEdit opens the user configuration in $VISUAL/$EDITOR (falling back
+	// to nano/vim/vi) and reports what lazyshell makes of the saved file.
+	ConfigEdit = "edit"
 )
+
+// configVerbs is what `lazyshell config` accepts, in the order the usage text
+// and the error message list them.
+var configVerbs = []string{ConfigShow, ConfigInit, ConfigEdit}
 
 // Options are the run-time flags.
 type Options struct {
@@ -166,6 +174,8 @@ Usage :
   lazyshell allow [fichier]     approuve un fichier de projet sans rien lancer
   lazyshell config show         affiche la configuration réellement appliquée
   lazyshell config init         écrit une config utilisateur commentée
+  lazyshell config edit         ouvre la config utilisateur dans $EDITOR (à défaut nano/vim/vi),
+                                 la crée si elle n'existe pas, et vérifie le fichier enregistré
   lazyshell hook <état>         signale l'état d'un agent IA (idle/working/blocked/done) —
                                  appelée par la config de hook de l'agent, pas à la main
 
@@ -277,9 +287,9 @@ func ParseArgs(args []string) (Invocation, error) {
 		inv.Arg = ConfigShow
 
 		if len(rest) > 0 {
-			if rest[0] != ConfigShow && rest[0] != ConfigInit {
-				return inv, fmt.Errorf("commande inconnue %q pour config (attendu : %s ou %s)\n\n%s",
-					rest[0], ConfigShow, ConfigInit, usage)
+			if !slices.Contains(configVerbs, rest[0]) {
+				return inv, fmt.Errorf("commande inconnue %q pour config (attendu : %s)\n\n%s",
+					rest[0], strings.Join(configVerbs, ", "), usage)
 			}
 
 			inv.Arg = rest[0]

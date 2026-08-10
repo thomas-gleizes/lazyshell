@@ -268,6 +268,13 @@ vigueur — une fois que chaque couche ci-dessous a eu son mot à dire — avec 
 sources d'où elle vient. Cette seconde commande est la réponse à « pourquoi mon
 réglage n'est-il pas pris en compte ».
 
+`lazyshell config edit` ouvre ce fichier dans votre éditeur — `$VISUAL`, sinon
+`$EDITOR`, sinon le premier de `nano`, `vim`, `vi` qui est installé — en le
+créant à partir du modèle commenté s'il n'existe pas encore. À la sortie de
+l'éditeur, le fichier enregistré est relu et tout ce qui cloche (clé inconnue,
+valeur hors bornes, raccourci illisible) est signalé immédiatement plutôt qu'au
+prochain démarrage.
+
 `lazyshell` lit son fichier YAML depuis (première correspondance gagnante) :
 
 1. `$LAZYSHELL_CONFIG`, s'il est défini

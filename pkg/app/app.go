@@ -59,8 +59,11 @@ func Main(args []string, out io.Writer) error {
 	case CommandAllow:
 		return AllowProject(inv.Arg, out)
 	case CommandConfig:
-		if inv.Arg == ConfigInit {
+		switch inv.Arg {
+		case ConfigInit:
 			return InitUserConfig(config.Path(), out)
+		case ConfigEdit:
+			return EditConfig(config.Path(), out, os.Stderr)
 		}
 
 		return ShowConfig(inv.Options, out, os.Stderr)

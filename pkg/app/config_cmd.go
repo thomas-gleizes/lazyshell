@@ -6,7 +6,9 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -249,4 +251,107 @@ func ShowConfig(opts Options, out, errOut io.Writer) error {
 	}
 
 	return nil
+}
+
+// fallbackEditors are tried, in order, when neither $VISUAL nor $EDITOR says
+// what to open the file with. Kept to editors that are installed by default on
+// a Unix box and that a first-time user can get out of: `vi` is last because it
+// is the one always present, not the one to prefer.
+var fallbackEditors = []string{"nano", "vim", "vi"}
+
+// resolveEditor returns the editor command line, already split into argv.
+//
+// $VISUAL wins over $EDITOR, per the Unix convention: $EDITOR may legitimately
+// be a line editor for a non-interactive terminal, $VISUAL is the full-screen
+// one, and we have a real terminal here.
+//
+// Splitting on whitespace rather than parsing shell syntax is deliberate: it
+// covers what people actually put in these variables (`code -w`, `emacs -nw`)
+// and an editor whose path contains a space is a problem better solved by a
+// wrapper script than by half a shell parser.
+func resolveEditor(lookPath func(string) (string, error)) ([]string, error) {
+	for _, env := range []string{"VISUAL", "EDITOR"} {
+		if argv := strings.Fields(os.Getenv(env)); len(argv) > 0 {
+			return argv, nil
+		}
+	}
+
+	for _, name := range fallbackEditors {
+		if _, err := lookPath(name); err == nil {
+			return []string{name}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("aucun éditeur trouvé : définissez $EDITOR (ou $VISUAL), ou installez l'un de %s",
+		strings.Join(fallbackEditors, ", "))
+}
+
+// EditConfig implements `lazyshell config edit`: open the user configuration in
+// the user's editor, then say what lazyshell makes of what was saved.
+//
+// The check afterwards is the point of having this alongside `config init`.
+// Hand-editing YAML is where typos come from, and lazyshell's own doctrine is
+// that a bad key never stops it from starting — which means the mistake would
+// otherwise surface as a silently ignored setting, much later.
+func EditConfig(path string, out, errOut io.Writer) error {
+	return editConfig(path, out, errOut, exec.LookPath, runEditor)
+}
+
+// editConfig is EditConfig with its outside world injected: the tests need to
+// know which editor would have been run without a process ever being started.
+func editConfig(
+	path string,
+	out, errOut io.Writer,
+	lookPath func(string) (string, error),
+	run func(argv []string) error,
+) error {
+	if path == "" {
+		return errors.New("impossible de résoudre le chemin de la configuration (ni $LAZYSHELL_CONFIG, ni $XDG_CONFIG_HOME, ni un home)")
+	}
+
+	// A fresh install has no file, and dropping someone into an empty buffer
+	// would waste the one thing `config init` is for: the template documents
+	// every option at its default, so editing it beats editing nothing.
+	switch _, err := os.Stat(path); {
+	case errors.Is(err, fs.ErrNotExist):
+		if initErr := InitUserConfig(path, out); initErr != nil {
+			return initErr
+		}
+	case err != nil:
+		return fmt.Errorf("lecture de %s: %w", path, err)
+	}
+
+	argv, err := resolveEditor(lookPath)
+	if err != nil {
+		return err
+	}
+
+	if err := run(append(argv, path)); err != nil {
+		return fmt.Errorf("%s %s: %w", strings.Join(argv, " "), path, err)
+	}
+
+	// Reloaded rather than trusted: this is the same Load the next start would
+	// do, so a file that no longer parses is an error here — the only outcome of
+	// this command that is worth a non-zero exit status.
+	cfg, err := config.Load(path)
+	if err != nil {
+		return err
+	}
+
+	if len(checkConfig(&cfg, errOut)) == 0 && len(cfg.Warnings) == 0 {
+		fmt.Fprintf(out, "%s : aucun problème détecté\n", path)
+	}
+
+	return nil
+}
+
+// runEditor starts the editor on the real terminal. os.Stdin/os.Stdout are
+// wired up directly, not the io.Writer the sub-commands print to: a full-screen
+// editor needs the tty itself, and this command runs before (or instead of)
+// gocui ever taking it over.
+func runEditor(argv []string) error {
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+
+	return cmd.Run()
 }

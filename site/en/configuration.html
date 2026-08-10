@@ -54,6 +54,15 @@
   to "why is my setting not taking".
 </p>
 
+<p>
+  <code>lazyshell config edit</code> opens that file in your editor — <code>$VISUAL</code>, else
+  <code>$EDITOR</code>, else the first of <code>nano</code>, <code>vim</code>, <code>vi</code> that
+  is installed — creating it from the commented template first if it does not exist yet. When the
+  editor exits, the saved file is re-read and anything wrong with it (an unknown key, an
+  out-of-range value, an unparseable keybinding) is reported straight away rather than at the next
+  start.
+</p>
+
 <h2 id="where">Where the file lives</h2>
 
 <p>lazyshell reads its YAML config file from the first match:</p>
