@@ -71,6 +71,8 @@ func Main(args []string, out io.Writer) error {
 		return RunHook(inv.Arg, os.Stderr)
 	case CommandCtl:
 		return RunCtl(inv, out)
+	case CommandUpdate:
+		return RunUpdate(inv.Options, out)
 	}
 
 	return New(inv.Options).Run()

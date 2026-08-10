@@ -54,6 +54,35 @@ cd lazyshell
 make build   # produces ./bin/lazyshell
 ```
 
+### Updating
+
+`lazyshell update` replaces the installed binary with the latest release —
+the same download, checksum check and install `scripts/install.sh` does, from
+inside the binary itself:
+
+```sh
+lazyshell update           # install the latest release
+lazyshell update --check   # only say whether there is a newer one
+```
+
+The new binary is written next to the old one and moved into place in one
+step, so an interrupted update leaves the old version intact, never half of
+either. Running it from inside a running lazyshell is fine — the sessions
+already open keep the version they started with, so restart lazyshell to use
+the new one.
+
+Two cases where it stops and tells you instead:
+
+- The binary's directory is not writable (`/usr/local/bin` usually isn't).
+  Re-run it as `sudo $(command -v lazyshell) update`.
+- The installed version is not a published release — a `go install` from
+  `main`, or a local `make build`. Replacing it with a release would throw
+  away what you built, so it asks for `lazyshell update --force`.
+
+`--force` also reinstalls when you are already up to date. Windows has no
+release build (and no lazyshell), so the command refuses before downloading
+anything.
+
 ## Usage
 
 Run `lazyshell` in a terminal. `Tab` switches focus between the sessions

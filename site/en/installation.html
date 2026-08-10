@@ -40,6 +40,7 @@
     <li><a href="#go-install">With Go</a></li>
     <li><a href="#source">From source</a></li>
     <li><a href="#verify">Verify the install</a></li>
+    <li><a href="#update">Updating</a></li>
   </ul>
 </aside>
 
@@ -121,6 +122,38 @@
   On a first run the interface opens with no sessions at all: <kbd>n</kbd> creates one. If you
   start lazyshell in a repository that carries a <code>lazyshell.yml</code>, it will first ask you
   to approve that file — see <a href="project.html#approval">approving a project file</a>.
+</p>
+
+<h2 id="update">Updating</h2>
+
+<p>
+  <code>lazyshell update</code> replaces the installed binary with the latest release: the same
+  download, checksum check and install as <code>scripts/install.sh</code>, from inside the binary
+  itself.
+</p>
+
+<pre class="term"><code><span class="p">$</span> lazyshell update           <span class="c"># install the latest release</span>
+<span class="p">$</span> lazyshell update --check   <span class="c"># only say whether there is a newer one</span></code></pre>
+
+<p>
+  The new binary is written next to the old one and moved into place in a single step, so an
+  interrupted update leaves the old version intact, never half of either. Running it from inside a
+  running lazyshell is fine — the sessions already open keep the version they started with, so
+  restart lazyshell to use the new one.
+</p>
+
+<p>Two cases where it stops and tells you instead:</p>
+
+<ul>
+  <li>The binary's directory is not writable (<code>/usr/local/bin</code> usually isn't). Re-run it
+    as <code>sudo $(command -v lazyshell) update</code>.</li>
+  <li>The installed version is not a published release — a <code>go install</code> from
+    <code>main</code>, or a local <code>make build</code>. Replacing it with a release would throw
+    away what you built, so it asks for <code>lazyshell update --force</code>.</li>
+</ul>
+
+<p>
+  <code>--force</code> also reinstalls when you are already up to date.
 </p>
 
 <footer class="pagefoot">

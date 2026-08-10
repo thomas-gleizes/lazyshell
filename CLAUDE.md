@@ -75,6 +75,8 @@ pkg/
                   *Logger is the "off" state and every method is nil-safe, which is what lets
                   pkg/gui call gui.debug.Key/Action/Event with no guard at the call site
   config/         user config + project config (`lazyshell.yml`) loading
+  update/         `lazyshell update`: latest GitHub release → download → checksum → atomic
+                  swap of the running binary (the in-binary scripts/install.sh)
   keys/           keybinding definitions
   i18n/           strings/translations
   version/        --version metadata (goreleaser-injected)

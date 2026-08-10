@@ -40,6 +40,7 @@
     <li><a href="#go-install">Avec Go</a></li>
     <li><a href="#sources">Depuis les sources</a></li>
     <li><a href="#verifier">Vérifier l'installation</a></li>
+    <li><a href="#mise-a-jour">Mise à jour</a></li>
   </ul>
 </aside>
 
@@ -122,6 +123,39 @@
   Si vous lancez lazyshell dans un dépôt qui contient un <code>lazyshell.yml</code>, il vous
   demandera d'abord d'approuver ce fichier — voir
   <a href="projet.html#approbation">Approuver un fichier de projet</a>.
+</p>
+
+<h2 id="mise-a-jour">Mise à jour</h2>
+
+<p>
+  <code>lazyshell update</code> remplace le binaire installé par la dernière release : le même
+  téléchargement, la même vérification de somme de contrôle et la même installation que
+  <code>scripts/install.sh</code>, depuis le binaire lui-même.
+</p>
+
+<pre class="term"><code><span class="p">$</span> lazyshell update           <span class="c"># installe la dernière release</span>
+<span class="p">$</span> lazyshell update --check   <span class="c"># dit seulement s'il y en a une plus récente</span></code></pre>
+
+<p>
+  Le nouveau binaire est écrit à côté de l'ancien puis mis en place d'un seul geste : une mise à
+  jour interrompue laisse l'ancienne version intacte, jamais une moitié de l'une ou de l'autre.
+  Lancer la commande depuis un lazyshell en cours ne pose pas de problème — les sessions déjà
+  ouvertes gardent la version avec laquelle elles ont démarré, donc relancez lazyshell pour
+  utiliser la nouvelle.
+</p>
+
+<p>Deux cas où elle s'arrête en le disant plutôt qu'en agissant :</p>
+
+<ul>
+  <li>Le dossier du binaire n'est pas modifiable (c'est le cas de <code>/usr/local/bin</code> en
+    général). Relancez avec <code>sudo $(command -v lazyshell) update</code>.</li>
+  <li>La version installée n'est pas une release publiée — un <code>go install</code> depuis
+    <code>main</code>, ou un <code>make build</code> local. La remplacer par une release jetterait
+    ce que vous avez compilé, donc elle demande <code>lazyshell update --force</code>.</li>
+</ul>
+
+<p>
+  <code>--force</code> réinstalle aussi quand vous êtes déjà à jour.
 </p>
 
 <footer class="pagefoot">

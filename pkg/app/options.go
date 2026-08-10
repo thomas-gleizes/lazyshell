@@ -28,6 +28,10 @@ const (
 	// the calling session — the command an agent's own hook config runs, over
 	// $LAZYSHELL_SOCK. See pkg/hook and pkg/app/hook.go.
 	CommandHook = "hook"
+	// CommandUpdate replaces the running binary with the latest GitHub
+	// release — the in-binary equivalent of scripts/install.sh. See
+	// pkg/update and pkg/app/update_cmd.go.
+	CommandUpdate = "update"
 	// CommandCtl drives a running lazyshell over the agent control socket:
 	// list/read/new/send/kill/rename plus the group verbs, in
 	// Invocation.CtlVerb. Only works when
@@ -99,6 +103,14 @@ type Options struct {
 	// NoEnvFile is --no-env-file: skip the automatic "<cwd>/.env" lookup
 	// entirely, for every session this run creates.
 	NoEnvFile bool
+	// Check is `update --check`: report what the latest release is and stop,
+	// without downloading or replacing anything. Meaningless outside
+	// CommandUpdate, so checked only there — same as Agents above.
+	Check bool
+	// Force is `update --force`: install the latest release even when the
+	// installed version is not older than it, or is not a published version at
+	// all (a binary built from source).
+	Force bool
 	// Debug is --debug: record every keystroke, action and lifecycle event to
 	// config.DebugLogPath() and show the last of them in a floating panel over
 	// the output panel (F12 toggles it). Off by default and deliberately not a
@@ -178,6 +190,8 @@ Usage :
                                  la crée si elle n'existe pas, et vérifie le fichier enregistré
   lazyshell hook <état>         signale l'état d'un agent IA (idle/working/blocked/done) —
                                  appelée par la config de hook de l'agent, pas à la main
+  lazyshell update              remplace le binaire installé par la dernière release
+  lazyshell update --check      dit s'il y a une mise à jour, sans rien installer
 
 Pilotage d'un lazyshell en cours (nécessite control.enabled dans la config) :
   lazyshell ctl list [--group G]            liste les sessions
@@ -213,6 +227,10 @@ Options :
       --env-file <fichier>      charge un fichier .env supplémentaire (répétable, le dernier gagne)
       --no-env-file             ne charge pas automatiquement le .env du dossier courant
       --agents                  avec init : affiche la config de hooks au lieu du fichier de projet
+      --check                   avec update : ne fait que signaler une mise à jour disponible
+      --force                   avec update : installe la dernière release même si rien de plus
+                                 récent n'est disponible, ou si le binaire vient d'une compilation
+                                 locale
       --debug                   journalise touches, actions et évènements et affiche un panneau
                                  de debug (F12 pour le masquer)
       --version                 affiche la version et quitte
@@ -228,7 +246,7 @@ func ParseArgs(args []string) (Invocation, error) {
 	// to the sub-command or to a preceding flag.
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		switch args[0] {
-		case CommandInit, CommandAllow, CommandConfig, CommandHook, CommandCtl:
+		case CommandInit, CommandAllow, CommandConfig, CommandHook, CommandCtl, CommandUpdate:
 			inv.Command = args[0]
 			args = args[1:]
 		default:
@@ -254,6 +272,8 @@ func ParseArgs(args []string) (Invocation, error) {
 	fs.BoolVar(&inv.NoEnvFile, "no-env-file", false, "ne charge pas automatiquement le .env du dossier courant")
 	fs.BoolVar(&inv.Version, "version", false, "affiche la version et quitte")
 	fs.BoolVar(&inv.Agents, "agents", false, "avec init : affiche la config de hooks des agents IA")
+	fs.BoolVar(&inv.Check, "check", false, "avec update : indique s'il y a une mise à jour sans l'installer")
+	fs.BoolVar(&inv.Force, "force", false, "avec update : installe même si rien de plus récent n'est disponible")
 	fs.BoolVar(&inv.Debug, "debug", false, "journalise touches et actions dans un fichier et un panneau")
 
 	if err := fs.Parse(args); err != nil {

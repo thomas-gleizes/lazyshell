@@ -54,6 +54,36 @@ cd lazyshell
 make build   # produit ./bin/lazyshell
 ```
 
+### Mise à jour
+
+`lazyshell update` remplace le binaire installé par la dernière release — le
+même téléchargement, la même vérification de somme de contrôle et la même
+installation que `scripts/install.sh`, depuis le binaire lui-même :
+
+```sh
+lazyshell update           # installe la dernière release
+lazyshell update --check   # dit seulement s'il y en a une plus récente
+```
+
+Le nouveau binaire est écrit à côté de l'ancien puis mis en place d'un seul
+geste : une mise à jour interrompue laisse l'ancienne version intacte, jamais
+une moitié de l'une ou de l'autre. Lancer la commande depuis un lazyshell en
+cours ne pose pas de problème — les sessions déjà ouvertes gardent la version
+avec laquelle elles ont démarré, donc relancez lazyshell pour utiliser la
+nouvelle.
+
+Deux cas où elle s'arrête en le disant plutôt qu'en agissant :
+
+- Le dossier du binaire n'est pas modifiable (c'est le cas de `/usr/local/bin`
+  en général). Relancez avec `sudo $(command -v lazyshell) update`.
+- La version installée n'est pas une release publiée — un `go install` depuis
+  `main`, ou un `make build` local. La remplacer par une release jetterait ce
+  que vous avez compilé, donc elle demande `lazyshell update --force`.
+
+`--force` réinstalle aussi quand vous êtes déjà à jour. Windows n'a pas de
+build de release (ni de lazyshell) : la commande refuse avant tout
+téléchargement.
+
 ## Utilisation
 
 Lancer `lazyshell` dans un terminal. `Tab` change le panneau actif entre la liste
