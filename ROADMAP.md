@@ -68,10 +68,10 @@ alterné (`vim`, `htop`) tient la session.
 
 ## 4. Watchers de motifs par session
 
-**Statut : idée**
+**Statut : fait** — [ADR 0009](docs/adr/0009-watchers-de-motifs-par-session.md)
 
 Généralisation de la notification agent aux sessions ordinaires : un serveur de dev qui casse dans
-une session cachée ne se signale aujourd'hui que par un `●`.
+une session cachée ne se signalait jusque-là que par un `●`.
 
 ```yaml
 sessions:
@@ -81,11 +81,13 @@ sessions:
         notify: true
 ```
 
-- Plus une touche pour armer un motif à la volée sur la session sélectionnée.
-- Réutilise le canal de notification existant (OSC 9 / 777 + `notify.fallback_command`).
-- Question ouverte : anti-rebond (un motif qui matche 200 lignes ne doit pas produire 200 notifs).
-- Note : `watch` dans un fichier projet reste dans la doctrine de la liste blanche de
-  `ProjectConfig` (ça décrit ce qui existe, pas l'apparence de l'interface) — à confirmer au design.
+La touche `v` arme un motif à la volée sur la session sélectionnée, en plus de ce que
+`lazyshell.yml` a déjà déclaré pour elle ; un motif vide désarme. Réutilise le canal de
+notification existant (OSC 9 / 777 + `notify.fallback_command`). L'anti-rebond que cette entrée
+signalait comme non tranché est résolu par un plafond de 3 secondes par motif armé (Décision 3 de
+l'ADR) ; le tap sur la sortie brute est partagé avec la détection d'agent (Décision 1), et
+`watch:` dans un fichier projet suit la doctrine de liste blanche de `ProjectConfig` comme
+`groups:` (Décision 5).
 
 ## 5. `restart: on-failure` dans le fichier projet
 

@@ -105,6 +105,10 @@ var messages = map[string]map[string]string{
 		"fr": "Copier la sortie de la dernière commande",
 		"en": "Copy the last command's output",
 	},
+	"action.arm_watch": {
+		"fr": "Armer/désarmer un motif de veille",
+		"en": "Arm/disarm a watch pattern",
+	},
 	"action.set_group": {
 		"fr": "Affecter la session à un groupe",
 		"en": "Assign the session to a group",
@@ -333,6 +337,10 @@ var messages = map[string]map[string]string{
 		"fr": "%s : commande en échec (%d)",
 		"en": "%s: command failed (%d)",
 	},
+	"notify.watch_match": {
+		"fr": "%s : motif « %s » repéré : %s",
+		"en": "%s: pattern %q matched: %s",
+	},
 
 	"welcome.empty": {
 		"fr": "Aucune session ouverte.",
@@ -413,6 +421,10 @@ var messages = map[string]map[string]string{
 	"prompt.new_group": {
 		"fr": "nouveau groupe",
 		"en": "new group",
+	},
+	"prompt.watch_pattern": {
+		"fr": "motif de veille (vide pour désarmer)",
+		"en": "watch pattern (empty to disarm)",
 	},
 	"group_picker.title": {
 		"fr": " groupe de la session ",

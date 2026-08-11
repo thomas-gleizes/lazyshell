@@ -218,6 +218,31 @@ lazyshell ctl group-kill agents</code></pre>
   fires this second notification on top of its own.
 </p>
 
+<h2 id="watchers">Pattern watchers</h2>
+
+<p>
+  Pattern watchers generalize that idea to <em>any</em> session: a regex evaluated against every
+  output line, on top of exit-code detection rather than replacing it — useful for a dev server
+  that logs an error and keeps running, rather than exiting. Declare them in a project file:
+</p>
+
+<pre><code>sessions:
+  - name: api
+    watch:
+      - pattern: "ERR!"
+        notify: true
+</code></pre>
+
+<p>
+  or arm one on the fly on the selected session with <kbd>v</kbd> — a single, replaceable pattern
+  per session, on top of whatever the project file already declared for it; submitting an empty
+  pattern disarms it. Either way, a match notifies through the same OSC/fallback-command channel
+  as everything above, at most once every 3 seconds per pattern — a log spraying the same match
+  200 times in a burst still fires one notification, not 200. Matching is against the visible text
+  (escape codes stripped) and pauses while a full-screen application (<code>vim</code>,
+  <code>htop</code>) holds the session, the same alt-screen rule OSC 133 already follows.
+</p>
+
 <h2 id="stats">Turn duration and stats</h2>
 
 <p>

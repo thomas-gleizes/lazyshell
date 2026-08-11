@@ -89,6 +89,11 @@ func autostart(sessions *session.Manager, pcfg config.ProjectConfig, shell strin
 	specs, errs := pcfg.Validate()
 
 	for _, spec := range specs {
+		watch := make([]session.WatchSpec, len(spec.Watch))
+		for i, w := range spec.Watch {
+			watch[i] = session.WatchSpec{Pattern: w.Pattern, Notify: w.Notify}
+		}
+
 		if _, err := sessions.NewWithOptions(session.Options{
 			Name:             spec.Name,
 			Group:            spec.Group,
@@ -98,6 +103,7 @@ func autostart(sessions *session.Manager, pcfg config.ProjectConfig, shell strin
 			EnvFiles:         spec.EnvFiles,
 			NoDefaultEnvFile: spec.NoDefaultEnv,
 			Command:          spec.Command,
+			Watch:            watch,
 		}); err != nil {
 			errs = append(errs, err)
 		}

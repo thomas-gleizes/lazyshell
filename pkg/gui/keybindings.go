@@ -386,6 +386,18 @@ func (gui *Gui) staticBindings() []Binding {
 			Description: gui.tr.T("action.copy_last_output"),
 			Enabled:     hasSelectedSession,
 		},
+		// Pattern watchers (ROADMAP.md "Watchers de motifs par session",
+		// ADR 0009): arms a regex on the selected session's output, on top
+		// of whatever lazyshell.yml's own `watch:` already declares for it.
+		{
+			ViewName:    sessionsViewName,
+			Action:      "arm_watch",
+			Key:         'v',
+			Modifier:    gocui.ModNone,
+			Handler:     gui.armWatchPattern,
+			Description: gui.tr.T("action.arm_watch"),
+			Enabled:     hasSelectedSession,
+		},
 		// Global, and declared whether or not --debug was given: bindings() has
 		// to be a constant list, since the help popup, knownActions() and the
 		// README doc-tests all read it. Enabled is what keeps it out of the

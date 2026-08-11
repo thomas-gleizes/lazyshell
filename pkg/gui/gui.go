@@ -275,6 +275,12 @@ type Gui struct {
 	// "state" to compare, just "did seq change since we last looked".
 	notifiedCommandExit map[string]int64
 
+	// notifiedWatch is the last pattern-watch hit seq a notification was
+	// fired for, per session id (pkg/gui/notify.go's
+	// checkWatchNotifications) — same shape as notifiedCommandExit, for the
+	// same reason: a hit has no "state", just a seq to compare.
+	notifiedWatch map[string]uint64
+
 	// statsSessionID/statsLine/statsCheckedAt cache AgentStatsCommand's last
 	// output (pkg/gui/stats.go): which session it was computed for, the
 	// trimmed first line of its stdout, and when — refreshAgentStats' own
@@ -575,6 +581,7 @@ func (gui *Gui) Run() (err error) {
 	gui.goEvery(gui.tick(), func() error {
 		_ = gui.checkAgentNotifications()
 		_ = gui.checkCommandExitNotifications()
+		_ = gui.checkWatchNotifications()
 		_ = gui.watchSelectedExit()
 		gui.updateWindowTitle()
 

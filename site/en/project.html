@@ -96,6 +96,10 @@ sessions:
     # Optional: on top of env_files above, for this session only.
     env_files:
       - .env.api
+    # Optional: notify when a line matches. Toggle one on the fly with `v`.
+    watch:
+      - pattern: "ERR!"
+        notify: true
 
   - name: web
     group: services
@@ -123,7 +127,8 @@ sessions:
   </p>
   <p>
     A group declares a name and nothing else — no colour, no glyph, no key. Same rule: a repository
-    says what exists, not what your interface looks like.
+    says what exists, not what your interface looks like. A session's <code>watch:</code> entries
+    follow it too — a pattern and whether it notifies, nothing about how a match is shown.
   </p>
 </div>
 

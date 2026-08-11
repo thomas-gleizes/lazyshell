@@ -135,6 +135,76 @@ func (gui *Gui) notifyCommandExit(sess *session.Session, code int) {
 	oscNotifyWrite(msg)
 }
 
+// checkWatchNotifications scans every session for a fresh WatchHit (per
+// pkg/session's LastWatchHit) and fires one notification per notify-eligible
+// hit — never a repeat for the same hit, keyed on seq rather than the match
+// itself for the same reason checkCommandExitNotifications is: two
+// consecutive matches of the same pattern still deserve their own
+// notification, seq is what tells them apart.
+//
+// Runs on the same shared tick as the other two checks, for the same reason:
+// it must fire even on a renderSessionsPanel tick skipped by that function's
+// own content-diffing.
+func (gui *Gui) checkWatchNotifications() error {
+	for _, sess := range gui.sessions.List() {
+		hit, ok := sess.LastWatchHit()
+		if !ok {
+			continue
+		}
+
+		gui.mu.Lock()
+		last, seen := gui.notifiedWatch[sess.ID]
+		if gui.notifiedWatch == nil {
+			gui.notifiedWatch = map[string]uint64{}
+		}
+		gui.notifiedWatch[sess.ID] = hit.Seq
+		gui.mu.Unlock()
+
+		if seen && last == hit.Seq {
+			continue
+		}
+
+		if hit.Notify {
+			gui.notifyWatchHit(sess, hit)
+		}
+	}
+
+	return nil
+}
+
+// notifyWatchHit fires the desktop notification for sess's watch hit — same
+// either/or shape (OSC, or the configured fallback command) as
+// notifyAgentState/notifyCommandExit.
+func (gui *Gui) notifyWatchHit(sess *session.Session, hit session.WatchHit) {
+	msg := gui.tr.T("notify.watch_match", sess.Name(), hit.Pattern, truncateWatchLine(hit.Line))
+
+	if gui.notifyFallback != "" {
+		go runNotifyFallback(gui.notifyFallback, msg)
+
+		return
+	}
+
+	oscNotifyWrite(msg)
+}
+
+// watchLineNotifyMax bounds how much of a matched line notifyWatchHit
+// includes in its message — a build log's offending line can be arbitrarily
+// long, and an OSC payload (or a fallback command's argv, depending on what
+// it does with stdin) is not the place for it.
+const watchLineNotifyMax = 80
+
+// truncateWatchLine shortens line to watchLineNotifyMax runes, marking the
+// cut with "…" so the message never claims to be the whole line when it
+// is not.
+func truncateWatchLine(line string) string {
+	r := []rune(line)
+	if len(r) <= watchLineNotifyMax {
+		return line
+	}
+
+	return string(r[:watchLineNotifyMax]) + "…"
+}
+
 // oscNotifyWrite writes msg to the host terminal via OSC 9 and OSC 777 —
 // both, unconditionally: an OSC code a terminal does not understand is
 // simply ignored, so sending both reaches more terminals than guessing

@@ -393,7 +393,7 @@ Les identifiants d'action remappables sont `new_session`, `new_named_session`, `
 `kill_session`, `delete_session`, `rename_session`, `duplicate_session`,
 `restart_session`, `zoom`, `filter_sessions`, `export_session`,
 `toggle_broadcast`, `jump_next_blocked`, `jump_prev_prompt`, `jump_next_prompt`,
-`copy_last_output`, `next_tab`, `prev_tab`,
+`copy_last_output`, `arm_watch`, `next_tab`, `prev_tab`,
 `toggle_debug`, `select_next`, `select_prev`,
 `cycle_focus`, `help` et `quit`. Un identifiant hors de cette liste est signalé
 plutôt qu'ignoré.
@@ -440,6 +440,7 @@ keybindings:
   jump_prev_prompt: "{"
   jump_next_prompt: "}"
   copy_last_output: "Y"
+  arm_watch: "v"
   toggle_debug: F12
   select_next: "j"
   select_prev: "k"
@@ -619,6 +620,30 @@ qu'un build ou un script long n'ait pas besoin d'être surveillé pour savoir
 qu'il a échoué. Une session d'agent ne déclenche jamais cette seconde
 notification en plus de la sienne.
 
+**Les watchers de motifs** généralisent l'idée à n'importe quelle session : un
+motif regex évalué sur chaque ligne de sortie, en plus de la détection par
+code de sortie et non à sa place — utile pour un serveur de dev qui logue une
+erreur sans pour autant se terminer. Déclarés dans un fichier de projet :
+
+```yaml
+sessions:
+  - name: api
+    watch:
+      - pattern: "ERR!"
+        notify: true
+```
+
+ou armés à la volée sur la session sélectionnée avec `v` — un seul motif
+remplaçable par session, en plus de ce que le fichier de projet a déjà
+déclaré pour elle ; soumettre un motif vide le désarme. Dans les deux cas, une
+correspondance notifie par le même canal OSC/commande de secours que le
+reste ci-dessus, au plus une fois toutes les 3 secondes par motif — un log
+qui répète la même correspondance 200 fois dans une rafale ne déclenche
+qu'une seule notification, pas 200. La correspondance se fait sur le texte
+visible (séquences d'échappement retirées) et se suspend tant qu'une
+application plein écran (`vim`, `htop`) tient la session, la même règle
+d'écran alterné que suit déjà OSC 133.
+
 Une session en plein tour (`working`) affiche depuis combien de temps son tour
 tourne dans la liste des sessions, par exemple `⏱ 1m32s`. Définir
 `agent_stats_command` lance cette commande pour la session *sélectionnée*
@@ -674,6 +699,10 @@ sessions:
     # Optionnel : en plus des env_files ci-dessus, pour cette session seulement.
     env_files:
       - .env.api
+    # Optionnel : notifie quand une ligne correspond. `v` en arme un à la volée.
+    watch:
+      - pattern: "ERR!"
+        notify: true
 
   - name: web
     group: services
@@ -691,7 +720,9 @@ elle est écartée et signalée, et les groupes corrects s'appliquent quand mêm
 
 Un groupe déclare un nom et rien d'autre — pas de couleur, pas de glyphe, pas de
 touche. C'est la même règle que pour le reste de ce fichier : un dépôt dit ce
-qui existe, pas à quoi ressemble votre interface.
+qui existe, pas à quoi ressemble votre interface. Les entrées `watch:` d'une
+session suivent la même règle : un motif et s'il notifie, rien sur comment
+une correspondance s'affiche.
 
 **Seuls `shell`, `env_files`, `no_default_env`, `groups` et `sessions` sont lus
 depuis un fichier de projet.** `theme`, `keybindings`, `prefix_key` et le reste restent

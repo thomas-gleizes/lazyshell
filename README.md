@@ -383,7 +383,7 @@ The remappable action ids are `new_session`, `new_named_session`, `new_session_i
 `kill_session`, `delete_session`, `rename_session`, `duplicate_session`,
 `restart_session`, `zoom`, `filter_sessions`, `export_session`,
 `toggle_broadcast`, `jump_next_blocked`, `jump_prev_prompt`, `jump_next_prompt`,
-`copy_last_output`, `set_group`, `filter_group`,
+`copy_last_output`, `arm_watch`, `set_group`, `filter_group`,
 `broadcast_group`, `kill_group`, `restart_group`, `next_tab`, `prev_tab`,
 `toggle_debug`, `select_next`, `select_prev`,
 `cycle_focus`, `help` and `quit`. An id outside
@@ -431,6 +431,7 @@ keybindings:
   jump_prev_prompt: "{"
   jump_next_prompt: "}"
   copy_last_output: "Y"
+  arm_watch: "v"
   set_group: "g"
   filter_group: "G"
   broadcast_group: "A"
@@ -612,6 +613,29 @@ A non-agent session notifies the same way when its last command — per
 build or a long-running script does not need to be watched to know it failed.
 An agent session never fires this second notification on top of its own.
 
+**Pattern watchers** generalize that idea to any session: a regex evaluated
+against every output line, on top of exit-code detection rather than
+replacing it — useful for a dev server that logs an error and keeps running,
+rather than exiting. Declare them in a project file:
+
+```yaml
+sessions:
+  - name: api
+    watch:
+      - pattern: "ERR!"
+        notify: true
+```
+
+or arm one on the fly on the selected session with `v` — a single,
+replaceable pattern per session, on top of whatever the project file already
+declared for it; submitting an empty pattern disarms it. Either way, a match
+notifies through the same OSC/fallback-command channel as everything else
+above, at most once every 3 seconds per pattern — a log spraying the same
+match 200 times in a burst still fires one notification, not 200.
+Matching is against the visible text (escape codes stripped) and pauses
+while a full-screen application (`vim`, `htop`) holds the session, the same
+alt-screen rule OSC 133 already follows.
+
 A session currently mid-turn (`working`) shows how long its turn has been
 running in the sessions list, e.g. `⏱ 1m32s`. Setting `agent_stats_command`
 runs that command for the *selected* session only (at most once every 5
@@ -665,6 +689,10 @@ sessions:
     # Optional: on top of env_files above, for this session only.
     env_files:
       - .env.api
+    # Optional: notify when a line matches. Toggle one on the fly with `v`.
+    watch:
+      - pattern: "ERR!"
+        notify: true
 
   - name: web
     group: services
@@ -682,7 +710,8 @@ the groups that were fine still apply.
 
 A group declares a name and nothing else — no colour, no glyph, no key. That
 is the same rule as the rest of this file: a repository says what exists, not
-what your interface looks like.
+what your interface looks like. A session's `watch:` entries follow it too —
+a pattern and whether it notifies, nothing about how a match is shown.
 
 **Only `shell`, `env_files`, `no_default_env`, `groups` and `sessions` are
 read from a project file.** `theme`, `keybindings`, `prefix_key` and the rest stay under

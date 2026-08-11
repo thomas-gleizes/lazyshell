@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -86,6 +87,17 @@ type SessionSpec struct {
 	// NoDefaultEnv overrides the project's NoDefaultEnv for this session
 	// only. Nil means "use the project's setting".
 	NoDefaultEnv *bool `yaml:"no_default_env"`
+	// Watch declares this session's pattern watchers: a regex evaluated
+	// against each output line, and whether a match notifies. Same
+	// GroupSpec precedent as the rest of this file — what exists, not what
+	// the interface looks like.
+	Watch []WatchSpec `yaml:"watch"`
+}
+
+// WatchSpec is one pattern watcher, as written in the file.
+type WatchSpec struct {
+	Pattern string `yaml:"pattern"`
+	Notify  bool   `yaml:"notify"`
 }
 
 // ResolvedSession is a SessionSpec that passed validation, with its working
@@ -104,6 +116,10 @@ type ResolvedSession struct {
 	// NoDefaultEnv is the session's NoDefaultEnv if set, else the project's.
 	// Nil means neither said anything — defer to the Manager's own setting.
 	NoDefaultEnv *bool
+	// Watch is the session's pattern watchers, already checked for a valid
+	// regexp — see Validate, which drops (and reports) any entry that fails
+	// to compile rather than letting a typo cost the whole session.
+	Watch []WatchSpec
 }
 
 // ProjectPath resolves which project file to read: the --config-file flag, then
@@ -241,6 +257,9 @@ func (p ProjectConfig) Validate() ([]ResolvedSession, []error) {
 			noDefaultEnv = p.NoDefaultEnv
 		}
 
+		watch, watchErrs := validateWatch(name, spec.Watch)
+		errs = append(errs, watchErrs...)
+
 		seen[name] = true
 		resolved = append(resolved, ResolvedSession{
 			Name:         name,
@@ -250,10 +269,34 @@ func (p ProjectConfig) Validate() ([]ResolvedSession, []error) {
 			Env:          spec.Env,
 			EnvFiles:     resolveEnvFilePaths(dir, append(append([]string{}, p.EnvFiles...), spec.EnvFiles...)),
 			NoDefaultEnv: noDefaultEnv,
+			Watch:        watch,
 		})
 	}
 
 	return resolved, errs
+}
+
+// validateWatch compile-checks each of a session's declared watchers. An
+// invalid pattern is dropped and reported, exactly like a bad group entry —
+// it costs only that one watcher, never the session it belongs to or the
+// other watchers declared alongside it.
+func validateWatch(sessionName string, specs []WatchSpec) ([]WatchSpec, []error) {
+	var (
+		valid []WatchSpec
+		errs  []error
+	)
+
+	for _, spec := range specs {
+		if _, err := regexp.Compile(spec.Pattern); err != nil {
+			errs = append(errs, fmt.Errorf("session %q: motif de veille %q invalide: %w", sessionName, spec.Pattern, err))
+
+			continue
+		}
+
+		valid = append(valid, spec)
+	}
+
+	return valid, errs
 }
 
 // ResolvedGroups returns the declared group names, trimmed, in declaration

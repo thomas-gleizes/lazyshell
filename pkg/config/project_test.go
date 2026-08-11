@@ -376,6 +376,54 @@ func TestValidateCarriesEnvAndCommand(t *testing.T) {
 	}
 }
 
+func TestValidateCarriesWatch(t *testing.T) {
+	pcfg := ProjectConfig{
+		Path: filepath.Join(t.TempDir(), "lazyshell.yml"),
+		Sessions: []SessionSpec{{
+			Name:  "api",
+			Watch: []WatchSpec{{Pattern: "ERR!", Notify: true}},
+		}},
+	}
+
+	valid, errs := pcfg.Validate()
+	if len(errs) != 0 {
+		t.Fatalf("errs = %v, want none", errs)
+	}
+	if len(valid) != 1 || len(valid[0].Watch) != 1 {
+		t.Fatalf("valid = %+v, want one session carrying one watch entry", valid)
+	}
+	if valid[0].Watch[0] != (WatchSpec{Pattern: "ERR!", Notify: true}) {
+		t.Errorf("valid[0].Watch[0] = %+v, want {ERR! true}", valid[0].Watch[0])
+	}
+}
+
+// A bad regexp costs only that one watcher — the session it belongs to, and
+// any other watcher declared alongside it, still start. Same "one bad entry
+// must never cost the rest" doctrine as a bad groups: entry.
+func TestValidateDropsInvalidWatchPattern(t *testing.T) {
+	pcfg := ProjectConfig{
+		Path: filepath.Join(t.TempDir(), "lazyshell.yml"),
+		Sessions: []SessionSpec{{
+			Name: "api",
+			Watch: []WatchSpec{
+				{Pattern: "[", Notify: true},
+				{Pattern: "ERR!", Notify: true},
+			},
+		}},
+	}
+
+	valid, errs := pcfg.Validate()
+	if len(errs) != 1 {
+		t.Fatalf("errs = %v, want exactly one (the invalid pattern)", errs)
+	}
+	if len(valid) != 1 {
+		t.Fatalf("len(valid) = %d, want 1: a bad watch entry must not cost the session", len(valid))
+	}
+	if len(valid[0].Watch) != 1 || valid[0].Watch[0].Pattern != "ERR!" {
+		t.Errorf("valid[0].Watch = %+v, want only the valid entry to survive", valid[0].Watch)
+	}
+}
+
 // A project file declares its groups and assigns sessions to them. The group
 // is trimmed and carried onto the ResolvedSession, and `groups:` fixes the
 // display order.

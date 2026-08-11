@@ -57,6 +57,9 @@ sessions:
     #   - .env.api            # cette session seulement
     # no_default_env: false  # optionnel — recharge le ".env" auto même si le
     #                        # projet l'a désactivé plus haut
+    # watch:                 # optionnel — motif surveillé dans la sortie ;
+    #   - pattern: "ERR!"     # une notification (touche 'v' pour un motif
+    #     notify: true        # ponctuel sur la session sélectionnée)
 
   - name: shell            # sans command : un simple shell dans le cwd
 `

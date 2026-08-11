@@ -143,6 +143,19 @@ type Session struct {
 	done chan struct{}
 
 	killOnce sync.Once
+
+	// watchMu guards every field below — kept separate from mu rather than
+	// folded into it, unlike agentState and its neighbours: these are touched
+	// on every drain chunk (feedWatch, the hottest path in the process) and
+	// must never contend with a rename or group reassignment made from the
+	// GUI goroutine. See watch.go.
+	watchMu      sync.Mutex
+	watchers     []*watch // from Options.Watch, fixed at creation
+	runtimeWatch *watch   // armed via ArmWatch, nil when none
+	lineBuf      []byte
+	wasAltScreen bool
+	watchSeq     uint64
+	lastWatchHit WatchHit
 }
 
 // Name reports the session's current display name.
@@ -313,19 +326,22 @@ func (s *Session) Resize(cols, rows int) error {
 	return nil
 }
 
-// agentEvalWriter forwards to a Session's screen, then triggers a throttled
-// AI agent state re-check — the drain loop's only extra step over a plain
-// io.Copy(s.screen, s.ptmx), and kept as a separate io.Writer specifically so
-// drain can still hand io.Copy the exact destination shape it had before
-// (see the comment on io.Copy(agentEvalWriter{s}, s.ptmx) in drain).
-type agentEvalWriter struct {
+// sessionTapWriter forwards to a Session's screen, then runs the drain
+// loop's two per-chunk side effects on the same bytes — a throttled AI agent
+// state re-check and pattern-watcher line matching (watch.go) — the only
+// extra steps over a plain io.Copy(s.screen, s.ptmx), and kept as a separate
+// io.Writer specifically so drain can still hand io.Copy the exact
+// destination shape it had before (see the comment on
+// io.Copy(sessionTapWriter{s}, s.ptmx) in drain).
+type sessionTapWriter struct {
 	s *Session
 }
 
-func (w agentEvalWriter) Write(p []byte) (int, error) {
+func (w sessionTapWriter) Write(p []byte) (int, error) {
 	n, err := w.s.screen.Write(p)
 	if n > 0 {
 		w.s.evaluateAgentState()
+		w.s.feedWatch(p[:n])
 	}
 
 	return n, err
@@ -350,15 +366,15 @@ func (s *Session) drain() {
 	// Runs until the pty goes away: either the shell exited on its own, or
 	// Kill closed s.ptmx to force this Read to return.
 	//
-	// Written through agentEvalWriter rather than s.screen directly, so this
+	// Written through sessionTapWriter rather than s.screen directly, so this
 	// stays exactly io.Copy(s.screen, s.ptmx) in every way that matters — same
 	// WriteTo/ReadFrom fast-path selection *os.File already gets — while
 	// still getting a callback after each chunk actually reaches the screen,
-	// which is what evaluateAgentState needs. A hand-rolled Read/Write loop
-	// here instead of io.Copy was tried first and changed the timing enough
-	// to break an existing scrollback test — io.Copy's fast path
+	// which is what evaluateAgentState and feedWatch need. A hand-rolled
+	// Read/Write loop here instead of io.Copy was tried first and changed the
+	// timing enough to break an existing scrollback test — io.Copy's fast path
 	// (ptmx.WriteTo, not the generic buffered copy) turned out to matter.
-	_, _ = io.Copy(agentEvalWriter{s}, s.ptmx)
+	_, _ = io.Copy(sessionTapWriter{s}, s.ptmx)
 
 	// Nothing will write to s.screen again; release the answer-reader
 	// goroutine explicitly, or it leaks for the rest of the process — this is

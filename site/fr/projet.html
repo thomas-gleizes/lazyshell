@@ -97,6 +97,10 @@ sessions:
     # Optionnel : en plus des env_files ci-dessus, pour cette session seulement.
     env_files:
       - .env.api
+    # Optionnel : notifie quand une ligne correspond. « v » en arme un à la volée.
+    watch:
+      - pattern: "ERR!"
+        notify: true
 
   - name: web
     group: services
@@ -126,7 +130,9 @@ sessions:
   </p>
   <p>
     Un groupe déclare un nom et rien d'autre — pas de couleur, pas de glyphe, pas de touche. Même
-    règle : un dépôt dit ce qui existe, pas à quoi ressemble votre interface.
+    règle : un dépôt dit ce qui existe, pas à quoi ressemble votre interface. Les entrées
+    <code>watch:</code> d'une session la suivent aussi : un motif et s'il notifie, rien sur la
+    façon dont une correspondance s'affiche.
   </p>
 </div>
 

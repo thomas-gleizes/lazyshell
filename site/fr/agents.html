@@ -226,6 +226,33 @@ lazyshell ctl group-kill agents</code></pre>
   ne déclenche jamais cette seconde notification en plus de la sienne.
 </p>
 
+<h2 id="watchers">Watchers de motifs</h2>
+
+<p>
+  Les watchers de motifs généralisent l'idée à n'importe quelle session : un motif regex évalué
+  sur chaque ligne de sortie, en plus de la détection par code de sortie et non à sa place — utile
+  pour un serveur de dev qui logue une erreur sans pour autant se terminer. Déclarés dans un
+  fichier de projet :
+</p>
+
+<pre><code>sessions:
+  - name: api
+    watch:
+      - pattern: "ERR!"
+        notify: true
+</code></pre>
+
+<p>
+  ou armés à la volée sur la session sélectionnée avec <kbd>v</kbd> — un seul motif remplaçable
+  par session, en plus de ce que le fichier de projet a déjà déclaré pour elle ; soumettre un
+  motif vide le désarme. Dans les deux cas, une correspondance notifie par le même canal
+  OSC/commande de secours que ci-dessus, au plus une fois toutes les 3 secondes par motif — un log
+  qui répète la même correspondance 200 fois dans une rafale ne déclenche qu'une seule
+  notification, pas 200. La correspondance se fait sur le texte visible (séquences d'échappement
+  retirées) et se suspend tant qu'une application plein écran (<code>vim</code>, <code>htop</code>)
+  tient la session, la même règle d'écran alterné que suit déjà OSC 133.
+</p>
+
 <h2 id="stats">Durée de tour et statistiques</h2>
 
 <p>

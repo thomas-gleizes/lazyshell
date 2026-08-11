@@ -832,6 +832,20 @@ func (gui *Gui) renameSession(*gocui.Gui, *gocui.View) error {
 	})
 }
 
+// armWatchPattern is 'v''s handler: prompts for a regex to arm as the
+// selected session's runtime pattern watcher (pkg/session/watch.go),
+// prefilled with whatever is already armed. Passed straight to showPrompt:
+// Session.ArmWatch's signature already matches onSubmit, including surfacing
+// a bad regex to the status bar for free via submitPrompt.
+func (gui *Gui) armWatchPattern(*gocui.Gui, *gocui.View) error {
+	sess := gui.selectedSession()
+	if sess == nil {
+		return nil
+	}
+
+	return gui.showPrompt(gui.tr.T("prompt.watch_pattern"), sess.RuntimeWatchPattern(), sess.ArmWatch)
+}
+
 // duplicateSession immediately starts a new session with the same shell and
 // working directory as the selected one — no prompt, unlike newSessionInDir,
 // since there is nothing to ask the user.

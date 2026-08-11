@@ -125,6 +125,12 @@ type Options struct {
 	// Command, when non-empty, is typed into the session once it is up — see
 	// NewWithOptions for why it is injected rather than exec'd.
 	Command string
+	// Watch declares this session's pattern watchers (watch.go), compiled
+	// once at creation. A pattern that fails to compile here (config.Validate
+	// already checked SessionSpec.Watch, so this is only reachable for a
+	// caller that builds Options by hand, e.g. a test) is dropped silently —
+	// same "gutter hint, never a hard dependency" rule as agent detection.
+	Watch []WatchSpec
 }
 
 // New starts shell behind a pty, in the current working directory, and
@@ -248,6 +254,7 @@ func (m *Manager) newSession(id string, opts Options) (*Session, error) {
 	}
 	sess.SetName(opts.Name)
 	sess.SetGroup(opts.Group)
+	sess.setConfigWatchers(opts.Watch)
 
 	// A hook listener that fails to start (permission issue on
 	// $XDG_RUNTIME_DIR, an exotic sandbox with no writable temp dir) leaves

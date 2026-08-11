@@ -88,7 +88,8 @@ docs/
                   l'ADR 0004 sans le remplacer, 0007: groupes de sessions — remplace l'invariant
                   « une ligne = une session » et étend l'ADR 0006, 0008: intégration shell OSC 133
                   — bornes de prompt/commande survivant à la troncature du scrollback via un
-                  compteur d'éviction ajouté au fork `charmbracelet/x/vt`)
+                  compteur d'éviction ajouté au fork `charmbracelet/x/vt`, 0009: watchers de motifs
+                  par session — anti-rebond par motif, tap partagé avec la détection d'agent)
   repports/       (sic) historical analysis reports
 site/             sources of the bilingual GitHub Pages site (site/en/, site/fr/)
 ```
