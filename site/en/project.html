@@ -100,6 +100,12 @@ sessions:
     watch:
       - pattern: "ERR!"
         notify: true
+    # Optional: never (default) | on-failure | always. Restarts the shell
+    # automatically when the command exits, with a delay that doubles each
+    # consecutive attempt (1s, 2s, 4s... capped at 60s) and resets once a
+    # restarted run stays up 10s. "R" (or "W" for the group) restarts right
+    # away, bypassing the wait.
+    restart: on-failure
 
   - name: web
     group: services
@@ -128,7 +134,9 @@ sessions:
   <p>
     A group declares a name and nothing else — no colour, no glyph, no key. Same rule: a repository
     says what exists, not what your interface looks like. A session's <code>watch:</code> entries
-    follow it too — a pattern and whether it notifies, nothing about how a match is shown.
+    follow it too — a pattern and whether it notifies, nothing about how a match is shown. So does
+    <code>restart:</code> — a policy and nothing else, no per-policy tuning of the backoff or a
+    maximum-attempts knob.
   </p>
 </div>
 

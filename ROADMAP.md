@@ -91,15 +91,19 @@ l'ADR) ; le tap sur la sortie brute est partagé avec la détection d'agent (Dé
 
 ## 5. `restart: on-failure` dans le fichier projet
 
-**Statut : idée**
+**Statut : fait** — [ADR 0010](docs/adr/0010-redemarrage-automatique-des-sessions.md)
 
-`W` redémarre un groupe, mais à la main. Une politique par session (`never` / `on-failure` /
-`always`), avec backoff et compteur de redémarrages affiché dans la liste, fait de `lazyshell` un
-petit superviseur de dev — exactement l'usage `make dev` / `npm run dev` du fichier projet.
+Une politique par session (`never` / `on-failure` / `always`, `never` par défaut), avec recul
+exponentiel et compteur de tentatives affiché dans la liste (`↻<compteur>`), fait de `lazyshell` un
+petit superviseur de dev — exactement l'usage `make dev` / `npm run dev` du fichier projet. `W`/`R`
+continuent de redémarrer une session à la main, immédiatement, court-circuitant l'attente d'un
+recul en cours.
 
-- Interaction à trancher avec `exit_watch` (aujourd'hui une sortie de shell désarme le pass-through
-  et rend le focus) : un redémarrage automatique ne doit pas voler le clavier.
-- Un plafond de redémarrages est nécessaire, sinon une commande qui échoue instantanément boucle.
+L'interaction avec `exit_watch` que cette entrée signalait est résolue par `Session.WillAutoRestart`
+(Décision 4 de l'ADR) : une session pour laquelle un redémarrage automatique va se déclencher ne
+rend jamais le focus à la liste des sessions. Le plafond que cette entrée jugeait nécessaire est
+délibérément *un recul sans plafond de tentatives* plutôt qu'un abandon après N échecs (Décision 2)
+— le ralentissement exponentiel est la protection retenue.
 
 ## 6. Recherche globale sur toutes les sessions
 

@@ -182,6 +182,11 @@ titre/répertoire une fois que sa dernière commande a échoué — une session
 d'agent porte déjà son propre marqueur d'état à la place, donc ça ne fait
 jamais doublon avec lui.
 
+Une session déclarant [`restart:`](#configuration-de-projet) affiche
+`↻<compteur>` devant son titre/répertoire dès qu'elle a eu besoin d'au moins
+un redémarrage automatique — effacé dès qu'un redémarrage tient assez
+longtemps pour être considéré comme sain à nouveau.
+
 ### Groupes
 
 Une session appartient à un groupe, ou à aucun. Les sessions groupées sont
@@ -353,6 +358,7 @@ refus de tourner.
 | `markers.agent_blocked` | 0–1 caractère | `‼` | Marqueur pour une session d'agent IA détectée qui vous attend. `""` le désactive. |
 | `markers.agent_done` | 0–1 caractère | `✓` | Marqueur pour une session d'agent IA détectée ayant fini son tour. `""` le désactive. |
 | `markers.command_failed` | 0–1 caractère | `✗` | Marqueur (à côté de son code de sortie, dans les colonnes nom/état plutôt que dans la gouttière) pour une session sans agent dont la dernière commande — via l'[intégration shell OSC 133](#intégration-shell-osc-133) — a échoué. `""` le désactive. |
+| `markers.restart` | 0–1 caractère | `↻` | Marqueur (à côté de son compteur de tentatives, dans les colonnes nom/état plutôt que dans la gouttière) pour une session ayant eu besoin d'au moins un redémarrage automatique (voir [Configuration de projet](#configuration-de-projet), `restart:`). `""` le désactive. |
 | `scroll.page_lines` | entier ≥ 0 | `0` | Lignes parcourues par `PgUp`/`PgDn`. `0` signifie une hauteur de panneau entière. |
 | `scroll.half_page_divisor` | entier ≥ 1 | `2` | `Ctrl-U`/`Ctrl-D` parcourent la hauteur du panneau divisée par cette valeur. |
 | `theme.active_border_color` | couleur | `green` | Bordure du panneau qui a le focus. |
@@ -458,6 +464,7 @@ markers:
   agent_blocked: "‼"
   agent_done: "✓"
   command_failed: "✗"
+  restart: "↻"
 
 scroll:
   page_lines: 0
@@ -703,6 +710,12 @@ sessions:
     watch:
       - pattern: "ERR!"
         notify: true
+    # Optionnel : never (défaut) | on-failure | always. Redémarre le shell
+    # automatiquement quand la commande se termine, avec un délai qui double
+    # à chaque tentative consécutive (1s, 2s, 4s... plafonné à 60s) et se
+    # réinitialise dès qu'un redémarrage tient 10s. « R » (ou « W » pour le
+    # groupe) redémarre tout de suite, sans attendre.
+    restart: on-failure
 
   - name: web
     group: services
@@ -722,7 +735,8 @@ Un groupe déclare un nom et rien d'autre — pas de couleur, pas de glyphe, pas
 touche. C'est la même règle que pour le reste de ce fichier : un dépôt dit ce
 qui existe, pas à quoi ressemble votre interface. Les entrées `watch:` d'une
 session suivent la même règle : un motif et s'il notifie, rien sur comment
-une correspondance s'affiche.
+une correspondance s'affiche. `restart:` aussi : une politique et rien
+d'autre, pas de réglage du délai ni de plafond de tentatives par politique.
 
 **Seuls `shell`, `env_files`, `no_default_env`, `groups` et `sessions` sont lus
 depuis un fichier de projet.** `theme`, `keybindings`, `prefix_key` et le reste restent

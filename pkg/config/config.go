@@ -66,6 +66,10 @@ const (
 	// column when its last command (per OSC 133 shell integration) exited
 	// non-zero (pkg/gui/sessions_panel.go's commandExitIndicator).
 	defaultCommandFailedMarker = "✗"
+	// defaultRestartMarker is prepended to a session's detail column, next to
+	// its attempt count, once it has needed at least one automatic restart
+	// (pkg/gui/sessions_panel.go's restartIndicator).
+	defaultRestartMarker = "↻"
 	// defaultHalfPageDivisor is what the output panel's height is divided by for
 	// a Ctrl-U/Ctrl-D scroll (pkg/gui/input.go's scrollHalfPage).
 	defaultHalfPageDivisor = 2
@@ -208,6 +212,11 @@ type Markers struct {
 	// it is prepended to the detail column instead, alongside its exit code,
 	// which the gutter's fixed width has no room for.
 	CommandFailed string `yaml:"command_failed"`
+	// Restart flags a session (declared with a restart: policy) that has
+	// needed at least one automatic restart. Same treatment as CommandFailed:
+	// prepended to the detail column, next to its attempt count, not part of
+	// the fixed gutter.
+	Restart string `yaml:"restart"`
 }
 
 // Clipboard configures how copy-mode's yank leaves lazyshell. There is no
@@ -341,6 +350,7 @@ func Default() Config {
 			AgentBlocked:  defaultAgentBlockedMarker,
 			AgentDone:     defaultAgentDoneMarker,
 			CommandFailed: defaultCommandFailedMarker,
+			Restart:       defaultRestartMarker,
 		},
 		Scroll: Scroll{
 			PageLines:       0,

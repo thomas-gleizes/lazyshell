@@ -141,6 +141,59 @@ func TestWatchSelectedExitFiresOncePerExit(t *testing.T) {
 	}
 }
 
+// A session with a restart policy that will actually fire on this exit must
+// not have its focus stolen: watchSelectedExit backs out of a dead session
+// only when nothing is coming to bring it back.
+func TestWatchSelectedExitDoesNotBackOutWhenAutoRestartWillFire(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+
+	sess, err := gui.sessions.NewWithOptions(session.Options{
+		Name: "s0", Shell: "/bin/sh", Restart: session.RestartOnFailure,
+	})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+
+	if _, err := sess.Write([]byte("exit 1\n")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	waitForCondition(t, func() bool { return sess.Status() == session.StatusExited }, "the shell did not exit")
+
+	if err := gui.watchSelectedExit(); err != nil {
+		t.Fatalf("watchSelectedExit: %v", err)
+	}
+
+	if gui.exitHandledID != "" {
+		t.Errorf("exitHandledID = %q, want empty: a session about to auto-restart must not be marked handled", gui.exitHandledID)
+	}
+}
+
+// Regression: a session with no restart policy (or one that does not apply
+// to this exit) must still trigger the usual back-out.
+func TestWatchSelectedExitStillBacksOutForNeverPolicy(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+
+	sess, err := gui.sessions.New("s0", "/bin/sh")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	if _, err := sess.Write([]byte("exit 1\n")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	waitForCondition(t, func() bool { return sess.Status() == session.StatusExited }, "the shell did not exit")
+
+	if err := gui.watchSelectedExit(); err != nil {
+		t.Fatalf("watchSelectedExit: %v", err)
+	}
+
+	if gui.exitHandledID != sess.ID {
+		t.Errorf("exitHandledID = %q, want %q: a never-policy exit must still be marked handled", gui.exitHandledID, sess.ID)
+	}
+}
+
 // With a popup open (confirm, help, prompt), the current view is not the
 // output panel and focus must be left alone — the user is in the middle of
 // something else. backOutOfExitedSession is called directly here: it is what

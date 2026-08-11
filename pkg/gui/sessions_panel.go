@@ -47,6 +47,10 @@ const (
 	// OSC 133 shell integration, pkg/screen's Screen.LastCommandExit) exited
 	// non-zero. Not part of the gutter above — see commandExitIndicator.
 	commandFailedMarker = "✗"
+	// restartMarker flags a session that has needed at least one automatic
+	// restart (see restart:, pkg/config/project.go). Not part of the gutter
+	// above either — see restartIndicator.
+	restartMarker = "↻"
 )
 
 // gutterColumns is the gutter's width, in characters: one per marker kind.
@@ -69,6 +73,8 @@ type markerSet struct {
 	agentDone    string
 
 	commandFailed string
+
+	restart string
 }
 
 // markerSet resolves the configured markers against the built-in defaults. A
@@ -87,6 +93,7 @@ func (gui *Gui) markerSet() markerSet {
 		agentBlocked:  gui.markers.AgentBlocked,
 		agentDone:     gui.markers.AgentDone,
 		commandFailed: gui.markers.CommandFailed,
+		restart:       gui.markers.Restart,
 	}
 
 	// The zero-value Gui case only: a bare struct literal (tests) never went
@@ -97,6 +104,7 @@ func (gui *Gui) markerSet() markerSet {
 		set.agentIdle, set.agentWorking, set.agentBlocked, set.agentDone =
 			agentIdleMarker, agentWorkingMarker, agentBlockedMarker, agentDoneMarker
 		set.commandFailed = commandFailedMarker
+		set.restart = restartMarker
 	}
 
 	return set
@@ -253,6 +261,10 @@ func sessionLine(sess *session.Session, markers markerSet, selectedID string, br
 		detail = indicator + detail
 	}
 
+	if indicator := restartIndicator(sess, markers); indicator != "" {
+		detail = indicator + detail
+	}
+
 	gutter := sessionMarkers(sess, markers, sess.ID == selectedID, broadcastMarks[sess.ID])
 	status := statusColumn(sess)
 
@@ -353,6 +365,26 @@ func commandExitIndicator(sess *session.Session, markers markerSet) string {
 	}
 
 	return colorizeMarker(markers.commandFailed, "31") + fmt.Sprintf(" %d  ", code)
+}
+
+// restartIndicator renders "↻N  " for a session that has needed at least
+// one automatic restart since it last stayed up, "" once its attempt count
+// is back to zero — the overwhelming majority of sessions, which never
+// declared restart: at all, always show nothing extra. Same detail-column
+// treatment as commandExitIndicator, and independent of it: an agent
+// session can also declare restart:, unlike a failed OSC-133 command's exit
+// code, which is scoped to non-agent sessions only.
+func restartIndicator(sess *session.Session, markers markerSet) string {
+	if markers.restart == "" {
+		return ""
+	}
+
+	n := sess.RestartAttempts()
+	if n <= 0 {
+		return ""
+	}
+
+	return colorizeMarker(markers.restart, "33") + fmt.Sprintf("%d  ", n)
 }
 
 // sessionMarkers builds a session's gutter, padded to gutterColumns visible

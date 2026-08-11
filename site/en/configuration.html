@@ -119,6 +119,7 @@
     <tr><td><code>markers.agent_blocked</code></td><td>0–1 char</td><td><code>‼</code></td><td>Gutter marker for a detected AI agent session waiting on you.</td></tr>
     <tr><td><code>markers.agent_done</code></td><td>0–1 char</td><td><code>✓</code></td><td>Gutter marker for a detected AI agent session that finished its turn.</td></tr>
     <tr><td><code>markers.command_failed</code></td><td>0–1 char</td><td><code>✗</code></td><td>Marker (next to its exit code, in the name/status columns rather than the gutter) for a non-agent session whose last command — per <a href="usage.html#osc133">shell-integration OSC 133</a> — exited non-zero.</td></tr>
+    <tr><td><code>markers.restart</code></td><td>0–1 char</td><td><code>↻</code></td><td>Marker (next to its attempt count, in the name/status columns rather than the gutter) for a session that has needed at least one automatic restart — see <a href="project.html#example"><code>restart:</code></a>.</td></tr>
     <tr><td><code>scroll.page_lines</code></td><td>int ≥ 0</td><td><code>0</code></td><td>Lines <kbd>PgUp</kbd>/<kbd>PgDn</kbd> move by. <code>0</code> means one full panel height.</td></tr>
     <tr><td><code>scroll.half_page_divisor</code></td><td>int ≥ 1</td><td><code>2</code></td><td><kbd>Ctrl+U</kbd>/<kbd>Ctrl+D</kbd> move by the panel height divided by this.</td></tr>
     <tr><td><code>theme.active_border_color</code></td><td>colour</td><td><code>green</code></td><td>Focused panel's border.</td></tr>
@@ -258,6 +259,7 @@ markers:
   agent_blocked: "‼"
   agent_done: "✓"
   command_failed: "✗"
+  restart: "↻"
 
 scroll:
   page_lines: 0

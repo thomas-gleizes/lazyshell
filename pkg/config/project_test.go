@@ -424,6 +424,49 @@ func TestValidateDropsInvalidWatchPattern(t *testing.T) {
 	}
 }
 
+func TestValidateCarriesRestartPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		raw  string
+		want RestartPolicy
+	}{
+		{"", RestartNever},
+		{"never", RestartNever},
+		{"on-failure", RestartOnFailure},
+		{"always", RestartAlways},
+	} {
+		pcfg := ProjectConfig{
+			Path:     filepath.Join(t.TempDir(), "lazyshell.yml"),
+			Sessions: []SessionSpec{{Name: "api", Restart: tc.raw}},
+		}
+
+		valid, errs := pcfg.Validate()
+		if len(errs) != 0 {
+			t.Fatalf("restart %q: errs = %v, want none", tc.raw, errs)
+		}
+		if len(valid) != 1 || valid[0].Restart != tc.want {
+			t.Errorf("restart %q: got %+v, want Restart = %q", tc.raw, valid, tc.want)
+		}
+	}
+}
+
+// An unrecognized restart: value falls back to RestartNever with a warning —
+// it does not cost the session, unlike a bad watch pattern: a single scalar
+// with a safe default, not a list of independent entries.
+func TestValidateDropsInvalidRestartFallsBackToNever(t *testing.T) {
+	pcfg := ProjectConfig{
+		Path:     filepath.Join(t.TempDir(), "lazyshell.yml"),
+		Sessions: []SessionSpec{{Name: "api", Restart: "sometimes"}},
+	}
+
+	valid, errs := pcfg.Validate()
+	if len(errs) != 1 {
+		t.Fatalf("errs = %v, want exactly one (the invalid restart policy)", errs)
+	}
+	if len(valid) != 1 || valid[0].Restart != RestartNever {
+		t.Fatalf("valid = %+v, want one session with Restart = never, not dropped", valid)
+	}
+}
+
 // A project file declares its groups and assigns sessions to them. The group
 // is trimmed and carried onto the ResolvedSession, and `groups:` fixes the
 // display order.

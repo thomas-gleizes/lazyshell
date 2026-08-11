@@ -92,6 +92,10 @@ type SessionSpec struct {
 	// GroupSpec precedent as the rest of this file — what exists, not what
 	// the interface looks like.
 	Watch []WatchSpec `yaml:"watch"`
+	// Restart is this session's automatic restart policy, as written:
+	// "never" (or empty), "on-failure", or "always". See resolveRestartPolicy
+	// for what happens to anything else.
+	Restart string `yaml:"restart"`
 }
 
 // WatchSpec is one pattern watcher, as written in the file.
@@ -99,6 +103,19 @@ type WatchSpec struct {
 	Pattern string `yaml:"pattern"`
 	Notify  bool   `yaml:"notify"`
 }
+
+// RestartPolicy is a session's validated automatic restart policy.
+// RestartNever is the empty string deliberately: it is Go's zero value, so
+// every existing session.Options{} literal — every test, every session not
+// declared in a project file — keeps meaning "never restart" with no
+// explicit opt-out required.
+type RestartPolicy string
+
+const (
+	RestartNever     RestartPolicy = ""
+	RestartOnFailure RestartPolicy = "on-failure"
+	RestartAlways    RestartPolicy = "always"
+)
 
 // ResolvedSession is a SessionSpec that passed validation, with its working
 // directory made absolute. This — not SessionSpec — is what session creation
@@ -120,6 +137,12 @@ type ResolvedSession struct {
 	// regexp — see Validate, which drops (and reports) any entry that fails
 	// to compile rather than letting a typo cost the whole session.
 	Watch []WatchSpec
+	// Restart is the session's automatic restart policy, already checked —
+	// see resolveRestartPolicy. An unrecognized value falls back to
+	// RestartNever with a warning, rather than dropping the session: unlike
+	// a bad watch pattern, a bad restart policy is a single scalar with a
+	// safe default, not a list of independent entries.
+	Restart RestartPolicy
 }
 
 // ProjectPath resolves which project file to read: the --config-file flag, then
@@ -260,6 +283,11 @@ func (p ProjectConfig) Validate() ([]ResolvedSession, []error) {
 		watch, watchErrs := validateWatch(name, spec.Watch)
 		errs = append(errs, watchErrs...)
 
+		restart, restartErr := resolveRestartPolicy(name, spec.Restart)
+		if restartErr != nil {
+			errs = append(errs, restartErr)
+		}
+
 		seen[name] = true
 		resolved = append(resolved, ResolvedSession{
 			Name:         name,
@@ -270,6 +298,7 @@ func (p ProjectConfig) Validate() ([]ResolvedSession, []error) {
 			EnvFiles:     resolveEnvFilePaths(dir, append(append([]string{}, p.EnvFiles...), spec.EnvFiles...)),
 			NoDefaultEnv: noDefaultEnv,
 			Watch:        watch,
+			Restart:      restart,
 		})
 	}
 
@@ -297,6 +326,27 @@ func validateWatch(sessionName string, specs []WatchSpec) ([]WatchSpec, []error)
 	}
 
 	return valid, errs
+}
+
+// resolveRestartPolicy validates a session's raw restart: value. Unlike
+// validateWatch, an unrecognized value does not cost the entry it belongs
+// to: it falls back to RestartNever and reports why, the same "bad scalar,
+// safe default" treatment Config.Validate gives an unknown language — a
+// project file is hand-edited and read at startup, and a typo here must
+// never turn off the session it's attached to.
+func resolveRestartPolicy(sessionName, raw string) (RestartPolicy, error) {
+	switch RestartPolicy(strings.TrimSpace(raw)) {
+	case RestartNever, "never":
+		return RestartNever, nil
+	case RestartOnFailure:
+		return RestartOnFailure, nil
+	case RestartAlways:
+		return RestartAlways, nil
+	default:
+		return RestartNever, fmt.Errorf(
+			"session %q: restart %q inconnu (attendu : never, on-failure, always), retour à never",
+			sessionName, raw)
+	}
 }
 
 // ResolvedGroups returns the declared group names, trimmed, in declaration

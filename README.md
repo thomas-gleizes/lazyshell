@@ -176,6 +176,10 @@ enabled also shows `✗ <code>` ahead of its title/directory once its last comma
 non-zero — an agent session already carries its own state marker instead, so this never
 doubles up with it.
 
+A session declaring [`restart:`](#project-configuration) shows `↻<count>` ahead of its
+title/directory once it has needed at least one automatic restart — cleared back to
+nothing once a restarted run stays up long enough to count as healthy again.
+
 ### Groups
 
 A session can belong to one group, or to none. Grouped sessions are drawn
@@ -343,6 +347,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `markers.agent_blocked` | 0–1 char | `‼` | Gutter marker for a detected AI agent session waiting on you. `""` turns it off. |
 | `markers.agent_done` | 0–1 char | `✓` | Gutter marker for a detected AI agent session that finished its turn. `""` turns it off. |
 | `markers.command_failed` | 0–1 char | `✗` | Marker (next to its exit code, in the name/status columns rather than the gutter) for a non-agent session whose last command — per [shell-integration OSC 133](#shell-integration-osc-133) — exited non-zero. `""` turns it off. |
+| `markers.restart` | 0–1 char | `↻` | Marker (next to its attempt count, in the name/status columns rather than the gutter) for a session that has needed at least one automatic restart (see [Project configuration](#project-configuration)'s `restart:`). `""` turns it off. |
 | `scroll.page_lines` | int ≥ 0 | `0` | Lines `PgUp`/`PgDn` move by. `0` means one full panel height. |
 | `scroll.half_page_divisor` | int ≥ 1 | `2` | `Ctrl-U`/`Ctrl-D` move by the panel height divided by this. |
 | `theme.active_border_color` | color | `green` | Focused panel's border. |
@@ -454,6 +459,7 @@ markers:
   agent_blocked: "‼"
   agent_done: "✓"
   command_failed: "✗"
+  restart: "↻"
 
 scroll:
   page_lines: 0
@@ -693,6 +699,12 @@ sessions:
     watch:
       - pattern: "ERR!"
         notify: true
+    # Optional: never (default) | on-failure | always. Restarts the shell
+    # automatically when the command exits, with a delay that doubles each
+    # consecutive attempt (1s, 2s, 4s... capped at 60s) and resets once a
+    # restarted run stays up 10s. "R" (or "W" for the group) restarts right
+    # away, bypassing the wait.
+    restart: on-failure
 
   - name: web
     group: services
@@ -711,7 +723,9 @@ the groups that were fine still apply.
 A group declares a name and nothing else — no colour, no glyph, no key. That
 is the same rule as the rest of this file: a repository says what exists, not
 what your interface looks like. A session's `watch:` entries follow it too —
-a pattern and whether it notifies, nothing about how a match is shown.
+a pattern and whether it notifies, nothing about how a match is shown. So
+does `restart:` — a policy and nothing else, no per-policy tuning of the
+backoff or a maximum-attempts knob.
 
 **Only `shell`, `env_files`, `no_default_env`, `groups` and `sessions` are
 read from a project file.** `theme`, `keybindings`, `prefix_key` and the rest stay under

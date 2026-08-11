@@ -104,12 +104,31 @@ func autostart(sessions *session.Manager, pcfg config.ProjectConfig, shell strin
 			NoDefaultEnvFile: spec.NoDefaultEnv,
 			Command:          spec.Command,
 			Watch:            watch,
+			Restart:          translateRestartPolicy(spec.Restart),
 		}); err != nil {
 			errs = append(errs, err)
 		}
 	}
 
 	return errs
+}
+
+// translateRestartPolicy maps a validated config.RestartPolicy onto its
+// pkg/session counterpart. The two packages keep separate types rather than
+// pkg/session importing pkg/config: session.RestartNever is the Go zero
+// value ("") precisely so every Options{} literal that never mentions
+// Restart — every test, every non-project session — needs no explicit
+// opt-out, which a shared type pinned to config's "never"/"on-failure"
+// strings would not preserve.
+func translateRestartPolicy(p config.RestartPolicy) session.RestartPolicy {
+	switch p {
+	case config.RestartOnFailure:
+		return session.RestartOnFailure
+	case config.RestartAlways:
+		return session.RestartAlways
+	default:
+		return session.RestartNever
+	}
 }
 
 // AllowProject implements `lazyshell allow`: approve a project file without

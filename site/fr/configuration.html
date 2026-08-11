@@ -120,6 +120,7 @@
     <tr><td><code>markers.agent_blocked</code></td><td>0–1 caractère</td><td><code>‼</code></td><td>Marqueur d'une session d'agent IA qui vous attend.</td></tr>
     <tr><td><code>markers.agent_done</code></td><td>0–1 caractère</td><td><code>✓</code></td><td>Marqueur d'une session d'agent IA ayant terminé son tour.</td></tr>
     <tr><td><code>markers.command_failed</code></td><td>0–1 caractère</td><td><code>✗</code></td><td>Marqueur (à côté de son code de sortie, dans les colonnes nom/état plutôt que dans la gouttière) pour une session sans agent dont la dernière commande — via l'<a href="utilisation.html#osc133">intégration shell OSC 133</a> — a échoué.</td></tr>
+    <tr><td><code>markers.restart</code></td><td>0–1 caractère</td><td><code>↻</code></td><td>Marqueur (à côté de son compteur de tentatives, dans les colonnes nom/état plutôt que dans la gouttière) pour une session ayant eu besoin d'au moins un redémarrage automatique — voir <a href="projet.html#exemple"><code>restart:</code></a>.</td></tr>
     <tr><td><code>scroll.page_lines</code></td><td>entier ≥ 0</td><td><code>0</code></td><td>Lignes parcourues par <kbd>PgUp</kbd>/<kbd>PgDn</kbd>. <code>0</code> signifie une hauteur de panneau complète.</td></tr>
     <tr><td><code>scroll.half_page_divisor</code></td><td>entier ≥ 1</td><td><code>2</code></td><td><kbd>Ctrl+U</kbd>/<kbd>Ctrl+D</kbd> parcourent la hauteur du panneau divisée par cette valeur.</td></tr>
     <tr><td><code>theme.active_border_color</code></td><td>couleur</td><td><code>green</code></td><td>Bordure du panneau ayant le focus.</td></tr>
@@ -261,6 +262,7 @@ markers:
   agent_blocked: "‼"
   agent_done: "✓"
   command_failed: "✗"
+  restart: "↻"
 
 scroll:
   page_lines: 0

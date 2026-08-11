@@ -85,13 +85,33 @@ type Manager struct {
 	// is true — means the API is off: no variable is injected, and a session
 	// therefore has no way to find the socket even if one existed.
 	ControlSocket string
+
+	// restarts tracks supervision state for sessions with a non-never
+	// Restart policy, keyed by session id and guarded by the existing mu —
+	// not a new lock, since every critical section touching it also needs
+	// m.sessions examined in the same breath (see restart.go). Entries are
+	// created lazily by supervise and removed by Remove; an id whose session
+	// was never given a restart policy never gets an entry at all.
+	restarts map[string]*restartState
+
+	// RestartBackoffBase/RestartBackoffMax/RestartSuccessDuration tune
+	// restart.go's exponential backoff. Exported, like KillTimeout, so tests
+	// can shrink them instead of waiting on production-sized timers;
+	// NewManager sets all three to their Default* values.
+	RestartBackoffBase     time.Duration
+	RestartBackoffMax      time.Duration
+	RestartSuccessDuration time.Duration
 }
 
 // NewManager returns an empty Manager, ready to create sessions.
 func NewManager() *Manager {
 	return &Manager{
-		sessions:    make(map[string]*Session),
-		KillTimeout: DefaultKillTimeout,
+		sessions:               make(map[string]*Session),
+		restarts:               make(map[string]*restartState),
+		KillTimeout:            DefaultKillTimeout,
+		RestartBackoffBase:     DefaultRestartBackoffBase,
+		RestartBackoffMax:      DefaultRestartBackoffMax,
+		RestartSuccessDuration: DefaultRestartSuccessDuration,
 	}
 }
 
@@ -131,6 +151,11 @@ type Options struct {
 	// caller that builds Options by hand, e.g. a test) is dropped silently —
 	// same "gutter hint, never a hard dependency" rule as agent detection.
 	Watch []WatchSpec
+	// Restart is this session's automatic restart-on-exit policy. The Go zero
+	// value ("") is RestartNever, so every existing Options{} literal — every
+	// test, every session Options built without mentioning it — keeps
+	// meaning "never" with no explicit opt-out required. See restart.go.
+	Restart RestartPolicy
 }
 
 // New starts shell behind a pty, in the current working directory, and
@@ -182,6 +207,11 @@ func (m *Manager) Restart(id string) (*Session, error) {
 	if old.Status() != StatusExited {
 		return nil, fmt.Errorf("session %s: still running, cannot restart", id)
 	}
+
+	// A manual restart is a deliberate fresh start: any pending automatic
+	// restart for this id is cancelled, and its attempt count — and so the
+	// next backoff delay — resets to zero.
+	m.cancelSupervision(id, true)
 
 	// The group is the one mutable field that must survive a restart, so it is
 	// carried explicitly rather than read back out of opts: SetGroup writing
@@ -267,6 +297,16 @@ func (m *Manager) newSession(id string, opts Options) (*Session, error) {
 	}
 
 	go sess.drain()
+
+	if opts.Restart != RestartNever {
+		go m.supervise(id, sess)
+	}
+
+	m.mu.RLock()
+	if st, ok := m.restarts[id]; ok {
+		sess.setRestartAttempts(st.attempts)
+	}
+	m.mu.RUnlock()
 
 	if opts.Command != "" {
 		// The pty's line discipline buffers this until the shell gets round to
@@ -384,6 +424,8 @@ func (m *Manager) Kill(id string) error {
 		return fmt.Errorf("session: unknown id %q", id)
 	}
 
+	m.cancelSupervision(id, false)
+
 	return sess.Kill(m.KillTimeout)
 }
 
@@ -400,6 +442,8 @@ func (m *Manager) Remove(id string) error {
 		return fmt.Errorf("session: unknown id %q", id)
 	}
 
+	m.cancelSupervision(id, false)
+
 	if sess.Status() != StatusExited {
 		if err := sess.Kill(m.KillTimeout); err != nil {
 			return err
@@ -408,6 +452,7 @@ func (m *Manager) Remove(id string) error {
 
 	m.mu.Lock()
 	delete(m.sessions, id)
+	delete(m.restarts, id)
 	for i, oid := range m.order {
 		if oid == id {
 			m.order = append(m.order[:i], m.order[i+1:]...)

@@ -104,6 +104,10 @@ func (c *Config) Validate() []error {
 		errs = append(errs, err)
 	}
 
+	if err := singleColumn("markers.restart", &c.Markers.Restart, def.Markers.Restart); err != nil {
+		errs = append(errs, err)
+	}
+
 	return errs
 }
 

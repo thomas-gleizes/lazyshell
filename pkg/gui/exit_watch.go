@@ -39,6 +39,15 @@ func (gui *Gui) watchSelectedExit() error {
 		return nil
 	}
 
+	if sess.WillAutoRestart() {
+		// A restart is scheduled — this exit is transient supervision, not a
+		// terminal state to back the user out of. Nothing to arm or clear
+		// here: once the restart lands, Status() flips back to
+		// StatusRunning and the branch above re-arms detection on its own
+		// for whatever this incarnation eventually does.
+		return nil
+	}
+
 	if !gui.markExitHandled(sess.ID) {
 		return nil
 	}

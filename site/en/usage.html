@@ -183,6 +183,7 @@
     <tr><td><code>+</code></td><td>The session is marked for broadcast — see below.</td></tr>
     <tr><td><code>·</code> <code>…</code> <code>‼</code> <code>✓</code></td><td>State of an <a href="agents.html">AI agent</a> session: idle, working, blocked (waiting on you), done.</td></tr>
     <tr><td><code>✗ &lt;code&gt;</code></td><td>A non-agent session's last command exited non-zero — see <a href="#osc133">shell-integration OSC 133</a>. Never shown alongside an agent session's own state marker above.</td></tr>
+    <tr><td><code>↻&lt;count&gt;</code></td><td>A session declaring <a href="project.html#example"><code>restart:</code></a> has needed at least one automatic restart. Cleared once a restarted run stays up long enough to count as healthy again.</td></tr>
   </tbody>
 </table>
 </div>

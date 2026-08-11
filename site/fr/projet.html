@@ -101,6 +101,12 @@ sessions:
     watch:
       - pattern: "ERR!"
         notify: true
+    # Optionnel : never (défaut) | on-failure | always. Redémarre le shell
+    # automatiquement quand la commande se termine, avec un délai qui double
+    # à chaque tentative consécutive (1s, 2s, 4s... plafonné à 60s) et se
+    # réinitialise dès qu'un redémarrage tient 10s. « R » (ou « W » pour le
+    # groupe) redémarre tout de suite, sans attendre.
+    restart: on-failure
 
   - name: web
     group: services
@@ -132,7 +138,8 @@ sessions:
     Un groupe déclare un nom et rien d'autre — pas de couleur, pas de glyphe, pas de touche. Même
     règle : un dépôt dit ce qui existe, pas à quoi ressemble votre interface. Les entrées
     <code>watch:</code> d'une session la suivent aussi : un motif et s'il notifie, rien sur la
-    façon dont une correspondance s'affiche.
+    façon dont une correspondance s'affiche. <code>restart:</code> aussi : une politique et rien
+    d'autre, pas de réglage du délai ni de plafond de tentatives par politique.
   </p>
 </div>
 

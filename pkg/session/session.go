@@ -89,7 +89,8 @@ type Session struct {
 	hookServer *hook.Server
 
 	// mu guards name, group, status, exitCode, cols, rows, agentState,
-	// hookDriven and the agent-recheck bookkeeping below: name is written by
+	// hookDriven, restartAttempts, killedExplicitly and the agent-recheck
+	// bookkeeping below: name is written by
 	// SetName (the "renommage de session" ergonomics feature, phase 5) from
 	// gocui's main goroutine and read from sessionsPanelContent on goEvery's
 	// background goroutine; group has exactly that same shape, plus a read
@@ -135,6 +136,20 @@ type Session struct {
 	// still lands.
 	lastAgentCheck      time.Time
 	agentRecheckPending bool
+
+	// restartAttempts is a display value only: how many consecutive automatic
+	// restarts led to this particular incarnation. Stamped once, by
+	// Manager.newSession, from its own restartState bookkeeping — this
+	// *Session* never updates it itself. Read by RestartAttempts.
+	restartAttempts int
+
+	// killedExplicitly is set once, by Kill, before anything else it does —
+	// including its early return when the session already exited. An
+	// explicit stop always overrides a restart policy, however the exit
+	// looks from the exit code alone: the same "systemctl stop doesn't
+	// retrigger Restart=on-failure" rule as systemd/k8s. Read by
+	// WillAutoRestart.
+	killedExplicitly bool
 
 	// done is closed exactly once, by drain, once the process has been
 	// reaped and both copy goroutines have returned. Kill waits on it, bounded
@@ -491,9 +506,19 @@ func (s *Session) setAgentStateUnlessHookDriven(state agent.State) {
 //
 // A backgrounded job that gave itself its own process group via shell job
 // control (`cmd &`) can survive this — a known, accepted gap, not solved here.
+//
+// Always marks the session as explicitly killed — including when it is
+// already exited, sitting in a restart backoff wait — which is what makes
+// WillAutoRestart false from this point on: a deliberate stop always beats
+// a restart policy.
 func (s *Session) Kill(timeout time.Duration) (err error) {
 	s.killOnce.Do(func() {
-		if s.Status() == StatusExited {
+		s.mu.Lock()
+		s.killedExplicitly = true
+		alreadyExited := s.status == StatusExited
+		s.mu.Unlock()
+
+		if alreadyExited {
 			return
 		}
 

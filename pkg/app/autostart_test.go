@@ -381,6 +381,44 @@ sessions:
   - name: scratch
 `
 
+// The end-to-end restart path: a project file's restart: on-failure reaches
+// the running session's Options and, once its command actually fails, an
+// automatic restart follows — not just pkg/config.Validate producing the
+// right ResolvedSession in isolation.
+func TestAutostartAppliesRestartPolicyFromProjectFile(t *testing.T) {
+	projectDir(t, "sessions:\n  - name: api\n    restart: on-failure\n")
+
+	a := newTestApp(t, Options{}, answering("y"))
+
+	// Shrunk after the app (and its sessions) already exist: read at fire
+	// time by pkg/session's supervise/fireAutoRestart, so this still takes
+	// effect before the exit this test drives below.
+	a.sessions.RestartBackoffBase = 20 * time.Millisecond
+	a.sessions.RestartBackoffMax = 200 * time.Millisecond
+
+	sessions := a.sessions.List()
+	if len(sessions) != 1 {
+		t.Fatalf("len(sessions) = %d, want 1", len(sessions))
+	}
+
+	original := sessions[0]
+	if _, err := original.Write([]byte("exit 1\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if sess, ok := a.sessions.Get(original.ID); ok && sess.Status() == session.StatusRunning && sess.RestartAttempts() == 1 {
+			return
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	sess, _ := a.sessions.Get(original.ID)
+	t.Fatalf("timed out waiting for the declared restart: on-failure session to auto-restart, got %+v", sess)
+}
+
 // The end-to-end group path: a declared group reaches the running session's
 // Group(), and the file's declaration order reaches the GUI as the order its
 // headers are drawn in.
