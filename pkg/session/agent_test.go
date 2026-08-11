@@ -83,10 +83,10 @@ func TestSessionAgentStateDetectsViaManifest(t *testing.T) {
 // distinguish from "detection just hasn't run yet".
 func TestEvaluateAgentStateThrottles(t *testing.T) {
 	m := newTestManager(t)
-	sess := newTestSession(t, m, "throttle")
-	sess.detector = agent.NewDetector(map[string]agent.Manifest{
+	m.Detector = agent.NewDetector(map[string]agent.Manifest{
 		"sh": {Process: "sh"},
 	})
+	sess := newTestSession(t, m, "throttle")
 
 	sess.evaluateAgentState()
 	first := sess.lastAgentCheck
@@ -109,10 +109,10 @@ func TestEvaluateAgentStateThrottles(t *testing.T) {
 // writes to trigger one.
 func TestEvaluateAgentStateTrailingEdgeRecheck(t *testing.T) {
 	m := newTestManager(t)
-	sess := newTestSession(t, m, "trailing-edge")
-	sess.detector = agent.NewDetector(map[string]agent.Manifest{
+	m.Detector = agent.NewDetector(map[string]agent.Manifest{
 		"sh": {Process: "sh"},
 	})
+	sess := newTestSession(t, m, "trailing-edge")
 
 	sess.evaluateAgentState()
 	first := sess.lastAgentCheck
