@@ -864,7 +864,7 @@ func (gui *Gui) renameSession(*gocui.Gui, *gocui.View) error {
 	})
 }
 
-// armWatchPattern is 'v''s handler: prompts for a regex to arm as the
+// armWatchPattern is 'v”s handler: prompts for a regex to arm as the
 // selected session's runtime pattern watcher (pkg/session/watch.go),
 // prefilled with whatever is already armed. Passed straight to showPrompt:
 // Session.ArmWatch's signature already matches onSubmit, including surfacing

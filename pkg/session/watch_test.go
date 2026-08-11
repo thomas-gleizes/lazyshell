@@ -218,9 +218,15 @@ func TestArmWatchInvalidPatternIsRejectedAndLeavesPreviousArmed(t *testing.T) {
 
 func TestSetConfigWatchersNotifyFlagCarriesToHit(t *testing.T) {
 	m := newTestManager(t)
-	sess := newTestSession(t, m, "watch-config-notify")
+	sess, err := m.NewWithOptions(Options{
+		Name:  "watch-config-notify",
+		Shell: testShell,
+		Watch: []WatchSpec{{Pattern: "silent", Notify: false}},
+	})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
 
-	sess.setConfigWatchers([]WatchSpec{{Pattern: "silent", Notify: false}})
 	sess.feedWatch([]byte("silent match\n"))
 
 	hit, ok := sess.LastWatchHit()
@@ -234,9 +240,14 @@ func TestSetConfigWatchersNotifyFlagCarriesToHit(t *testing.T) {
 
 func TestSetConfigWatchersDropsInvalidPattern(t *testing.T) {
 	m := newTestManager(t)
-	sess := newTestSession(t, m, "watch-config-invalid")
-
-	sess.setConfigWatchers([]WatchSpec{{Pattern: "[", Notify: true}, {Pattern: "ok", Notify: true}})
+	sess, err := m.NewWithOptions(Options{
+		Name:  "watch-config-invalid",
+		Shell: testShell,
+		Watch: []WatchSpec{{Pattern: "[", Notify: true}, {Pattern: "ok", Notify: true}},
+	})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
 
 	if len(sess.watchers) != 1 {
 		t.Fatalf("len(watchers) = %d, want 1 (the invalid pattern must be dropped, not the valid one)", len(sess.watchers))

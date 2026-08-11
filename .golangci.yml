@@ -16,6 +16,7 @@ linters:
       ignore-rules:
         - commandes
         - existant
+        - surveill
   exclusions:
     presets:
       - comments
