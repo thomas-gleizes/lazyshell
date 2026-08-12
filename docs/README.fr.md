@@ -353,10 +353,14 @@ refus de tourner.
 | `markers.alt_screen` | 0–1 caractère | `#` | Marqueur pour une session faisant tourner une application plein écran. `""` le désactive. |
 | `markers.activity` | 0–1 caractère | `●` | Marqueur pour une session ayant produit de la sortie pendant qu'elle était cachée. `""` le désactive. |
 | `markers.broadcast` | 0–1 caractère | `+` | Marqueur pour une session marquée pour recevoir les frappes diffusées. `""` le désactive. |
-| `markers.agent_idle` | 0–1 caractère | `·` | Marqueur pour une session d'agent IA détectée, au repos. `""` le désactive. |
-| `markers.agent_working` | 0–1 caractère | `…` | Marqueur pour une session d'agent IA détectée, en train de travailler. `""` le désactive. |
-| `markers.agent_blocked` | 0–1 caractère | `‼` | Marqueur pour une session d'agent IA détectée qui vous attend. `""` le désactive. |
-| `markers.agent_done` | 0–1 caractère | `✓` | Marqueur pour une session d'agent IA détectée ayant fini son tour. `""` le désactive. |
+| `markers.agent_idle` | 0–1 caractère | `●` | Marqueur pour une session d'agent IA détectée, au repos. `""` le désactive. |
+| `markers.agent_working` | 0–1 caractère | `●` | Marqueur pour une session d'agent IA détectée, en train de travailler. `""` le désactive. |
+| `markers.agent_blocked` | 0–1 caractère | `●` | Marqueur pour une session d'agent IA détectée qui vous attend. `""` le désactive. |
+| `markers.agent_done` | 0–1 caractère | `●` | Marqueur pour une session d'agent IA détectée ayant fini son tour. `""` le désactive. |
+| `markers.agent_idle_color` | couleur | `green` | Couleur de `markers.agent_idle`. |
+| `markers.agent_working_color` | couleur | `yellow` | Couleur de `markers.agent_working`. Alterne entre pleine et faible luminosité (deux fois par seconde) tant que l'agent travaille — le seul des quatre états animé. |
+| `markers.agent_blocked_color` | couleur | `red` | Couleur de `markers.agent_blocked`. |
+| `markers.agent_done_color` | couleur | `blue` | Couleur de `markers.agent_done`. |
 | `markers.command_failed` | 0–1 caractère | `✗` | Marqueur (à côté de son code de sortie, dans les colonnes nom/état plutôt que dans la gouttière) pour une session sans agent dont la dernière commande — via l'[intégration shell OSC 133](#intégration-shell-osc-133) — a échoué. `""` le désactive. |
 | `markers.restart` | 0–1 caractère | `↻` | Marqueur (à côté de son compteur de tentatives, dans les colonnes nom/état plutôt que dans la gouttière) pour une session ayant eu besoin d'au moins un redémarrage automatique (voir [Configuration de projet](#configuration-de-projet), `restart:`). `""` le désactive. |
 | `scroll.page_lines` | entier ≥ 0 | `0` | Lignes parcourues par `PgUp`/`PgDn`. `0` signifie une hauteur de panneau entière. |
@@ -459,10 +463,14 @@ markers:
   alt_screen: "#"
   activity: "●"
   broadcast: "+"
-  agent_idle: "·"
-  agent_working: "…"
-  agent_blocked: "‼"
-  agent_done: "✓"
+  agent_idle: "●"
+  agent_working: "●"
+  agent_blocked: "●"
+  agent_done: "●"
+  agent_idle_color: "green"
+  agent_working_color: "yellow"
+  agent_blocked_color: "red"
+  agent_done_color: "blue"
   command_failed: "✗"
   restart: "↻"
 

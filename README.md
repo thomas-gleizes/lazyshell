@@ -342,10 +342,14 @@ used instead — never a silent no-op, never a refusal to run.
 | `markers.alt_screen` | 0–1 char | `#` | Gutter marker for a session running a full-screen application. `""` turns it off. |
 | `markers.activity` | 0–1 char | `●` | Gutter marker for a session that produced output while hidden. `""` turns it off. |
 | `markers.broadcast` | 0–1 char | `+` | Gutter marker for a session marked to receive broadcast keystrokes. `""` turns it off. |
-| `markers.agent_idle` | 0–1 char | `·` | Gutter marker for a detected AI agent session that is idle. `""` turns it off. |
-| `markers.agent_working` | 0–1 char | `…` | Gutter marker for a detected AI agent session that is working. `""` turns it off. |
-| `markers.agent_blocked` | 0–1 char | `‼` | Gutter marker for a detected AI agent session waiting on you. `""` turns it off. |
-| `markers.agent_done` | 0–1 char | `✓` | Gutter marker for a detected AI agent session that finished its turn. `""` turns it off. |
+| `markers.agent_idle` | 0–1 char | `●` | Gutter marker for a detected AI agent session that is idle. `""` turns it off. |
+| `markers.agent_working` | 0–1 char | `●` | Gutter marker for a detected AI agent session that is working. `""` turns it off. |
+| `markers.agent_blocked` | 0–1 char | `●` | Gutter marker for a detected AI agent session waiting on you. `""` turns it off. |
+| `markers.agent_done` | 0–1 char | `●` | Gutter marker for a detected AI agent session that finished its turn. `""` turns it off. |
+| `markers.agent_idle_color` | color | `green` | Color for `markers.agent_idle`. |
+| `markers.agent_working_color` | color | `yellow` | Color for `markers.agent_working`. Pulses between full and dimmed brightness (twice a second) while the agent is working — the only one of the four states that animates. |
+| `markers.agent_blocked_color` | color | `red` | Color for `markers.agent_blocked`. |
+| `markers.agent_done_color` | color | `blue` | Color for `markers.agent_done`. |
 | `markers.command_failed` | 0–1 char | `✗` | Marker (next to its exit code, in the name/status columns rather than the gutter) for a non-agent session whose last command — per [shell-integration OSC 133](#shell-integration-osc-133) — exited non-zero. `""` turns it off. |
 | `markers.restart` | 0–1 char | `↻` | Marker (next to its attempt count, in the name/status columns rather than the gutter) for a session that has needed at least one automatic restart (see [Project configuration](#project-configuration)'s `restart:`). `""` turns it off. |
 | `scroll.page_lines` | int ≥ 0 | `0` | Lines `PgUp`/`PgDn` move by. `0` means one full panel height. |
@@ -454,10 +458,14 @@ markers:
   alt_screen: "#"
   activity: "●"
   broadcast: "+"
-  agent_idle: "·"
-  agent_working: "…"
-  agent_blocked: "‼"
-  agent_done: "✓"
+  agent_idle: "●"
+  agent_working: "●"
+  agent_blocked: "●"
+  agent_done: "●"
+  agent_idle_color: "green"
+  agent_working_color: "yellow"
+  agent_blocked_color: "red"
+  agent_done_color: "blue"
   command_failed: "✗"
   restart: "↻"
 

@@ -114,10 +114,14 @@
     <tr><td><code>markers.alt_screen</code></td><td>0–1 char</td><td><code>#</code></td><td>Gutter marker for a session running a full-screen application.</td></tr>
     <tr><td><code>markers.activity</code></td><td>0–1 char</td><td><code>●</code></td><td>Gutter marker for a session that produced output while hidden.</td></tr>
     <tr><td><code>markers.broadcast</code></td><td>0–1 char</td><td><code>+</code></td><td>Gutter marker for a session marked to receive broadcast keystrokes.</td></tr>
-    <tr><td><code>markers.agent_idle</code></td><td>0–1 char</td><td><code>·</code></td><td>Gutter marker for a detected AI agent session that is idle.</td></tr>
-    <tr><td><code>markers.agent_working</code></td><td>0–1 char</td><td><code>…</code></td><td>Gutter marker for a detected AI agent session that is working.</td></tr>
-    <tr><td><code>markers.agent_blocked</code></td><td>0–1 char</td><td><code>‼</code></td><td>Gutter marker for a detected AI agent session waiting on you.</td></tr>
-    <tr><td><code>markers.agent_done</code></td><td>0–1 char</td><td><code>✓</code></td><td>Gutter marker for a detected AI agent session that finished its turn.</td></tr>
+    <tr><td><code>markers.agent_idle</code></td><td>0–1 char</td><td><code>●</code></td><td>Gutter marker for a detected AI agent session that is idle.</td></tr>
+    <tr><td><code>markers.agent_working</code></td><td>0–1 char</td><td><code>●</code></td><td>Gutter marker for a detected AI agent session that is working.</td></tr>
+    <tr><td><code>markers.agent_blocked</code></td><td>0–1 char</td><td><code>●</code></td><td>Gutter marker for a detected AI agent session waiting on you.</td></tr>
+    <tr><td><code>markers.agent_done</code></td><td>0–1 char</td><td><code>●</code></td><td>Gutter marker for a detected AI agent session that finished its turn.</td></tr>
+    <tr><td><code>markers.agent_idle_color</code></td><td>colour</td><td><code>green</code></td><td>Colour for <code>markers.agent_idle</code>.</td></tr>
+    <tr><td><code>markers.agent_working_color</code></td><td>colour</td><td><code>yellow</code></td><td>Colour for <code>markers.agent_working</code>. Pulses between full and dimmed brightness (twice a second) while the agent is working — the only one of the four states that animates.</td></tr>
+    <tr><td><code>markers.agent_blocked_color</code></td><td>colour</td><td><code>red</code></td><td>Colour for <code>markers.agent_blocked</code>.</td></tr>
+    <tr><td><code>markers.agent_done_color</code></td><td>colour</td><td><code>blue</code></td><td>Colour for <code>markers.agent_done</code>.</td></tr>
     <tr><td><code>markers.command_failed</code></td><td>0–1 char</td><td><code>✗</code></td><td>Marker (next to its exit code, in the name/status columns rather than the gutter) for a non-agent session whose last command — per <a href="usage.html#osc133">shell-integration OSC 133</a> — exited non-zero.</td></tr>
     <tr><td><code>markers.restart</code></td><td>0–1 char</td><td><code>↻</code></td><td>Marker (next to its attempt count, in the name/status columns rather than the gutter) for a session that has needed at least one automatic restart — see <a href="project.html#example"><code>restart:</code></a>.</td></tr>
     <tr><td><code>scroll.page_lines</code></td><td>int ≥ 0</td><td><code>0</code></td><td>Lines <kbd>PgUp</kbd>/<kbd>PgDn</kbd> move by. <code>0</code> means one full panel height.</td></tr>
@@ -254,10 +258,14 @@ markers:
   alt_screen: "#"
   activity: "●"
   broadcast: "+"
-  agent_idle: "·"
-  agent_working: "…"
-  agent_blocked: "‼"
-  agent_done: "✓"
+  agent_idle: "●"
+  agent_working: "●"
+  agent_blocked: "●"
+  agent_done: "●"
+  agent_idle_color: "green"
+  agent_working_color: "yellow"
+  agent_blocked_color: "red"
+  agent_done_color: "blue"
   command_failed: "✗"
   restart: "↻"
 

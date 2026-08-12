@@ -58,10 +58,18 @@ const (
 	// detected state (pkg/agent, pkg/gui/sessions_panel.go). Distinct from
 	// activityMarker on purpose: activity only means "produced output", these
 	// mean "is it waiting on you".
-	defaultAgentIdleMarker    = "·"
-	defaultAgentWorkingMarker = "…"
-	defaultAgentBlockedMarker = "‼"
-	defaultAgentDoneMarker    = "✓"
+	defaultAgentIdleMarker    = "●"
+	defaultAgentWorkingMarker = "●"
+	defaultAgentBlockedMarker = "●"
+	defaultAgentDoneMarker    = "●"
+	// defaultAgentIdleColor/defaultAgentWorkingColor/defaultAgentBlockedColor/
+	// defaultAgentDoneColor are those markers' colors, in Theme's syntax (W3C
+	// name, ANSI alias, or "#rrggbb") — the glyphs above are identical dots,
+	// so color is the only thing that tells the four states apart.
+	defaultAgentIdleColor    = "green"
+	defaultAgentWorkingColor = "yellow"
+	defaultAgentBlockedColor = "red"
+	defaultAgentDoneColor    = "blue"
 	// defaultCommandFailedMarker is prepended to a non-agent session's detail
 	// column when its last command (per OSC 133 shell integration) exited
 	// non-zero (pkg/gui/sessions_panel.go's commandExitIndicator).
@@ -207,6 +215,14 @@ type Markers struct {
 	AgentWorking string `yaml:"agent_working"`
 	AgentBlocked string `yaml:"agent_blocked"`
 	AgentDone    string `yaml:"agent_done"`
+	// AgentIdleColor/AgentWorkingColor/AgentBlockedColor/AgentDoneColor color
+	// the four markers above, in Theme's syntax (W3C name, ANSI alias, or
+	// "#rrggbb"). AgentWorkingColor also drives the working marker's pulse:
+	// it alternates between this color at full and dimmed brightness.
+	AgentIdleColor    string `yaml:"agent_idle_color"`
+	AgentWorkingColor string `yaml:"agent_working_color"`
+	AgentBlockedColor string `yaml:"agent_blocked_color"`
+	AgentDoneColor    string `yaml:"agent_done_color"`
 	// CommandFailed flags a non-agent session whose last command (per OSC 133
 	// shell integration) exited non-zero. Not part of the fixed gutter above:
 	// it is prepended to the detail column instead, alongside its exit code,
@@ -341,16 +357,20 @@ func Default() Config {
 		PrefixKey:           defaultPrefixKey,
 		Keybindings:         map[string]string{},
 		Markers: Markers{
-			Bell:          defaultBellMarker,
-			AltScreen:     defaultAltScreenMarker,
-			Activity:      defaultActivityMarker,
-			Broadcast:     defaultBroadcastMarker,
-			AgentIdle:     defaultAgentIdleMarker,
-			AgentWorking:  defaultAgentWorkingMarker,
-			AgentBlocked:  defaultAgentBlockedMarker,
-			AgentDone:     defaultAgentDoneMarker,
-			CommandFailed: defaultCommandFailedMarker,
-			Restart:       defaultRestartMarker,
+			Bell:              defaultBellMarker,
+			AltScreen:         defaultAltScreenMarker,
+			Activity:          defaultActivityMarker,
+			Broadcast:         defaultBroadcastMarker,
+			AgentIdle:         defaultAgentIdleMarker,
+			AgentWorking:      defaultAgentWorkingMarker,
+			AgentBlocked:      defaultAgentBlockedMarker,
+			AgentDone:         defaultAgentDoneMarker,
+			AgentIdleColor:    defaultAgentIdleColor,
+			AgentWorkingColor: defaultAgentWorkingColor,
+			AgentBlockedColor: defaultAgentBlockedColor,
+			AgentDoneColor:    defaultAgentDoneColor,
+			CommandFailed:     defaultCommandFailedMarker,
+			Restart:           defaultRestartMarker,
 		},
 		Scroll: Scroll{
 			PageLines:       0,

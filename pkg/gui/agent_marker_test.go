@@ -10,6 +10,26 @@ import (
 	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
+// waitForPrompt waits for /bin/sh's prompt, whichever shell it actually
+// resolves to (bash, dash, sh, zsh) picks: "$ " for a normal user, "# " for
+// root — this container runs the test suite as root, so waitForScreen's
+// literal "$" never shows.
+func waitForPrompt(t *testing.T, sess *session.Session) {
+	t.Helper()
+
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		screen := sess.Screen().Render()
+		if strings.HasSuffix(strings.TrimRight(screen, " \n"), "$") || strings.HasSuffix(strings.TrimRight(screen, " \n"), "#") {
+			return
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatalf("session %s never showed a shell prompt on screen:\n%s", sess.Name(), sess.Screen().Render())
+}
+
 func TestAgentMarkerMapsEveryStateToAGlyphAndColor(t *testing.T) {
 	set := markerSet{agentIdle: "i", agentWorking: "w", agentBlocked: "b", agentDone: "d"}
 
@@ -40,6 +60,55 @@ func TestAgentMarkerMapsEveryStateToAGlyphAndColor(t *testing.T) {
 
 	if glyph, code := set.agentMarker(agent.StateNone); glyph != "" || code != "" {
 		t.Errorf("agentMarker(StateNone) = (%q, %q), want empty (no marker for a non-agent session)", glyph, code)
+	}
+}
+
+func TestAgentMarkerUsesConfiguredColor(t *testing.T) {
+	set := markerSet{agentIdle: "i", agentIdleColor: "#ff0000"}
+
+	if _, code := set.agentMarker(agent.StateIdle); code != "38;2;255;0;0" {
+		t.Errorf("agentMarker with agent_idle_color = %q, code = %q, want %q", "#ff0000", code, "38;2;255;0;0")
+	}
+}
+
+func TestAgentMarkerPulsesOnlyWorkingState(t *testing.T) {
+	bright := markerSet{agentIdle: "i", agentWorking: "w", agentBlocked: "b", agentDone: "d", pulseOn: true}
+	dim := bright
+	dim.pulseOn = false
+
+	for _, c := range []struct {
+		state agent.State
+		name  string
+	}{
+		{agent.StateIdle, "idle"},
+		{agent.StateBlocked, "blocked"},
+		{agent.StateDone, "done"},
+	} {
+		_, brightCode := bright.agentMarker(c.state)
+		_, dimCode := dim.agentMarker(c.state)
+		if brightCode != dimCode {
+			t.Errorf("agentMarker(%s) changed with pulseOn (%q vs %q), want it static", c.name, brightCode, dimCode)
+		}
+	}
+
+	_, workingBright := bright.agentMarker(agent.StateWorking)
+	_, workingDim := dim.agentMarker(agent.StateWorking)
+	if workingBright == workingDim {
+		t.Errorf("agentMarker(StateWorking) did not change with pulseOn, want the working marker to pulse")
+	}
+}
+
+func TestPulsePhaseTogglesEveryHalfPeriod(t *testing.T) {
+	base := time.UnixMilli(0)
+
+	if !pulsePhase(base) {
+		t.Errorf("pulsePhase(0) = false, want true")
+	}
+	if pulsePhase(base.Add(pulseHalfPeriod)) {
+		t.Errorf("pulsePhase(base + one half-period) = true, want false")
+	}
+	if !pulsePhase(base.Add(2 * pulseHalfPeriod)) {
+		t.Errorf("pulsePhase(base + two half-periods) = false, want true")
 	}
 }
 
@@ -96,7 +165,7 @@ func TestSessionMarkersColorizesAgentStateWithoutBreakingAlignment(t *testing.T)
 	gui.sessions.Detector = agent.NewDetector(manifests)
 
 	sess := newTestSession(t, gui, "agent-session")
-	waitForScreen(t, sess, "$")
+	waitForPrompt(t, sess)
 
 	if _, err := sess.Write([]byte("echo MARKER-TOKEN\n")); err != nil {
 		t.Fatalf("Write: %v", err)
@@ -114,7 +183,8 @@ func TestSessionMarkersColorizesAgentStateWithoutBreakingAlignment(t *testing.T)
 	set := gui.markerSet()
 	gutter := sessionMarkers(sess, set, false, false)
 
-	if !strings.Contains(gutter, "\x1b[33m"+set.agentWorking+"\x1b[0m") {
+	_, sgrCode := set.agentMarker(agent.StateWorking)
+	if !strings.Contains(gutter, "\x1b["+sgrCode+"m"+set.agentWorking+"\x1b[0m") {
 		t.Fatalf("gutter = %q, want the colorized working marker", gutter)
 	}
 

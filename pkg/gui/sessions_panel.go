@@ -37,12 +37,12 @@ const (
 	// agentIdleMarker/agentWorkingMarker/agentBlockedMarker/agentDoneMarker
 	// flag a detected AI agent session's state (pkg/agent) — distinct from
 	// activityMarker, which only means "produced output": these mean "is it
-	// waiting on you". Rendered in color (see agentStateColor) on top of the
-	// glyph, so the four states stay visually distinct even at a glance.
-	agentIdleMarker    = "·"
-	agentWorkingMarker = "…"
-	agentBlockedMarker = "‼"
-	agentDoneMarker    = "✓"
+	// waiting on you". All four render as the same filled dot: color (see
+	// agentMarker) is what tells the four states apart, not glyph shape.
+	agentIdleMarker    = "●"
+	agentWorkingMarker = "●"
+	agentBlockedMarker = "●"
+	agentDoneMarker    = "●"
 	// commandFailedMarker flags a non-agent session whose last command (per
 	// OSC 133 shell integration, pkg/screen's Screen.LastCommandExit) exited
 	// non-zero. Not part of the gutter above — see commandExitIndicator.
@@ -52,6 +52,31 @@ const (
 	// above either — see restartIndicator.
 	restartMarker = "↻"
 )
+
+// pulseHalfPeriod is how long the working marker's color spends at one
+// brightness before switching to the other — long enough to read as a
+// breathing dot rather than a strobe, and coarse enough that
+// sessionsPanelChanged's diff only forces a redraw twice a second, not on
+// every render tick (reRenderInterval defaults to 30ms). herdr shipped a
+// ~128ms spinner and walked it back because continuous per-frame redraws
+// suppressed the host terminal's cursor blink
+// (https://github.com/herdrdev/herdr/discussions/1316) — tying the phase to
+// wall-clock time instead of the render tick is what avoids that here.
+const pulseHalfPeriod = 500 * time.Millisecond
+
+// pulsePhase reports which half of the pulse cycle now falls in.
+func pulsePhase(now time.Time) bool {
+	return now.UnixMilli()/pulseHalfPeriod.Milliseconds()%2 == 0
+}
+
+// dimRGB scales an RGB triple down for the working marker's dim phase, never
+// all the way to black — the dot should still read as "that color", just
+// quieter.
+func dimRGB(r, g, b int32) (int32, int32, int32) {
+	const factor = 0.35
+
+	return int32(float64(r) * factor), int32(float64(g) * factor), int32(float64(b) * factor)
+}
 
 // gutterColumns is the gutter's width, in characters: one per marker kind.
 // sessionsPanelContent pads to this manually rather than through a Printf
@@ -72,6 +97,21 @@ type markerSet struct {
 	agentBlocked string
 	agentDone    string
 
+	// agentIdleColor/agentWorkingColor/agentBlockedColor/agentDoneColor are
+	// pkg/config's Theme-syntax color strings (W3C name, ANSI alias, or
+	// "#rrggbb") for the markers above — "" falls back to resolveColor's
+	// built-in default, the same convention Theme itself uses, and unlike
+	// the glyph fields above where "" means "off".
+	agentIdleColor    string
+	agentWorkingColor string
+	agentBlockedColor string
+	agentDoneColor    string
+
+	// pulseOn is which half of pulseHalfPeriod's cycle this render falls in,
+	// resolved once per markerSet so every working session in the same
+	// render pass pulses in lockstep.
+	pulseOn bool
+
 	commandFailed string
 
 	restart string
@@ -84,16 +124,21 @@ type markerSet struct {
 // anything empty at this point was asked for.
 func (gui *Gui) markerSet() markerSet {
 	set := markerSet{
-		bell:          gui.markers.Bell,
-		altScreen:     gui.markers.AltScreen,
-		activity:      gui.markers.Activity,
-		broadcast:     gui.markers.Broadcast,
-		agentIdle:     gui.markers.AgentIdle,
-		agentWorking:  gui.markers.AgentWorking,
-		agentBlocked:  gui.markers.AgentBlocked,
-		agentDone:     gui.markers.AgentDone,
-		commandFailed: gui.markers.CommandFailed,
-		restart:       gui.markers.Restart,
+		bell:              gui.markers.Bell,
+		altScreen:         gui.markers.AltScreen,
+		activity:          gui.markers.Activity,
+		broadcast:         gui.markers.Broadcast,
+		agentIdle:         gui.markers.AgentIdle,
+		agentWorking:      gui.markers.AgentWorking,
+		agentBlocked:      gui.markers.AgentBlocked,
+		agentDone:         gui.markers.AgentDone,
+		agentIdleColor:    gui.markers.AgentIdleColor,
+		agentWorkingColor: gui.markers.AgentWorkingColor,
+		agentBlockedColor: gui.markers.AgentBlockedColor,
+		agentDoneColor:    gui.markers.AgentDoneColor,
+		pulseOn:           pulsePhase(time.Now()),
+		commandFailed:     gui.markers.CommandFailed,
+		restart:           gui.markers.Restart,
 	}
 
 	// The zero-value Gui case only: a bare struct literal (tests) never went
@@ -111,21 +156,26 @@ func (gui *Gui) markerSet() markerSet {
 }
 
 // agentMarker returns the configured glyph for state and the raw ANSI SGR
-// foreground code to wrap it in — "" for agent.StateNone, which draws
-// nothing, and for a state whose marker was explicitly turned off. Fixed,
-// non-theme colors on purpose: they mirror herdr's idle/working/blocked/done
-// convention (green/yellow/red/blue) rather than adding a themeable surface
-// this phase's design report never asked for.
+// truecolor foreground code to wrap it in — "" for agent.StateNone, which
+// draws nothing, and for a state whose marker was explicitly turned off.
+// Colors are resolved through the same resolveColor Theme uses, falling back
+// to herdr's idle/working/blocked/done convention (green/yellow/red/blue)
+// when unconfigured. The working marker's color is dimmed on the dim half of
+// the pulse cycle — the only state that animates, since it is the only one
+// where motion communicates something ("still going") rather than noise.
 func (set markerSet) agentMarker(state agent.State) (glyph, sgrCode string) {
+	var colorName string
+	var fallback gocui.Attribute
+
 	switch state {
 	case agent.StateIdle:
-		glyph, sgrCode = set.agentIdle, "32"
+		glyph, colorName, fallback = set.agentIdle, set.agentIdleColor, gocui.ColorGreen
 	case agent.StateWorking:
-		glyph, sgrCode = set.agentWorking, "33"
+		glyph, colorName, fallback = set.agentWorking, set.agentWorkingColor, gocui.ColorYellow
 	case agent.StateBlocked:
-		glyph, sgrCode = set.agentBlocked, "31"
+		glyph, colorName, fallback = set.agentBlocked, set.agentBlockedColor, gocui.ColorRed
 	case agent.StateDone:
-		glyph, sgrCode = set.agentDone, "34"
+		glyph, colorName, fallback = set.agentDone, set.agentDoneColor, gocui.ColorBlue
 	default:
 		return "", ""
 	}
@@ -134,14 +184,19 @@ func (set markerSet) agentMarker(state agent.State) (glyph, sgrCode string) {
 		return "", ""
 	}
 
-	return glyph, sgrCode
+	r, g, b := resolveColor(colorName, fallback).RGB()
+	if state == agent.StateWorking && !set.pulseOn {
+		r, g, b = dimRGB(r, g, b)
+	}
+
+	return glyph, fmt.Sprintf("38;2;%d;%d;%d", r, g, b)
 }
 
 // colorizeMarker wraps ch in a raw ANSI SGR foreground code, reset
 // immediately after — gocui has rendered in OutputTrue (truecolor) mode
-// since phase 10, so an 8-color SGR sequence embedded directly in view
-// content renders as intended. Returns ch unchanged if code is empty (marker
-// turned off) or ch is empty (nothing to color).
+// since phase 10, so an SGR sequence (8-color or truecolor) embedded
+// directly in view content renders as intended. Returns ch unchanged if code
+// is empty (marker turned off) or ch is empty (nothing to color).
 func colorizeMarker(ch, sgrCode string) string {
 	if ch == "" || sgrCode == "" {
 		return ch
