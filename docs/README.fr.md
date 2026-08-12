@@ -88,10 +88,12 @@ téléchargement.
 
 Lancer `lazyshell` dans un terminal. `Tab` change le panneau actif entre la liste
 des sessions et le panneau de sortie, et `→` / `←` font la même chose de façon
-directionnelle ; quand le panneau de sortie a le focus, les frappes vont
-directement au shell de cette session (mode « pass-through »).
-Appuyer sur `?` à tout moment ouvre une aide dans l'application, qui liste tous
-les raccourcis ci-dessous.
+directionnelle. Le pass-through — les frappes qui vont directement au shell de
+la session sélectionnée — est l'état par défaut dès qu'une session est
+sélectionnée : rien à presser avant. `Ctrl+O` (ou deux `Esc` d'affilée)
+verrouille le panneau de sortie à la place, pour défiler, chercher ou copier ;
+`i` / `Entrée` reprend la saisie. Appuyer sur `?` à tout moment ouvre une aide
+dans l'application, qui liste tous les raccourcis ci-dessous.
 
 | Touche | Action |
 | --- | --- |
@@ -123,10 +125,10 @@ s'appliquent :
 
 | Touche | Action |
 | --- | --- |
-| `←` | Revenir à la liste des sessions (sauf pendant le pass-through) |
-| `i` / `Enter` | Donner le clavier au shell (mode pass-through) |
-| `Ctrl+O` (configurable) | Reprendre le clavier, depuis le mode pass-through |
+| `←` | Revenir à la liste des sessions (seulement quand verrouillé) |
+| `Ctrl+O` (configurable) | Verrouiller le panneau : sortir du pass-through pour défiler, chercher ou copier |
 | `Esc` `Esc` | Pareil, sans touche à apprendre : deux Échap d'affilée, en moins de 400 ms |
+| `i` / `Enter` | Reprendre la saisie : retour au pass-through (utile seulement une fois verrouillé) |
 | `PgUp` / `PgDn` | Défiler d'un écran dans l'historique |
 | `Ctrl+U` / `Ctrl+D` | Défiler d'un demi-écran |
 | `/` | Rechercher dans l'historique ; `n` / `N` pour l'occurrence suivante/précédente |
@@ -137,31 +139,37 @@ s'appliquent :
 | `Esc` | Quitter la recherche ou annuler la sélection en cours |
 
 Démarrer une session (`n`, `N`, `c`) ou en relancer une (`R`) vous dépose
-directement dedans : le panneau de sortie prend le focus et le pass-through est
-armé, on peut taper tout de suite. `Ctrl+O` reprend le clavier. Déplacer la
-sélection avec `j` / `k` est de la navigation et ne fait jamais ça.
+directement dedans : le panneau de sortie prend le focus, le pass-through est
+armé, on peut taper tout de suite. Déplacer la sélection avec `j` / `k` (ou un
+clic, ou la molette) est de la navigation et ne change jamais si le
+pass-through est armé — c'est un drapeau unique pour toute l'application, pas
+quelque chose de remis à zéro par session : changer de session en étant
+verrouillé vous y dépose toujours verrouillé, changer en étant déverrouillé
+vous y dépose prêt à taper.
 
-Deux `Esc` d'affilée, à moins de 400 ms l'un de l'autre, reprennent le clavier
-eux aussi — la sortie qu'on trouve sans lire ce tableau. C'est un vrai double
-appui : le premier `Esc` part dans la session comme n'importe quelle touche,
-donc `Esc` continue de marcher dans `vim` et dans une session d'agent, et toute
-autre touche tapée entre les deux casse la paire. La seule habitude qui n'y
-survit pas est le double `Esc` réflexe de `vim`, qui fera sortir du
-pass-through ; `Ctrl+O` reste la sortie pour qui préfère l'éviter.
+`Ctrl+O` verrouille le panneau — la même touche, quelle que soit la session
+sur laquelle vous êtes passé entre-temps. Deux `Esc` d'affilée, à moins de
+400 ms l'un de l'autre, verrouillent aussi — le geste qu'on trouve sans lire
+ce tableau. C'est un vrai double appui : le premier `Esc` part dans la session
+comme n'importe quelle touche, donc `Esc` continue de marcher dans `vim` et
+dans une session d'agent, et toute autre touche tapée entre les deux casse la
+paire. La seule habitude qui n'y survit pas est le double `Esc` réflexe de
+`vim`, qui verrouillera le panneau ; `Ctrl+O` reste le verrouillage pour qui
+préfère l'éviter.
 
 Un shell qui se termine de lui-même — `exit`, `Ctrl+D`, ou ce qu'il faisait
-tourner qui se finit — emmène l'interface avec lui : le pass-through est
-désarmé et le focus revient au panneau des sessions, sur cette même session.
-Elle reste sélectionnée et listée, terminée, donc `R` la relance et `x` / `D`
-s'en débarrassent. Rien ne se passe derrière une popup : une confirmation ou
-l'aide gardent le focus qu'elles ont.
+tourner qui se finit — emmène l'interface avec lui : le panneau se verrouille
+et le focus revient au panneau des sessions, sur cette même session. Elle
+reste sélectionnée et listée, terminée, donc `R` la relance (et vous y dépose
+à nouveau déverrouillé) et `x` / `D` s'en débarrassent. Rien ne se passe
+derrière une popup : une confirmation ou l'aide gardent le focus qu'elles ont.
 
 Chaque panneau porte aussi ses touches les plus utilisées sur la ligne du bas de
 son cadre, pour que les plus courantes soient lisibles sans ouvrir `?`. La liste
 se raccourcit à ce qui tient dans la largeur du panneau, et celle du panneau de
-sortie s'adapte à ce qu'il fait : seulement la sortie du pass-through quand le
-pass-through est actif, aucune indication de défilement quand une application
-plein écran tient la session.
+sortie s'adapte à ce qu'il fait : le retour au pass-through quand verrouillé,
+le verrouillage quand en pass-through, aucune indication de défilement quand
+une application plein écran tient la session.
 
 ### Lire la liste des sessions
 
@@ -347,7 +355,7 @@ refus de tourner.
 | `portrait_min_height` | entier | `45` | …et au-dessus de cette hauteur. Le portrait empile les panneaux au lieu de les mettre côte à côte. |
 | `refresh_interval_ms` | entier, 10–1000 | `30` | Période de redessin. Un panneau inchangé n'est jamais poussé, donc le coût au repos reste proche de zéro quelle que soit la valeur. |
 | `kill_timeout_ms` | entier ≥ 100 | `2000` | Attente après `SIGTERM` avant de passer à `SIGKILL`, puis à nouveau avant d'abandonner. |
-| `prefix_key` | spec de touche | `Ctrl+O` | Touche de sortie du pass-through : une pression, on sort. Doit être une touche de contrôle, et elle ne peut plus être tapée dans une session. `$LAZYSHELL_PREFIX` la surcharge. |
+| `prefix_key` | spec de touche | `Ctrl+O` | Verrouille le panneau : une pression, sortie du pass-through. Doit être une touche de contrôle, et elle ne peut plus être tapée dans une session. `$LAZYSHELL_PREFIX` la surcharge. |
 | `keybindings` | map | voir plus bas | Remappe un identifiant d'action vers une spec de touche. Une action omise garde sa touche par défaut. |
 | `markers.bell` | 0–1 caractère | `!` | Marqueur de gouttière pour une session qui a sonné pendant qu'elle était cachée. `""` le désactive. |
 | `markers.alt_screen` | 0–1 caractère | `#` | Marqueur pour une session faisant tourner une application plein écran. `""` le désactive. |
@@ -368,7 +376,7 @@ refus de tourner.
 | `theme.active_border_color` | couleur | `green` | Bordure du panneau qui a le focus. |
 | `theme.inactive_border_color` | couleur | `default` | Bordure de tous les autres panneaux. |
 | `theme.selected_bg_color` | couleur | `blue` | Fond de la ligne sélectionnée dans la liste des sessions. |
-| `theme.pass_through_border_color` | couleur | `red` | Bordure du panneau qui a le focus, en mode pass-through. |
+| `theme.locked_border_color` | couleur | `red` | Bordure du panneau de sortie quand il est verrouillé (hors pass-through). |
 | `theme.tab_active_color` | couleur | `green` | Onglet sélectionné dans la barre d'onglets du panneau de sortie. |
 | `clipboard.fallback_command` | chaîne | `""` | Commande lancée avec le texte copié sur son stdin, à la place d'OSC 52, pour un terminal qui ne le gère pas. Il n'y a aucun moyen de détecter le support, c'est donc un interrupteur manuel : vide signifie OSC 52 seulement. |
 | `notify.fallback_command` | chaîne | `""` | Commande lancée avec le texte de notification sur son stdin, à la place d'OSC 9/777, quand une session d'agent IA détectée passe en blocked ou done. Vide signifie OSC seulement. |
@@ -482,7 +490,7 @@ theme:
   active_border_color: green
   inactive_border_color: default
   selected_bg_color: blue
-  pass_through_border_color: red
+  locked_border_color: red
   tab_active_color: green
 
 clipboard:

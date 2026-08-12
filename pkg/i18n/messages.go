@@ -304,6 +304,10 @@ var messages = map[string]map[string]string{
 		"fr": " -- INSERT --  (%s ou Esc Esc pour sortir) ",
 		"en": " -- INSERT --  (%s or Esc Esc to exit) ",
 	},
+	"status.locked_hint": {
+		"fr": " -- VERROUILLÉ --  (i/Entrée : reprendre la saisie) ",
+		"en": " -- LOCKED --  (i/Enter: resume typing) ",
+	},
 	"status.search": {
 		"fr": " /%s : %d/%d occurrence(s) ",
 		"en": " /%s: %d/%d match(es) ",

@@ -20,6 +20,7 @@ func currentViewName(gui *Gui) string {
 // → is Tab's directional half: it moves to the panel drawn on the right.
 func TestArrowRightFocusesOutputPanel(t *testing.T) {
 	gui := newSessionsErgonomicsTestGui(t)
+	gui.passThroughActive = false // New defaults it armed (ADR 0011); start locked
 
 	if _, err := gui.g.SetCurrentView(sessionsViewName); err != nil {
 		t.Fatalf("SetCurrentView: %v", err)
@@ -64,6 +65,7 @@ func TestArrowRightWithoutSessionStaysPut(t *testing.T) {
 // that path is the one the user actually presses.
 func TestArrowLeftFromOutputFocusesSessions(t *testing.T) {
 	gui := newSessionsErgonomicsTestGui(t)
+	gui.passThroughActive = false // New defaults it armed (ADR 0011); this test wants locked
 
 	view, err := gui.g.View(outputViewName)
 	if err != nil {
@@ -113,6 +115,7 @@ func TestArrowLeftReachesShellDuringPassThrough(t *testing.T) {
 // While selecting, the arrows belong to the selection.
 func TestArrowLeftDoesNotLeavePanelInCopyMode(t *testing.T) {
 	gui := newSessionsErgonomicsTestGui(t)
+	gui.passThroughActive = false // New defaults it armed (ADR 0011); copy mode is only reachable locked
 
 	view, err := gui.g.View(outputViewName)
 	if err != nil {
@@ -139,6 +142,7 @@ func TestArrowLeftDoesNotLeavePanelInCopyMode(t *testing.T) {
 // The resources/env tabs are not terminals, so ← is free there too.
 func TestArrowLeftOnSecondaryTabFocusesSessions(t *testing.T) {
 	gui := newSessionsErgonomicsTestGui(t)
+	gui.passThroughActive = false // New defaults it armed (ADR 0011); this test wants locked
 
 	view, err := gui.g.View(outputViewName)
 	if err != nil {
@@ -164,6 +168,7 @@ func TestArrowLeftOnSecondaryTabFocusesSessions(t *testing.T) {
 // error out or blank the focus.
 func TestArrowLeftWhileZoomedStaysOnOutput(t *testing.T) {
 	gui := newSessionsErgonomicsTestGui(t)
+	gui.passThroughActive = false // New defaults it armed (ADR 0011); this test wants locked
 
 	if err := gui.toggleZoom(gui.g, nil); err != nil {
 		t.Fatalf("toggleZoom: %v", err)

@@ -189,11 +189,11 @@ type Config struct {
 // or "#rrggbb", gocui.GetColor's syntax) so this package stays free of a
 // gocui dependency — pkg/gui resolves them to actual gocui Attributes.
 type Theme struct {
-	ActiveBorderColor      string `yaml:"active_border_color"`
-	InactiveBorderColor    string `yaml:"inactive_border_color"`
-	SelectedBgColor        string `yaml:"selected_bg_color"`
-	PassThroughBorderColor string `yaml:"pass_through_border_color"`
-	TabActiveColor         string `yaml:"tab_active_color"`
+	ActiveBorderColor   string `yaml:"active_border_color"`
+	InactiveBorderColor string `yaml:"inactive_border_color"`
+	SelectedBgColor     string `yaml:"selected_bg_color"`
+	LockedBorderColor   string `yaml:"locked_border_color"`
+	TabActiveColor      string `yaml:"tab_active_color"`
 }
 
 // Markers is the four-column gutter every session line starts with — the

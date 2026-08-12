@@ -139,7 +139,7 @@ theme:
   active_border_color: green
   inactive_border_color: default
   selected_bg_color: blue
-  pass_through_border_color: red
+  locked_border_color: red
 
 # Copie en mode copy-mode : vide = OSC 52 uniquement (traverse SSH, aucun
 # binaire requis). Aucun moyen de détecter si le terminal l'accepte : si ce

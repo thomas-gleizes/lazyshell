@@ -239,20 +239,20 @@ func (gui *Gui) wheelSessions(delta int) func(gocui.ViewMouseBindingOpts) error 
 // gocui dispatches a mouse binding by where the pointer is on screen, not by
 // which view currently has focus (view.go's VisibleViewByPosition), so a
 // click or a wheel notch over the sessions panel fires here even while the
-// output panel is focused and pass-through is armed. Without disarming it
-// first, applySelection would swap which session is selected while
-// pass-through keeps pointing at the output panel — a keystroke typed a
-// moment later would go to a session the border and status bar no longer
-// agree on, and the pass-through-coloured border itself would keep showing
-// on a panel that no longer owns the keyboard.
+// output panel is focused.
 //
-// Same fix exit_watch.go's backOutOfExitedSession applies when a session
-// exits out from under pass-through: disarm, then move focus.
+// It deliberately leaves passThroughActive untouched (docs/adr/0011): the
+// flag is global and persists across a session-selection change, so browsing
+// with the mouse while pass-through is armed for some other session is not a
+// reason to disarm it — landing back on the output panel should still be
+// interactive. Before ADR 0011 this used to call exitPassThrough() first, as
+// a workaround for g.SelFrameColor being a single global attribute: without
+// disarming, the pass-through-coloured border would bleed onto the sessions
+// panel once it became current. That workaround is gone because the real fix
+// is in place — updateBorderColor (input.go) computes the border colour from
+// which view is actually current, not from the flag alone, and is wired to
+// fire on every focus change via focusManager (layout.go).
 func (gui *Gui) cutControlToSessions() error {
-	if gui.passThroughActive {
-		gui.exitPassThrough()
-	}
-
 	_, err := gui.g.SetCurrentView(sessionsViewName)
 
 	return err

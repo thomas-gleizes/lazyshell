@@ -72,9 +72,9 @@
 
 <p>
   Each panel also carries its most-used keys on the bottom line of its frame. The list shortens to
-  whatever fits the panel's width, and the output panel's adapts to what it is doing: only the way
-  out of pass-through while pass-through is on, no scrolling hint while a full-screen application
-  has the session.
+  whatever fits the panel's width, and the output panel's adapts to what it is doing: the way back
+  to pass-through while locked, the way to lock it while in pass-through, no scrolling hint while a
+  full-screen application has the session.
 </p>
 
 <h2 id="keys-sessions">Keys — sessions panel</h2>
@@ -121,10 +121,10 @@
 <table>
   <thead><tr><th>Key</th><th>Action</th></tr></thead>
   <tbody>
-    <tr><td><kbd>←</kbd></td><td>Go back to the sessions panel (not during pass-through)</td></tr>
-    <tr><td><kbd>i</kbd> / <kbd>Enter</kbd></td><td>Hand the keyboard to the shell (pass-through mode)</td></tr>
-    <tr><td><kbd>Ctrl+O</kbd> <span style="color:var(--text-faint)">(configurable)</span></td><td>Take the keyboard back from pass-through</td></tr>
+    <tr><td><kbd>←</kbd></td><td>Go back to the sessions panel (only while locked)</td></tr>
+    <tr><td><kbd>Ctrl+O</kbd> <span style="color:var(--text-faint)">(configurable)</span></td><td>Lock the panel: leave pass-through for scrolling, search or copy-mode</td></tr>
     <tr><td><kbd>Esc</kbd> <kbd>Esc</kbd></td><td>Same, without a key to learn: two Escapes in a row, within 400 ms</td></tr>
+    <tr><td><kbd>i</kbd> / <kbd>Enter</kbd></td><td>Resume typing: back to pass-through (only needed once locked)</td></tr>
     <tr><td><kbd>PgUp</kbd> / <kbd>PgDn</kbd></td><td>Scroll one screen through the scrollback</td></tr>
     <tr><td><kbd>Ctrl+U</kbd> / <kbd>Ctrl+D</kbd></td><td>Scroll half a screen</td></tr>
     <tr><td><kbd>/</kbd></td><td>Search the scrollback; <kbd>n</kbd> / <kbd>N</kbd> for the next / previous match</td></tr>
@@ -140,24 +140,29 @@
 <h2 id="focus">Who holds the keyboard</h2>
 
 <p>
-  That is the central question of the interface, and lazyshell never switches mode on its own —
-  except at the two moments where the intent is unambiguous:
+  Pass-through is the default the moment a session is selected — there is nothing to press first —
+  and it is a single flag for the whole app, not something reset per session: moving the selection
+  with <kbd>j</kbd> / <kbd>k</kbd>, a click or the wheel never changes whether it is armed. Land on
+  another session while locked and you land locked; land on one while unlocked and you land ready
+  to type. lazyshell only switches the flag on its own at the two moments where the intent is
+  unambiguous:
 </p>
 
 <ul>
   <li>
     <strong>Starting a session</strong> (<kbd>n</kbd>, <kbd>N</kbd>, <kbd>M</kbd>, <kbd>c</kbd>) or
     <strong>restarting</strong> one (<kbd>R</kbd>) lands you straight inside it: the output panel
-    takes the focus and pass-through is armed, so you can type immediately. <kbd>Ctrl+O</kbd> gets
-    the keyboard back, and so do two <kbd>Esc</kbd> in a row within 400 ms — a genuine double
-    press, the first <kbd>Esc</kbd> still reaching the session so it keeps working in
-    <code>vim</code> and in an agent session.
+    takes the focus and pass-through is armed (even if you were locked a moment ago), so you can
+    type immediately. <kbd>Ctrl+O</kbd> locks the panel, and so do two <kbd>Esc</kbd> in a row
+    within 400 ms — a genuine double press, the first <kbd>Esc</kbd> still reaching the session so
+    it keeps working in <code>vim</code> and in an agent session.
   </li>
   <li>
     <strong>A shell that ends on its own</strong> — <code>exit</code>, <kbd>Ctrl+D</kbd>, or
-    whatever it was running finishing — takes the interface with it: pass-through is disarmed and
-    focus goes back to the sessions panel, on that same session. It stays selected and listed,
-    exited, so <kbd>R</kbd> restarts it and <kbd>x</kbd> / <kbd>D</kbd> disposes of it.
+    whatever it was running finishing — takes the interface with it: the panel locks and focus
+    goes back to the sessions panel, on that same session. It stays selected and listed, exited, so
+    <kbd>R</kbd> restarts it (landing you back inside it, unlocked) and <kbd>x</kbd> /
+    <kbd>D</kbd> disposes of it.
   </li>
 </ul>
 

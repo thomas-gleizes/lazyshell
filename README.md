@@ -86,10 +86,12 @@ anything.
 ## Usage
 
 Run `lazyshell` in a terminal. `Tab` switches focus between the sessions
-panel and the output panel, and `→` / `←` do the same thing directionally;
-while the output panel is focused, keystrokes go straight to that session's
-shell ("pass-through" mode). Press `?` at any time
-to open an in-app help popup listing every binding below.
+panel and the output panel, and `→` / `←` do the same thing directionally.
+Pass-through — keystrokes going straight to the selected session's shell — is
+the default the moment a session is selected: there is nothing to press
+first. `Ctrl+O` (or two `Esc` in a row) locks the output panel instead, for
+scrolling, search or copy-mode; `i` / `Enter` gets back to typing. Press `?`
+at any time to open an in-app help popup listing every binding below.
 
 | Key | Action |
 | --- | --- |
@@ -120,10 +122,10 @@ While the **output panel** is focused, these apply instead:
 
 | Key | Action |
 | --- | --- |
-| `←` | Go back to the sessions panel (not during pass-through) |
-| `i` / `Enter` | Hand the keyboard to the shell (pass-through mode) |
-| `Ctrl+O` (configurable) | Take the keyboard back, out of pass-through mode |
+| `←` | Go back to the sessions panel (only while locked) |
+| `Ctrl+O` (configurable) | Lock the panel: leave pass-through for scrolling, search or copy-mode |
 | `Esc` `Esc` | Same, without a key to learn: two Escapes in a row, within 400 ms |
+| `i` / `Enter` | Resume typing: back to pass-through (only needed once locked) |
 | `PgUp` / `PgDn` | Scroll one screen through the history |
 | `Ctrl+U` / `Ctrl+D` | Scroll half a screen |
 | `/` | Search the history; `n` / `N` for the next/previous match |
@@ -134,29 +136,35 @@ While the **output panel** is focused, these apply instead:
 | `Esc` | Leave the search, or cancel the selection in progress |
 
 Starting a session (`n`, `N`, `c`) or restarting one (`R`) lands you straight
-inside it: the output panel takes the focus and pass-through is armed, so you
-can type immediately. `Ctrl+O` gets the keyboard back. Moving the selection
-with `j` / `k` is navigation and never does this.
+inside it: the output panel takes the focus, pass-through is armed, and you
+can type immediately. Moving the selection with `j` / `k` (or a click, or the
+wheel) is navigation and never changes whether pass-through is armed — it is
+a single flag for the whole app, not something reset per session: switch to
+another session while locked and you land on it still locked, switch while
+unlocked and you land on it ready to type.
 
-Two `Esc` in a row, within 400 ms of each other, get the keyboard back too —
-the exit you can find without reading this table. It is a genuine double press:
-the first `Esc` is forwarded to the session like any other key, so `Esc` keeps
-working in `vim` and in an agent session, and any other key typed in between
-breaks the pair. The one habit it does not survive is double-tapping `Esc` in
-`vim` out of reflex, which will leave pass-through; `Ctrl+O` remains the exit
-for anyone who would rather it did not.
+`Ctrl+O` locks the panel — the same key, whichever session you switched to in
+the meantime. Two `Esc` in a row, within 400 ms of each other, lock it too —
+the gesture you can find without reading this table. It is a genuine double
+press: the first `Esc` is forwarded to the session like any other key, so
+`Esc` keeps working in `vim` and in an agent session, and any other key typed
+in between breaks the pair. The one habit it does not survive is
+double-tapping `Esc` in `vim` out of reflex, which will lock the panel;
+`Ctrl+O` remains the lock for anyone who would rather it did not.
 
 A shell that ends on its own — `exit`, `Ctrl+D`, or whatever it was running
-finishing — takes the interface with it: pass-through is disarmed and focus
-goes back to the sessions panel, on that same session. It stays selected and
-listed, exited, so `R` restarts it and `x` / `D` disposes of it. Nothing
-happens behind a popup: a confirmation or the help keeps the focus it has.
+finishing — takes the interface with it: the panel locks and focus goes back
+to the sessions panel, on that same session. It stays selected and listed,
+exited, so `R` restarts it (landing you back inside it, unlocked) and `x` /
+`D` disposes of it. Nothing happens behind a popup: a confirmation or the
+help keeps the focus it has.
 
 Each panel also carries its own most-used keys on the bottom line of its
 frame, so the common ones are readable without opening `?`. The list shortens
 to whatever fits the panel's width, and the output panel's adapts to what it
-is doing: only the way out of pass-through while pass-through is on, no
-scrolling hint while a full-screen application has the session.
+is doing: the way back to pass-through while locked, the way to lock it while
+in pass-through, no scrolling hint while a full-screen application has the
+session.
 
 ### Reading the sessions list
 
@@ -336,7 +344,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `portrait_min_height` | int | `45` | …and above this terminal height. Portrait stacks the panels instead of splitting them side by side. |
 | `refresh_interval_ms` | int, 10–1000 | `30` | Redraw period. An unchanged panel is never pushed, so idle cost stays near zero at any value. |
 | `kill_timeout_ms` | int ≥ 100 | `2000` | Wait after `SIGTERM` before escalating to `SIGKILL`, and again before giving up. |
-| `prefix_key` | key spec | `Ctrl+O` | Pass-through escape key: one press, out. Must be a control key, and it can no longer be typed into a session. `$LAZYSHELL_PREFIX` overrides it. |
+| `prefix_key` | key spec | `Ctrl+O` | Locks the panel: one press, out of pass-through. Must be a control key, and it can no longer be typed into a session. `$LAZYSHELL_PREFIX` overrides it. |
 | `keybindings` | map | see below | Remaps an action id to a key spec. An action left out keeps its default key. |
 | `markers.bell` | 0–1 char | `!` | Gutter marker for a session that rang while hidden. `""` turns it off. |
 | `markers.alt_screen` | 0–1 char | `#` | Gutter marker for a session running a full-screen application. `""` turns it off. |
@@ -357,7 +365,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `theme.active_border_color` | color | `green` | Focused panel's border. |
 | `theme.inactive_border_color` | color | `default` | Every other panel's border. |
 | `theme.selected_bg_color` | color | `blue` | Selected line's background in the sessions list. |
-| `theme.pass_through_border_color` | color | `red` | Focused panel's border while in pass-through mode. |
+| `theme.locked_border_color` | color | `red` | Output panel's border while locked (i.e. not in pass-through). |
 | `theme.tab_active_color` | color | `green` | Selected tab in the output panel's tab strip. |
 | `clipboard.fallback_command` | string | `""` | Command run with the yanked text on its stdin, instead of OSC 52, for a terminal that does not support it. There is no way to detect support, so this is a manual switch: empty means OSC 52 only. |
 | `notify.fallback_command` | string | `""` | Command run with the notification text on its stdin, instead of OSC 9/777, when a detected AI agent session goes blocked or done. Empty means OSC only. |
@@ -477,7 +485,7 @@ theme:
   active_border_color: green
   inactive_border_color: default
   selected_bg_color: blue
-  pass_through_border_color: red
+  locked_border_color: red
   tab_active_color: green
 
 clipboard:

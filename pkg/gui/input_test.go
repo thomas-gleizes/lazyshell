@@ -31,6 +31,11 @@ func newOutputTestGui(t *testing.T) (*Gui, *gocui.View) {
 		t.Fatalf("output view not found: %v", err)
 	}
 
+	// New defaults to pass-through armed (docs/adr/0011-passthrough-par-defaut.md);
+	// this file's tests are about the locked→armed transition itself, so they
+	// need a known locked starting point.
+	gui.exitPassThrough()
+
 	return gui, view
 }
 

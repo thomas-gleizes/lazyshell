@@ -73,8 +73,8 @@
 <p>
   Chaque panneau affiche ses touches les plus utiles sur la ligne basse de son cadre. La liste se
   raccourcit à ce que la largeur permet, et celle du panneau de sortie s'adapte à ce qu'il est en
-  train de faire : uniquement la sortie du pass-through quand le pass-through est actif, aucun
-  indice de défilement quand une application plein écran tient la session.
+  train de faire : le retour au pass-through quand verrouillé, le verrouillage quand en
+  pass-through, aucun indice de défilement quand une application plein écran tient la session.
 </p>
 
 <h2 id="touches-sessions">Touches — panneau des sessions</h2>
@@ -121,10 +121,10 @@
 <table>
   <thead><tr><th>Touche</th><th>Action</th></tr></thead>
   <tbody>
-    <tr><td><kbd>←</kbd></td><td>Revenir à la liste des sessions (sauf pendant le pass-through)</td></tr>
-    <tr><td><kbd>i</kbd> / <kbd>Entrée</kbd></td><td>Donner le clavier au shell (mode pass-through)</td></tr>
-    <tr><td><kbd>Ctrl+O</kbd> <span style="color:var(--text-faint)">(configurable)</span></td><td>Reprendre le clavier depuis le pass-through</td></tr>
+    <tr><td><kbd>←</kbd></td><td>Revenir à la liste des sessions (seulement quand verrouillé)</td></tr>
+    <tr><td><kbd>Ctrl+O</kbd> <span style="color:var(--text-faint)">(configurable)</span></td><td>Verrouiller le panneau : sortir du pass-through pour défiler, chercher ou copier</td></tr>
     <tr><td><kbd>Esc</kbd> <kbd>Esc</kbd></td><td>Pareil, sans touche à apprendre : deux Échap d'affilée, en moins de 400 ms</td></tr>
+    <tr><td><kbd>i</kbd> / <kbd>Entrée</kbd></td><td>Reprendre la saisie : retour au pass-through (utile seulement une fois verrouillé)</td></tr>
     <tr><td><kbd>PgUp</kbd> / <kbd>PgDn</kbd></td><td>Défiler d'un écran dans l'historique</td></tr>
     <tr><td><kbd>Ctrl+U</kbd> / <kbd>Ctrl+D</kbd></td><td>Défiler d'un demi-écran</td></tr>
     <tr><td><kbd>/</kbd></td><td>Rechercher dans l'historique ; <kbd>n</kbd> / <kbd>N</kbd> pour l'occurrence suivante / précédente</td></tr>
@@ -140,25 +140,29 @@
 <h2 id="focus">Qui a le clavier</h2>
 
 <p>
-  C'est la question centrale de l'interface, et lazyshell ne change jamais de mode tout seul —
-  sauf aux deux moments où l'intention est sans ambiguïté :
+  Le pass-through est l'état par défaut dès qu'une session est sélectionnée — rien à presser
+  avant — et c'est un drapeau unique pour toute l'application, pas quelque chose remis à zéro par
+  session : déplacer la sélection avec <kbd>j</kbd> / <kbd>k</kbd>, un clic ou la molette ne change
+  jamais s'il est armé. Atterrir sur une autre session en étant verrouillé vous y dépose verrouillé ;
+  y atterrir déverrouillé vous y dépose prêt à taper. lazyshell ne change le drapeau tout seul qu'aux
+  deux moments où l'intention est sans ambiguïté :
 </p>
 
 <ul>
   <li>
     <strong>Démarrer une session</strong> (<kbd>n</kbd>, <kbd>N</kbd>, <kbd>M</kbd>, <kbd>c</kbd>) ou en
     <strong>relancer</strong> une (<kbd>R</kbd>) vous dépose dedans : le panneau de sortie prend le
-    focus et le pass-through est armé, vous pouvez taper immédiatement. <kbd>Ctrl+O</kbd> reprend
-    le clavier, et deux <kbd>Esc</kbd> d'affilée en moins de 400 ms aussi — un vrai double appui,
-    le premier <kbd>Esc</kbd> partant quand même dans la session pour qu'il continue de marcher
-    dans <code>vim</code> et dans une session d'agent.
+    focus et le pass-through est armé (même si vous étiez verrouillé l'instant d'avant), vous pouvez
+    taper immédiatement. <kbd>Ctrl+O</kbd> verrouille le panneau, et deux <kbd>Esc</kbd> d'affilée en
+    moins de 400 ms aussi — un vrai double appui, le premier <kbd>Esc</kbd> partant quand même dans
+    la session pour qu'il continue de marcher dans <code>vim</code> et dans une session d'agent.
   </li>
   <li>
     <strong>Un shell qui se termine seul</strong> — <code>exit</code>, <kbd>Ctrl+D</kbd>, ou la
-    commande qu'il exécutait qui se finit — emporte l'interface avec lui : le pass-through est
-    désarmé et le focus revient au panneau des sessions, sur cette même session. Elle reste
-    sélectionnée et listée, sortie : <kbd>R</kbd> la relance, <kbd>x</kbd> / <kbd>D</kbd> s'en
-    débarrasse.
+    commande qu'il exécutait qui se finit — emporte l'interface avec lui : le panneau se verrouille
+    et le focus revient au panneau des sessions, sur cette même session. Elle reste sélectionnée et
+    listée, sortie : <kbd>R</kbd> la relance (et vous y redépose déverrouillé), <kbd>x</kbd> /
+    <kbd>D</kbd> s'en débarrasse.
   </li>
 </ul>
 

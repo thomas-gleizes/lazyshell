@@ -132,7 +132,7 @@ func validateTheme(theme config.Theme) []error {
 		{"active_border_color", theme.ActiveBorderColor},
 		{"inactive_border_color", theme.InactiveBorderColor},
 		{"selected_bg_color", theme.SelectedBgColor},
-		{"pass_through_border_color", theme.PassThroughBorderColor},
+		{"locked_border_color", theme.LockedBorderColor},
 	}
 
 	var errs []error

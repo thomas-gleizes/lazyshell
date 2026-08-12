@@ -37,10 +37,10 @@ func Effective(cfg config.Config) config.Config {
 
 	cfg.Keybindings = keybindings
 	cfg.Theme = config.Theme{
-		ActiveBorderColor:      orDefault(cfg.Theme.ActiveBorderColor, defaultActiveBorderColorName),
-		InactiveBorderColor:    orDefault(cfg.Theme.InactiveBorderColor, defaultInactiveBorderColorName),
-		SelectedBgColor:        orDefault(cfg.Theme.SelectedBgColor, defaultSelectedBgColorName),
-		PassThroughBorderColor: orDefault(cfg.Theme.PassThroughBorderColor, defaultPassThroughBorderColorName),
+		ActiveBorderColor:   orDefault(cfg.Theme.ActiveBorderColor, defaultActiveBorderColorName),
+		InactiveBorderColor: orDefault(cfg.Theme.InactiveBorderColor, defaultInactiveBorderColorName),
+		SelectedBgColor:     orDefault(cfg.Theme.SelectedBgColor, defaultSelectedBgColorName),
+		LockedBorderColor:   orDefault(cfg.Theme.LockedBorderColor, defaultLockedBorderColorName),
 	}
 
 	return cfg

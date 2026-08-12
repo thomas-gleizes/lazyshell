@@ -90,9 +90,13 @@ func TestClickSessionSelectsThatLine(t *testing.T) {
 	}
 }
 
-// A single click is navigation, not engagement — the same rule j/k follow.
+// A single click is navigation, not engagement — the same rule j/k follow. It
+// must leave passThroughActive exactly as it found it (ADR 0011: a global,
+// persistent flag that only an explicit lock/unlock touches), so this checks
+// both a locked and an armed starting point.
 func TestClickSessionDoesNotArmPassThrough(t *testing.T) {
 	gui, g := newHeadlessGui(t)
+	gui.passThroughActive = false // New defaults it armed; start from the other state too
 
 	if _, err := gui.sessions.New("a", "/bin/sh"); err != nil {
 		t.Fatalf("sessions.New: %v", err)
@@ -121,13 +125,16 @@ func TestClickSessionDoesNotArmPassThrough(t *testing.T) {
 	}
 }
 
-// The bug this guards against: clicking the sessions panel while the output
-// panel is focused and pass-through is armed used to leave passThroughActive
-// set on a panel that no longer owns the keyboard — the border kept the
-// pass-through colour and a keystroke typed afterwards would still have gone
-// to the shell instead of navigating the list.
+// ADR 0011: clicking the sessions panel while pass-through is armed for the
+// output panel no longer disarms it — passThroughActive is a global flag that
+// persists across a selection change, so browsing while it stays armed should
+// leave it armed. What it must still get right is the border colour: with
+// g.SelFrameColor being a single global attribute, painting the "locked"
+// colour on a panel that is not even the output view would be a bug —
+// borderColorFor/updateBorderColor (input.go) are what keep it correct by
+// looking at which view is actually current, not at the flag alone.
 func TestClickSessionCutsControlFromPassThrough(t *testing.T) {
-	gui, view := newOutputTestGui(t)
+	gui, _ := newOutputTestGui(t)
 
 	if _, err := gui.sessions.New("b", "/bin/sh"); err != nil {
 		t.Fatalf("sessions.New: %v", err)
@@ -149,24 +156,20 @@ func TestClickSessionCutsControlFromPassThrough(t *testing.T) {
 		t.Fatalf("clickSession: %v", err)
 	}
 
-	if gui.passThroughActive {
-		t.Error("clicking the sessions panel left pass-through armed")
+	if !gui.passThroughActive {
+		t.Error("clicking the sessions panel disarmed pass-through; it should be left alone")
 	}
 
 	if current := gui.g.CurrentView(); current == nil || current.Name() != sessionsViewName {
 		t.Errorf("current view = %v, want %q", current, sessionsViewName)
 	}
 
-	// A keystroke typed right after must navigate the list, not reach the
-	// shell — verifying against the view the click actually landed the
-	// keyboard on, view (output) here on purpose: it must no longer be the
-	// one receiving keystrokes.
-	if claimed := gui.editOutput(view, 0, 'j', 0); claimed {
-		t.Error("the output view's Editor still claimed a keystroke after the click cut control away from it")
+	if got := gui.borderColorFor(sessionsViewName); got != gui.theme.ActiveBorderColor {
+		t.Errorf("borderColorFor(sessions) = %v while pass-through stays armed elsewhere, want the ordinary active colour", got)
 	}
 }
 
-// Same bug, reached through the wheel instead of a click: gocui dispatches a
+// Same idea, reached through the wheel instead of a click: gocui dispatches a
 // mouse binding by screen position, not by which view is current, so
 // scrolling over the sessions panel fires even while the output panel is
 // focused.
@@ -189,8 +192,8 @@ func TestWheelSessionsCutsControlFromPassThrough(t *testing.T) {
 		t.Fatalf("wheelSessions: %v", err)
 	}
 
-	if gui.passThroughActive {
-		t.Error("scrolling the sessions panel left pass-through armed")
+	if !gui.passThroughActive {
+		t.Error("scrolling the sessions panel disarmed pass-through; it should be left alone")
 	}
 
 	if current := gui.g.CurrentView(); current == nil || current.Name() != sessionsViewName {

@@ -106,7 +106,7 @@ func (gui *Gui) renderDebugPanel(g *gocui.Gui) error {
 		}
 
 		view.Title = gui.tr.T("debug.title")
-		view.FrameColor = gui.theme.PassThroughBorderColor
+		view.FrameColor = gui.theme.LockedBorderColor
 	}
 
 	// SetView on an existing view keeps its position in gocui's draw order,

@@ -17,10 +17,11 @@ type Theme struct {
 	InactiveBorderColor gocui.Attribute
 	// SelectedBgColor is the sessions panel's highlighted-line background.
 	SelectedBgColor gocui.Attribute
-	// PassThroughBorderColor replaces ActiveBorderColor on the current view
-	// while the output panel is in pass-through mode — the roadmap's second
-	// mode indicator, alongside the status bar text.
-	PassThroughBorderColor gocui.Attribute
+	// LockedBorderColor replaces ActiveBorderColor on the output view while
+	// it is "locked" — pass-through off — the roadmap's second mode
+	// indicator, alongside the status bar text. See borderColorFor
+	// (pkg/gui/input.go) and docs/adr/0011-passthrough-par-defaut.md.
+	LockedBorderColor gocui.Attribute
 	// TabActiveColor is the output panel's selected tab (pkg/gui/tabs.go).
 	// gocui draws it from the view's SelFgColor, whose zero value is
 	// ColorDefault — i.e. identical to the inactive tabs, which would leave
@@ -37,22 +38,22 @@ type Theme struct {
 // TestREADMEThemeMatchesDefaults and TestAnsiAliasesResolveToTerminalColors are
 // what keep these names and the attributes below in agreement.
 const (
-	defaultActiveBorderColorName      = "green"
-	defaultInactiveBorderColorName    = "default"
-	defaultSelectedBgColorName        = "blue"
-	defaultPassThroughBorderColorName = "red"
-	defaultTabActiveColorName         = "green"
+	defaultActiveBorderColorName   = "green"
+	defaultInactiveBorderColorName = "default"
+	defaultSelectedBgColorName     = "blue"
+	defaultLockedBorderColorName   = "red"
+	defaultTabActiveColorName      = "green"
 )
 
 // defaultTheme is what lazyshell draws with when nothing in the config file
 // overrides it — the same colors phase 3/4 hardcoded.
 func defaultTheme() Theme {
 	return Theme{
-		ActiveBorderColor:      gocui.ColorGreen,
-		InactiveBorderColor:    gocui.ColorDefault,
-		SelectedBgColor:        gocui.ColorBlue,
-		PassThroughBorderColor: gocui.ColorRed,
-		TabActiveColor:         gocui.ColorGreen,
+		ActiveBorderColor:   gocui.ColorGreen,
+		InactiveBorderColor: gocui.ColorDefault,
+		SelectedBgColor:     gocui.ColorBlue,
+		LockedBorderColor:   gocui.ColorRed,
+		TabActiveColor:      gocui.ColorGreen,
 	}
 }
 
@@ -65,11 +66,11 @@ func newTheme(cfg config.Theme) Theme {
 	def := defaultTheme()
 
 	return Theme{
-		ActiveBorderColor:      resolveColor(cfg.ActiveBorderColor, def.ActiveBorderColor),
-		InactiveBorderColor:    resolveColor(cfg.InactiveBorderColor, def.InactiveBorderColor),
-		SelectedBgColor:        resolveColor(cfg.SelectedBgColor, def.SelectedBgColor),
-		PassThroughBorderColor: resolveColor(cfg.PassThroughBorderColor, def.PassThroughBorderColor),
-		TabActiveColor:         resolveColor(cfg.TabActiveColor, def.TabActiveColor),
+		ActiveBorderColor:   resolveColor(cfg.ActiveBorderColor, def.ActiveBorderColor),
+		InactiveBorderColor: resolveColor(cfg.InactiveBorderColor, def.InactiveBorderColor),
+		SelectedBgColor:     resolveColor(cfg.SelectedBgColor, def.SelectedBgColor),
+		LockedBorderColor:   resolveColor(cfg.LockedBorderColor, def.LockedBorderColor),
+		TabActiveColor:      resolveColor(cfg.TabActiveColor, def.TabActiveColor),
 	}
 }
 

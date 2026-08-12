@@ -290,8 +290,8 @@ func (gui *Gui) initView(name string, view *gocui.View) {
 		view.Highlight = true
 		view.HighlightInactive = true
 		view.SelBgColor = gui.theme.SelectedBgColor
-		gui.focus.onFocus[sessionsViewName] = func() { view.HighlightInactive = false }
-		gui.focus.onFocusLost[sessionsViewName] = func() { view.HighlightInactive = true }
+		gui.focus.onFocus[sessionsViewName] = func() { view.HighlightInactive = false; gui.updateBorderColor() }
+		gui.focus.onFocusLost[sessionsViewName] = func() { view.HighlightInactive = true; gui.updateBorderColor() }
 	case outputViewName:
 		// Tabs, not Title: gocui's drawTitle falls back to Title only when
 		// Tabs is empty, so setting both would leave a dead string behind.
@@ -317,8 +317,8 @@ func (gui *Gui) initView(name string, view *gocui.View) {
 		// the next frame the session happens to change, and regaining focus
 		// must restart the render task so the very next tick redraws it — see
 		// showOutput's skip-if-unchanged rule.
-		gui.focus.onFocus[outputViewName] = func() { gui.restartOutput() }
-		gui.focus.onFocusLost[outputViewName] = func() { gui.g.Cursor = false }
+		gui.focus.onFocus[outputViewName] = func() { gui.restartOutput(); gui.updateBorderColor() }
+		gui.focus.onFocusLost[outputViewName] = func() { gui.g.Cursor = false; gui.updateBorderColor() }
 	case statusViewName:
 		view.Frame = false
 		gui.renderStatus(view)

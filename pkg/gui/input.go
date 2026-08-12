@@ -674,13 +674,47 @@ func (gui *Gui) refreshChrome() {
 		return
 	}
 
-	if gui.passThroughActive {
-		gui.g.SelFrameColor = gui.theme.PassThroughBorderColor
-	} else {
-		gui.g.SelFrameColor = gui.theme.ActiveBorderColor
-	}
+	gui.updateBorderColor()
 
 	if view, err := gui.g.View(statusViewName); err == nil {
 		gui.renderStatus(view)
 	}
+}
+
+// borderColorFor is the frame colour the named view should carry right now.
+// "Locked" (red by default) only ever applies to the output view itself,
+// and only while pass-through is off there — the sessions panel, and any
+// popup, always draw the ordinary active colour, even while the global flag
+// is off, because the flag no longer implies the output view has focus
+// (docs/adr/0011-passthrough-par-defaut.md): passThroughActive persists
+// across a session-selection change, so it says nothing about which view is
+// current.
+func (gui *Gui) borderColorFor(name string) gocui.Attribute {
+	if name == outputViewName && !gui.passThroughActive {
+		return gui.theme.LockedBorderColor
+	}
+
+	return gui.theme.ActiveBorderColor
+}
+
+// updateBorderColor recomputes g.SelFrameColor — gocui's single global
+// "current view" frame colour — from whichever view is actually current.
+// Called from refreshChrome's usual triggers (entering/leaving pass-through,
+// copy mode, a tab switch) and, via focusManager's onFocus/onFocusLost hooks
+// (layout.go's initView), on every focus change those miss: a mouse click or
+// wheel notch that moves focus without touching passThroughActive at all is
+// exactly the case that used to rely on cutControlToSessions disarming
+// pass-through as a side effect (see its comment) — this replaces that
+// workaround with the real fix.
+func (gui *Gui) updateBorderColor() {
+	if gui.g == nil {
+		return
+	}
+
+	name := ""
+	if current := gui.g.CurrentView(); current != nil {
+		name = current.Name()
+	}
+
+	gui.g.SelFrameColor = gui.borderColorFor(name)
 }

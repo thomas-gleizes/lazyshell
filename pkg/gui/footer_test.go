@@ -104,6 +104,7 @@ func TestOutputFooterOmitsEscPairWhenPrefixIsEsc(t *testing.T) {
 func TestOutputFooterOutsidePassThrough(t *testing.T) {
 	gui, _ := newHeadlessGui(t)
 	newTestSession(t, gui, "s")
+	gui.passThroughActive = false // New defaults it armed (ADR 0011); this test wants locked
 
 	got := gui.panelFooter(outputViewName, 60)
 
@@ -119,6 +120,7 @@ func TestOutputFooterOutsidePassThrough(t *testing.T) {
 func TestOutputFooterDropsScrollOnAlternateScreen(t *testing.T) {
 	gui, _ := newHeadlessGui(t)
 	sess := newTestSession(t, gui, "s")
+	gui.passThroughActive = false // New defaults it armed (ADR 0011); this test wants locked
 
 	feed(t, sess, "\x1b[?1049h")
 

@@ -109,7 +109,7 @@
     <tr><td><code>portrait_min_height</code></td><td>entier</td><td><code>45</code></td><td>…et au-dessus de cette hauteur. Le portrait empile les panneaux au lieu de les juxtaposer.</td></tr>
     <tr><td><code>refresh_interval_ms</code></td><td>entier, 10–1000</td><td><code>30</code></td><td>Période de redessin. Un panneau inchangé n'est jamais poussé, donc le coût au repos reste proche de zéro quelle que soit la valeur.</td></tr>
     <tr><td><code>kill_timeout_ms</code></td><td>entier ≥ 100</td><td><code>2000</code></td><td>Attente après <code>SIGTERM</code> avant d'escalader en <code>SIGKILL</code>, puis avant d'abandonner.</td></tr>
-    <tr><td><code>prefix_key</code></td><td>spéc. de touche</td><td><code>Ctrl+O</code></td><td>Touche de sortie du pass-through : une pression, on sort. Doit être une touche de contrôle, et elle ne peut plus être tapée dans une session. <code>$LAZYSHELL_PREFIX</code> le surcharge.</td></tr>
+    <tr><td><code>prefix_key</code></td><td>spéc. de touche</td><td><code>Ctrl+O</code></td><td>Verrouille le panneau : une pression, sortie du pass-through. Doit être une touche de contrôle, et elle ne peut plus être tapée dans une session. <code>$LAZYSHELL_PREFIX</code> le surcharge.</td></tr>
     <tr><td><code>keybindings</code></td><td>table</td><td>voir <a href="#touches">plus bas</a></td><td>Associe un identifiant d'action à une spécification de touche. Une action absente garde sa touche par défaut.</td></tr>
     <tr><td><code>markers.bell</code></td><td>0–1 caractère</td><td><code>!</code></td><td>Marqueur d'une session ayant sonné pendant qu'elle était masquée. <code>""</code> le désactive.</td></tr>
     <tr><td><code>markers.alt_screen</code></td><td>0–1 caractère</td><td><code>#</code></td><td>Marqueur d'une session où tourne une application plein écran.</td></tr>
@@ -130,7 +130,7 @@
     <tr><td><code>theme.active_border_color</code></td><td>couleur</td><td><code>green</code></td><td>Bordure du panneau ayant le focus.</td></tr>
     <tr><td><code>theme.inactive_border_color</code></td><td>couleur</td><td><code>default</code></td><td>Bordure de tous les autres panneaux.</td></tr>
     <tr><td><code>theme.selected_bg_color</code></td><td>couleur</td><td><code>blue</code></td><td>Fond de la ligne sélectionnée dans la liste des sessions.</td></tr>
-    <tr><td><code>theme.pass_through_border_color</code></td><td>couleur</td><td><code>red</code></td><td>Bordure du panneau ayant le focus pendant le pass-through.</td></tr>
+    <tr><td><code>theme.locked_border_color</code></td><td>couleur</td><td><code>red</code></td><td>Bordure du panneau de sortie quand il est verrouillé (hors pass-through).</td></tr>
     <tr><td><code>theme.tab_active_color</code></td><td>couleur</td><td><code>green</code></td><td>Onglet sélectionné dans la barre d'onglets du panneau de sortie.</td></tr>
     <tr><td><code>clipboard.fallback_command</code></td><td>chaîne</td><td><code>""</code></td><td>Commande exécutée avec le texte copié sur son entrée standard, à la place d'OSC 52, pour un terminal qui ne le gère pas. Il n'existe aucun moyen de détecter ce support : c'est un interrupteur manuel, vide signifie OSC 52 seul.</td></tr>
     <tr><td><code>notify.fallback_command</code></td><td>chaîne</td><td><code>""</code></td><td>Commande exécutée avec le texte de la notification sur son entrée standard, à la place d'OSC 9/777, quand une session d'agent IA passe <em>bloquée</em> ou <em>terminée</em>. Vide signifie OSC seul.</td></tr>
@@ -280,7 +280,7 @@ theme:
   active_border_color: green
   inactive_border_color: default
   selected_bg_color: blue
-  pass_through_border_color: red
+  locked_border_color: red
   tab_active_color: green
 
 clipboard:

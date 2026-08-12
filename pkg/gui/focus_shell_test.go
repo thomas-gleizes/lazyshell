@@ -25,6 +25,9 @@ func assertInsideShell(t *testing.T, gui *Gui, what string) {
 // Tab and "i" left to press.
 func TestNewSessionLandsInsideTheNewShell(t *testing.T) {
 	gui := newSessionsErgonomicsTestGui(t)
+	// New defaults it armed (ADR 0011); start locked so the assertion below
+	// actually demonstrates that creation re-arms it.
+	gui.passThroughActive = false
 
 	if err := gui.newSession(gui.g, nil); err != nil {
 		t.Fatalf("newSession: %v", err)
@@ -40,6 +43,7 @@ func TestNewSessionLandsInsideTheNewShell(t *testing.T) {
 
 func TestDuplicateSessionLandsInsideTheNewShell(t *testing.T) {
 	gui := newSessionsErgonomicsTestGui(t)
+	gui.passThroughActive = false // New defaults it armed (ADR 0011); start locked
 
 	if err := gui.duplicateSession(gui.g, nil); err != nil {
 		t.Fatalf("duplicateSession: %v", err)
@@ -52,6 +56,7 @@ func TestDuplicateSessionLandsInsideTheNewShell(t *testing.T) {
 // before the popup, and the creation that follows it has to win over that.
 func TestNewSessionInDirLandsInsideTheNewShell(t *testing.T) {
 	gui := newSessionsErgonomicsTestGui(t)
+	gui.passThroughActive = false // New defaults it armed (ADR 0011); start locked
 
 	if err := gui.newSessionInDir(gui.g, nil); err != nil {
 		t.Fatalf("newSessionInDir: %v", err)
@@ -78,6 +83,7 @@ func TestNewSessionInDirLandsInsideTheNewShell(t *testing.T) {
 // user reaches for right after an exit dropped them back on the panel.
 func TestRestartSessionLandsInsideTheRestartedShell(t *testing.T) {
 	gui := newSessionsErgonomicsTestGui(t)
+	gui.passThroughActive = false // New defaults it armed (ADR 0011); start locked
 
 	sess := gui.selectedSession()
 	if err := gui.sessions.Kill(sess.ID); err != nil {
@@ -109,6 +115,10 @@ func TestMovingTheSelectionDoesNotArmPassThrough(t *testing.T) {
 		t.Fatalf("SetCurrentView: %v", err)
 	}
 
+	// New defaults it armed (ADR 0011); starting locked is what makes the
+	// assertion below prove the move left it alone rather than trivially true.
+	gui.passThroughActive = false
+
 	if err := gui.selectionMoved(1)(gui.g, nil); err != nil {
 		t.Fatalf("selectionMoved: %v", err)
 	}
@@ -130,6 +140,10 @@ func TestFailedNewSessionStaysOnThePanel(t *testing.T) {
 	if _, err := gui.g.SetCurrentView(sessionsViewName); err != nil {
 		t.Fatalf("SetCurrentView: %v", err)
 	}
+
+	// New defaults it armed (ADR 0011); starting locked is what makes the
+	// assertion below prove the failed creation left it alone.
+	gui.passThroughActive = false
 
 	gui.configuredShell = "/nonexistent/shell-that-cannot-start"
 

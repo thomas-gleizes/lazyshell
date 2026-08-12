@@ -120,6 +120,7 @@ func TestPassThroughDogfoodingFlow(t *testing.T) {
 	skipMainLoopUnderRace(t)
 
 	gui, g := newHeadlessGui(t)
+	gui.passThroughActive = false // New defaults it armed (ADR 0011); start locked so 'i' below is meaningful
 
 	g.SetManager(gocui.ManagerFunc(gui.layout), gui.focus)
 

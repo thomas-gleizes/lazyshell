@@ -234,6 +234,7 @@ func TestSecondaryTabsRefuseTheScreenKeys(t *testing.T) {
 	}
 
 	gui.outputTab = tabEnvironment
+	gui.passThroughActive = false // New defaults it armed (ADR 0011); this test wants a known start
 
 	for _, key := range []struct {
 		name string

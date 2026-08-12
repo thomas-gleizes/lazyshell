@@ -112,9 +112,9 @@ func TestThemeSurvivesOutputTrue(t *testing.T) {
 	theme := defaultTheme()
 
 	for name, color := range map[string]gocui.Attribute{
-		"active":      theme.ActiveBorderColor,
-		"selected":    theme.SelectedBgColor,
-		"passThrough": theme.PassThroughBorderColor,
+		"active":   theme.ActiveBorderColor,
+		"selected": theme.SelectedBgColor,
+		"locked":   theme.LockedBorderColor,
 	} {
 		if color == gocui.ColorDefault {
 			t.Errorf("%s colour resolved to ColorDefault", name)
@@ -125,8 +125,8 @@ func TestThemeSurvivesOutputTrue(t *testing.T) {
 		}
 	}
 
-	if theme.ActiveBorderColor == theme.PassThroughBorderColor {
-		t.Error("the pass-through border is indistinguishable from the normal active border")
+	if theme.ActiveBorderColor == theme.LockedBorderColor {
+		t.Error("the locked border is indistinguishable from the normal active border")
 	}
 }
 

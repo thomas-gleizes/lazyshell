@@ -147,9 +147,14 @@ type Gui struct {
 	// promptOnSubmit is the callback showPrompt is currently waiting on,
 	// captured at open time and consumed (then cleared) by submitPrompt.
 	promptOnSubmit func(string) error
-	// passThroughActive is only ever touched from editOutput, called
-	// synchronously from gocui's own event dispatch — always the same
-	// goroutine, no mutex needed.
+	// passThroughActive is whether the output panel's keystrokes go straight
+	// to the selected session's shell. New sets it true — pass-through is the
+	// default, "locked" (editDuringScroll) is the opt-in state reached via the
+	// prefix key or the Esc-Esc pair (see docs/adr/0011-passthrough-par-defaut.md).
+	// It is a single global flag: changing the selected session (j/k, a click,
+	// the wheel) never touches it, only an explicit lock/unlock gesture does.
+	// Only ever touched from editOutput, called synchronously from gocui's own
+	// event dispatch — always the same goroutine, no mutex needed.
 	passThroughActive bool
 	// lastEscAt is when the previous Escape was forwarded to the session, and
 	// is what turns two of them in a row into a pass-through exit (see
@@ -335,6 +340,7 @@ type Gui struct {
 func New(sessions *session.Manager, cfg config.Config) *Gui {
 	return &Gui{
 		sessions:            sessions,
+		passThroughActive:   true,
 		outputTasks:         tasks.NewManager(),
 		focus:               newFocusManager(),
 		tr:                  i18n.New(cfg.Language),
@@ -629,8 +635,9 @@ func (gui *Gui) Run() (err error) {
 
 // renderStatus writes the status bar's content: the last error takes
 // priority, then a transient success message (lastInfo), then pass-through,
-// then copy-mode, then search, then the sessions-list filter, then the
-// keybinding hint. The alt-screen marker is appended to whichever of those
+// then copy-mode, then search, then the locked-mode hint, then the
+// sessions-list filter, then the keybinding hint. The alt-screen marker is
+// appended to whichever of those
 // is shown, and the broadcast warning — if armed — is prepended in front of
 // all of it: broadcast is the one state dangerous enough that it must stay
 // visible no matter what else the status bar is currently saying, pass-
@@ -663,6 +670,8 @@ func (gui *Gui) renderStatus(view *gocui.View) {
 		text = gui.tr.T("status.copymode", to-from+1)
 	case gui.searchActive():
 		text = gui.tr.T("status.search", gui.searchPattern, gui.searchIndex+1, len(gui.searchMatches))
+	case gui.showLockedHint():
+		text = gui.tr.T("status.locked_hint")
 	case gui.filterActive():
 		// The group narrowing gets its own wording: reusing status.filter
 		// would print an empty pattern for a filter the user very much did
@@ -683,6 +692,30 @@ func (gui *Gui) renderStatus(view *gocui.View) {
 	}
 
 	fmt.Fprint(view, text)
+}
+
+// showLockedHint reports whether the status bar should teach the way back
+// into pass-through. Locked used to be the default and needed no hint of its
+// own; now that pass-through is (docs/adr/0011-passthrough-par-defaut.md),
+// locked is the state a user deliberately entered and may not remember how to
+// leave. Gated to the output view specifically, on the terminal tab (the only
+// one enterPassThrough can re-arm from) with a session to type into, and off
+// whenever copy-mode or search already own the status bar with their own,
+// more specific text.
+func (gui *Gui) showLockedHint() bool {
+	if gui.passThroughActive || gui.copyModeActive || gui.searchActive() {
+		return false
+	}
+
+	if gui.g == nil || gui.outputTab != tabTerminal {
+		return false
+	}
+
+	if current := gui.g.CurrentView(); current == nil || current.Name() != outputViewName {
+		return false
+	}
+
+	return gui.selectedSession() != nil
 }
 
 // selectedIsAltScreen reports whether the selected session has a full-screen

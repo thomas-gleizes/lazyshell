@@ -37,6 +37,10 @@ func newCopyModeTestGui(t *testing.T) (*Gui, *gocui.View) {
 		t.Fatalf("output view not found: %v", err)
 	}
 
+	// New defaults it armed (ADR 0011); copy mode ('v') is only reachable
+	// through editDuringScroll, i.e. once locked.
+	gui.exitPassThrough()
+
 	return gui, view
 }
 
