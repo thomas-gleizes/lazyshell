@@ -673,6 +673,7 @@ func TestKillSessionsRunsConcurrently(t *testing.T) {
 // very much did set, leaving them no clue why the list is short.
 func TestStatusBarNamesTheGroupFilter(t *testing.T) {
 	gui, _ := newGroupedTestGui(t, "services", "agents")
+	gui.passThroughActive = false // New default it armed (ADR 0011); this test wants locked
 
 	gui.setSelectedIndex(0)
 
