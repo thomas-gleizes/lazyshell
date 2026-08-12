@@ -384,8 +384,9 @@ func (gui *Gui) editDuringScroll(view *gocui.View, key gocui.Key, ch rune) bool 
 		// the current view is Editable — gocui excludes printable-character
 		// global bindings from that path unconditionally. So quitting from
 		// here has to be triggered by hand, the same way cmd/spike-pty's own
-		// quit() does it.
-		gui.g.Update(func(*gocui.Gui) error { return gocui.ErrQuit })
+		// quit() does it. requestQuitFromEditor is quit's logic adapted to
+		// that constraint — see its doc comment.
+		gui.requestQuitFromEditor()
 
 		return true
 
@@ -498,7 +499,7 @@ func (gui *Gui) editOnSecondaryTab(view *gocui.View, key gocui.Key, ch rune) boo
 		// Same reasoning as editDuringScroll's own 'q': a printable-key global
 		// binding never fires as a fallback while this view is Editable.
 		gui.debug.Action("editor quit")
-		gui.g.Update(func(*gocui.Gui) error { return gocui.ErrQuit })
+		gui.requestQuitFromEditor()
 
 		return true
 

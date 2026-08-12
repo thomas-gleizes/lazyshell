@@ -556,7 +556,3 @@ func (gui *Gui) setKeybindings(g *gocui.Gui) error {
 	// after it, and not earlier.
 	return gui.setMouseBindings(g)
 }
-
-func (gui *Gui) quit(*gocui.Gui, *gocui.View) error {
-	return gocui.ErrQuit
-}

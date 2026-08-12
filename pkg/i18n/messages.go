@@ -371,6 +371,10 @@ var messages = map[string]map[string]string{
 		"fr": "Tuer les %[2]d session(s) du groupe %[1]q ? (y/n)",
 		"en": "Kill the %[2]d session(s) of group %[1]q? (y/n)",
 	},
+	"sessions.quit_confirm": {
+		"fr": "Agent(s) en cours d'exécution : %s. Quitter lazyshell quand même ? (y/n)",
+		"en": "Agent(s) still running: %s. Quit lazyshell anyway? (y/n)",
+	},
 	"sessions.restart_group_none": {
 		"fr": "groupe %s : aucune session terminée à relancer",
 		"en": "group %s: no exited session to restart",

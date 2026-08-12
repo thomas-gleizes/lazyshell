@@ -42,24 +42,7 @@ func (gui *Gui) showConfirm(message string, onConfirm func() error) error {
 	}
 
 	if err := gui.g.SetKeybinding(confirmViewName, 'y', gocui.ModNone, func(*gocui.Gui, *gocui.View) error {
-		// Torn down *before* the callback runs, same order as submitPrompt's:
-		// an onConfirm that opens another popup of its own — every one of them
-		// currently does, via runBusy — would otherwise have its focus taken
-		// straight back by closeConfirm's SetCurrentView.
-		if err := gui.closeConfirm(); err != nil {
-			return err
-		}
-
-		if err := onConfirm(); err != nil {
-			gui.lastError = err.Error()
-		} else {
-			gui.lastError = ""
-			gui.lastInfo = ""
-		}
-
-		// closeConfirm already redrew both, but that was before the callback
-		// ran and set the message it may want shown.
-		return gui.refreshAfterBusy()
+		return gui.acceptConfirm(onConfirm)
 	}); err != nil {
 		return err
 	}
@@ -73,6 +56,39 @@ func (gui *Gui) showConfirm(message string, onConfirm func() error) error {
 	}
 
 	return nil
+}
+
+// acceptConfirm is the 'y' keybinding's handler, factored out so it can be
+// exercised directly in tests without going through gocui's key dispatch
+// (which the headless test Gui has no way to simulate).
+func (gui *Gui) acceptConfirm(onConfirm func() error) error {
+	// Torn down *before* the callback runs, same order as submitPrompt's:
+	// an onConfirm that opens another popup of its own — every one of them
+	// currently does, via runBusy — would otherwise have its focus taken
+	// straight back by closeConfirm's SetCurrentView.
+	if err := gui.closeConfirm(); err != nil {
+		return err
+	}
+
+	if err := onConfirm(); err != nil {
+		// gocui.ErrQuit is not a failure to report — it is the sentinel
+		// MainLoop watches for (see gui.go's Run). quit's onConfirm returns
+		// it, and it must reach MainLoop unchanged; swallowing it into
+		// lastError like every other error would turn "confirm quit" into a
+		// dead "Ex: quit" message and the app would never actually exit.
+		if goerrors.Is(err, gocui.ErrQuit) {
+			return err
+		}
+
+		gui.lastError = err.Error()
+	} else {
+		gui.lastError = ""
+		gui.lastInfo = ""
+	}
+
+	// closeConfirm already redrew both, but that was before the callback ran
+	// and set the message it may want shown.
+	return gui.refreshAfterBusy()
 }
 
 // closeConfirm tears the popup down and restores focus to the sessions panel.
