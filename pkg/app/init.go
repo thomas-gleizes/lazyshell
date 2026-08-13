@@ -60,6 +60,11 @@ sessions:
     # watch:                 # optionnel — motif surveillé dans la sortie ;
     #   - pattern: "ERR!"     # une notification (touche 'v' pour un motif
     #     notify: true        # ponctuel sur la session sélectionnée)
+    # locked: false          # optionnel — une session qui déclare une command
+    #                        # démarre VERROUILLÉE (on la consulte, les touches
+    #                        # ne lui sont pas transmises : pas de Ctrl-C par
+    #                        # mégarde) ; 'i' ou Entrée pour reprendre la
+    #                        # saisie. Mettre false pour y taper d'emblée.
 
   - name: shell            # sans command : un simple shell dans le cwd
 `

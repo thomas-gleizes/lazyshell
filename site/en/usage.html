@@ -140,12 +140,14 @@
 <h2 id="focus">Who holds the keyboard</h2>
 
 <p>
-  Pass-through is the default the moment a session is selected — there is nothing to press first —
-  and it is a single flag for the whole app, not something reset per session: moving the selection
-  with <kbd>j</kbd> / <kbd>k</kbd>, a click or the wheel never changes whether it is armed. Land on
-  another session while locked and you land locked; land on one while unlocked and you land ready
-  to type. lazyshell only switches the flag on its own at the two moments where the intent is
-  unambiguous:
+  Pass-through is the default the moment a session is selected — there is nothing to press first.
+  Moving the selection with <kbd>j</kbd> / <kbd>k</kbd>, a click or the wheel carries the current
+  state over: land on another session while locked and you land locked; land on one while unlocked
+  and you land ready to type. The exception is a session whose state was decided about — one a
+  project file declared <a href="project.html"><code>locked:</code></a> for (a declared
+  <code>command:</code> starts locked by default), or one you locked or unlocked by hand: that
+  choice is remembered per session and restored when you come back to it. Beyond that, lazyshell
+  only switches the flag on its own at the two moments where the intent is unambiguous:
 </p>
 
 <ul>

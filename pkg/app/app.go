@@ -132,6 +132,11 @@ func newApp(opts Options, approve approver, errOut io.Writer) *App {
 		fmt.Fprintf(errOut, "lazyshell: %v\n", w)
 	}
 
+	// Declared lock states, filled by autostart only: a session started any
+	// other way (the default one below, `n`, `ctl new`) has no declared state
+	// and keeps the pass-through persistence of ADR 0011.
+	var lockedSessions map[string]bool
+
 	switch {
 	case len(pcfg.Sessions) == 0:
 		// Nothing declared (or no project file at all): start a single
@@ -148,7 +153,10 @@ func newApp(opts Options, approve approver, errOut io.Writer) *App {
 		startupErrs = append(startupErrs,
 			fmt.Errorf("%s non approuvé : rien n'a été démarré (lazyshell allow)", pcfg.Path))
 	default:
-		startupErrs = append(startupErrs, autostart(sessions, pcfg, resolveShell(cfg.Shell))...)
+		var autostartErrs []error
+
+		lockedSessions, autostartErrs = autostart(sessions, pcfg, resolveShell(cfg.Shell))
+		startupErrs = append(startupErrs, autostartErrs...)
 	}
 
 	// The declared group order, whether or not any session was started: it is
@@ -160,6 +168,7 @@ func newApp(opts Options, approve approver, errOut io.Writer) *App {
 
 	g := gui.New(sessions, cfg)
 	g.SetGroupOrder(groups)
+	g.SetLockedSessions(lockedSessions)
 	g.SetDebug(dbg)
 	g.SetStartupError(joinErrors(startupErrs))
 

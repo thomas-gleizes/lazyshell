@@ -160,8 +160,11 @@ func (gui *Gui) setTab(tab outputTab) {
 
 	if gui.passThroughActive {
 		// Also restarts the render task and refreshes the chrome, which is
-		// why nothing below duplicates that.
-		gui.exitPassThrough()
+		// why nothing below duplicates that. lockOutput rather than
+		// exitPassThrough: leaving the terminal tab is a technical lock, and
+		// recording it would leave the session pinned to locked after a round
+		// trip through the perf tab (ADR 0012).
+		gui.lockOutput()
 	}
 
 	if gui.copyModeActive {

@@ -96,6 +96,17 @@ type SessionSpec struct {
 	// "never" (or empty), "on-failure", or "always". See resolveRestartPolicy
 	// for what happens to anything else.
 	Restart string `yaml:"restart"`
+	// Locked is whether this session starts in locked mode — the output panel
+	// showing it but not forwarding keystrokes to it. Nil means "not
+	// declared", and Validate then locks the session if, and only if, it
+	// declares a Command: a declared command is something you watch, and a
+	// stray keystroke landing in it can kill it.
+	//
+	// This is the one interface-shaped key the whitelist admits (see
+	// ProjectConfig's doc comment), because what it protects is the declared
+	// process itself, and the worst a hostile value can do is make the user
+	// press "i". It says nothing about colours, keys or layout.
+	Locked *bool `yaml:"locked"`
 }
 
 // WatchSpec is one pattern watcher, as written in the file.
@@ -143,6 +154,11 @@ type ResolvedSession struct {
 	// a bad watch pattern, a bad restart policy is a single scalar with a
 	// safe default, not a list of independent entries.
 	Restart RestartPolicy
+	// Locked is whether the session starts locked, already resolved: the
+	// declared value if there was one, else "it has a Command". Never nil —
+	// SessionSpec.Locked's "not declared" state does not survive validation,
+	// so nothing downstream has to re-derive the heuristic.
+	Locked bool
 }
 
 // ProjectPath resolves which project file to read: the --config-file flag, then
@@ -299,10 +315,27 @@ func (p ProjectConfig) Validate() ([]ResolvedSession, []error) {
 			NoDefaultEnv: noDefaultEnv,
 			Watch:        watch,
 			Restart:      restart,
+			Locked:       resolveLocked(spec),
 		})
 	}
 
 	return resolved, errs
+}
+
+// resolveLocked answers "does this session start locked?". A declared value
+// always wins, including an explicit "locked: false" on a session that runs a
+// command — that is the whole point of being able to write it. Undeclared, a
+// session with a command starts locked and a bare shell does not.
+//
+// Unlike every other resolver here it cannot fail: there is no third value a
+// bool can take, so an unparseable one is already a YAML error caught by
+// ParseProject long before this.
+func resolveLocked(spec SessionSpec) bool {
+	if spec.Locked != nil {
+		return *spec.Locked
+	}
+
+	return strings.TrimSpace(spec.Command) != ""
 }
 
 // validateWatch compile-checks each of a session's declared watchers. An

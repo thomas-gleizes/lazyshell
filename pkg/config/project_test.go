@@ -467,6 +467,62 @@ func TestValidateDropsInvalidRestartFallsBackToNever(t *testing.T) {
 	}
 }
 
+// locked: resolves to a plain bool: what the file says if it says anything,
+// else "this session declares a command" — the ADR 0012 rule, which is what
+// keeps a stray keystroke from killing a declared `npm run dev`.
+func TestValidateResolvesLocked(t *testing.T) {
+	yes, no := true, false
+
+	for _, tc := range []struct {
+		name    string
+		spec    SessionSpec
+		want    bool
+		comment string
+	}{
+		{"declared true", SessionSpec{Name: "api", Locked: &yes}, true, "declared wins"},
+		{"declared false with a command", SessionSpec{Name: "api", Command: "npm run dev", Locked: &no}, false,
+			"an explicit false is the whole point of being able to write the key"},
+		{"undeclared with a command", SessionSpec{Name: "api", Command: "npm run dev"}, true, "the heuristic"},
+		{"undeclared, whitespace-only command", SessionSpec{Name: "api", Command: "   "}, false, "not a command"},
+		{"undeclared bare shell", SessionSpec{Name: "shell"}, false, "nothing to protect"},
+	} {
+		pcfg := ProjectConfig{
+			Path:     filepath.Join(t.TempDir(), "lazyshell.yml"),
+			Sessions: []SessionSpec{tc.spec},
+		}
+
+		valid, errs := pcfg.Validate()
+		if len(errs) != 0 {
+			t.Fatalf("%s: errs = %v, want none", tc.name, errs)
+		}
+		if len(valid) != 1 || valid[0].Locked != tc.want {
+			t.Errorf("%s: Locked = %+v, want %v (%s)", tc.name, valid, tc.want, tc.comment)
+		}
+	}
+}
+
+// locked: is a per-session key. At the top level of the file it stays what it
+// was before this feature: an unknown key, ignored with a warning.
+func TestProjectLevelLockedIsAnUnknownKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "lazyshell.yml")
+	writeFile(t, path, "locked: true\nsessions:\n  - name: api\n")
+
+	pcfg, err := LoadProject(path)
+	if err != nil {
+		t.Fatalf("LoadProject: %v", err)
+	}
+
+	if len(pcfg.Warnings) != 1 {
+		t.Fatalf("Warnings = %v, want one about the top-level locked:", pcfg.Warnings)
+	}
+
+	valid, errs := pcfg.Validate()
+	if len(errs) != 0 || len(valid) != 1 || valid[0].Locked {
+		t.Errorf("valid = %+v, errs = %v, want the session kept and unlocked", valid, errs)
+	}
+}
+
 // A project file declares its groups and assigns sessions to them. The group
 // is trimmed and carried onto the ResolvedSession, and `groups:` fixes the
 // display order.

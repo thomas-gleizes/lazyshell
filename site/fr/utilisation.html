@@ -141,11 +141,14 @@
 
 <p>
   Le pass-through est l'état par défaut dès qu'une session est sélectionnée — rien à presser
-  avant — et c'est un drapeau unique pour toute l'application, pas quelque chose remis à zéro par
-  session : déplacer la sélection avec <kbd>j</kbd> / <kbd>k</kbd>, un clic ou la molette ne change
-  jamais s'il est armé. Atterrir sur une autre session en étant verrouillé vous y dépose verrouillé ;
-  y atterrir déverrouillé vous y dépose prêt à taper. lazyshell ne change le drapeau tout seul qu'aux
-  deux moments où l'intention est sans ambiguïté :
+  avant. Déplacer la sélection avec <kbd>j</kbd> / <kbd>k</kbd>, un clic ou la molette reporte
+  l'état courant : atterrir sur une autre session en étant verrouillé vous y dépose verrouillé ; y
+  atterrir déverrouillé vous y dépose prêt à taper. L'exception est une session dont l'état a été
+  tranché — une session pour laquelle un fichier de projet a déclaré
+  <a href="projet.html"><code>locked:</code></a> (une <code>command:</code> déclarée démarre
+  verrouillée par défaut), ou une session que vous avez verrouillée ou déverrouillée à la main : ce
+  choix est mémorisé par session et restauré quand vous y revenez. Au-delà, lazyshell ne change le
+  drapeau tout seul qu'aux deux moments où l'intention est sans ambiguïté :
 </p>
 
 <ul>

@@ -107,6 +107,12 @@ sessions:
     # réinitialise dès qu'un redémarrage tient 10s. « R » (ou « W » pour le
     # groupe) redémarre tout de suite, sans attendre.
     restart: on-failure
+    # Optionnel. Une session qui déclare une `command:` démarre *verrouillée* —
+    # vous voyez sa sortie, vos touches ne lui parviennent pas, donc un Ctrl-C
+    # parti de travers ne peut pas la tuer. À déclarer pour surcharger :
+    # `false` pour pouvoir y taper tout de suite, `true` pour verrouiller un
+    # simple shell.
+    locked: false
 
   - name: web
     group: services
@@ -114,6 +120,18 @@ sessions:
     command: npm run dev
 
   - name: shell          # sans groupe : affichée sous « sans groupe », en bas</code></pre>
+
+<p>
+  <strong>Une session qui déclare une <code>command:</code> démarre verrouillée</strong>, sauf si
+  elle dit <code>locked: false</code>. Verrouillée veut dire que le panneau de sortie l'affiche mais
+  ne lui transmet pas vos frappes : on peut défiler, chercher et copier, et un <code>q</code> mal
+  tapé ou un <code>Ctrl-C</code> destiné à autre chose ne peut pas tuer la commande.
+  <code>i</code> ou <code>Entrée</code> reprend le clavier, la touche préfixe (<code>Ctrl-O</code>)
+  ou <code>Échap</code> <code>Échap</code> le rend — et lazyshell mémorise, par session, le dernier
+  choix, si bien que parcourir la liste avec <code>j</code>/<code>k</code> vous dépose dans l'état
+  où chaque session a été laissée. Un simple shell ne déclare pas de commande : il démarre donc
+  prêt à la saisie.
+</p>
 
 <p>
   Les groupes sont un regroupement d'affichage — voir
@@ -140,6 +158,9 @@ sessions:
     <code>watch:</code> d'une session la suivent aussi : un motif et s'il notifie, rien sur la
     façon dont une correspondance s'affiche. <code>restart:</code> aussi : une politique et rien
     d'autre, pas de réglage du délai ni de plafond de tentatives par politique.
+    <code>locked:</code> est la seule clé qui touche à l'interface, et elle est admise parce que ce
+    qu'elle protège est le processus déclaré lui-même : le pire qu'un fichier cloné puisse en faire
+    est de vous obliger à appuyer sur <code>i</code>.
   </p>
 </div>
 

@@ -82,8 +82,12 @@ func (gui *Gui) backOutOfExitedSession(g *gocui.Gui) error {
 		return nil
 	}
 
+	// lockOutput, not exitPassThrough: there being no one left to type to is a
+	// fact about the dead shell, not a preference to remember against the
+	// session — Restart reuses the id, and a restarted session must come back
+	// ready to type in (ADR 0012).
 	if gui.passThroughActive {
-		gui.exitPassThrough()
+		gui.lockOutput()
 	}
 
 	// Zoomed, the sessions panel does not exist to receive focus — leaving

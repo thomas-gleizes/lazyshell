@@ -741,6 +741,11 @@ func (gui *Gui) onSelectionChanged() {
 	if sess := gui.selectedSession(); sess != nil {
 		gui.debug.Event("selection → %s (%s)", sess.Name(), sess.ID)
 
+		// Before showOutput: the render task captures passThroughActive, so the
+		// session's remembered lock state has to be in place by then or the
+		// cursor is drawn on the wrong side of it for a tick.
+		gui.applyLockState(sess)
+
 		// Looking at a session is what acknowledges its bell and its activity:
 		// both markers exist to say "this one moved while you were elsewhere".
 		sess.Screen().ClearBell()
@@ -756,6 +761,9 @@ func (gui *Gui) onSelectionChanged() {
 	}
 
 	gui.updateWindowTitle()
+	// The border colour and the locked hint both read passThroughActive, which
+	// applyLockState may just have flipped under them.
+	gui.refreshChrome()
 }
 
 // newSession creates a session running the user's shell, in lazyshell's own
@@ -858,6 +866,8 @@ func (gui *Gui) deleteSession(*gocui.Gui, *gocui.View) error {
 		// session's would otherwise stay in memory for the life of the
 		// process, and a later session reusing the id would inherit them.
 		gui.forgetPerfHistory(sess.ID)
+		// Same reasoning for its remembered lock state (ADR 0012).
+		gui.forgetLockState(sess.ID)
 
 		// Remove kills a still-running session first, so it carries exactly
 		// the same wait as killSession's — and the same spinner.

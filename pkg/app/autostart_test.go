@@ -439,3 +439,52 @@ func TestAutostartCarriesGroupsToSessionsAndGui(t *testing.T) {
 		t.Errorf("gui group order = %v, want [services agents] in declaration order", got)
 	}
 }
+
+// The end-to-end lock path (ADR 0012): each declared session's resolved lock
+// state reaches the GUI keyed by the id the Manager assigned it — the session
+// with a command locked by the heuristic, the bare shell not, and an explicit
+// locked: false winning over the heuristic.
+func TestAutostartCarriesLockStateToGui(t *testing.T) {
+	projectDir(t, `sessions:
+  - name: api
+    command: sleep 300
+  - name: watched
+    command: sleep 300
+    locked: false
+  - name: shell
+`)
+
+	a := newTestApp(t, Options{}, answering("y"))
+
+	locked := a.gui.LockedSessions()
+	if len(locked) != 3 {
+		t.Fatalf("locked = %v, want one entry per declared session", locked)
+	}
+
+	want := map[string]bool{"api": true, "watched": false, "shell": false}
+
+	for _, sess := range a.sessions.List() {
+		got, ok := locked[sess.ID]
+		if !ok {
+			t.Errorf("session %q (%s): no lock state recorded", sess.Name(), sess.ID)
+
+			continue
+		}
+
+		if got != want[sess.Name()] {
+			t.Errorf("session %q locked = %v, want %v", sess.Name(), got, want[sess.Name()])
+		}
+	}
+}
+
+// A launch with no project file declares nothing, so the GUI is handed no lock
+// state at all and the default session keeps ADR 0011's pass-through.
+func TestNoProjectFileLeavesLockStateEmpty(t *testing.T) {
+	projectDir(t, "")
+
+	a := newTestApp(t, Options{}, answering("y"))
+
+	if got := a.gui.LockedSessions(); len(got) != 0 {
+		t.Errorf("locked = %v, want nothing recorded", got)
+	}
+}

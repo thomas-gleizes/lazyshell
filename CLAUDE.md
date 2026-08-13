@@ -89,7 +89,10 @@ docs/
                   « une ligne = une session » et étend l'ADR 0006, 0008: intégration shell OSC 133
                   — bornes de prompt/commande survivant à la troncature du scrollback via un
                   compteur d'éviction ajouté au fork `charmbracelet/x/vt`, 0009: watchers de motifs
-                  par session — anti-rebond par motif, tap partagé avec la détection d'agent)
+                  par session — anti-rebond par motif, tap partagé avec la détection d'agent,
+                  0010: redémarrage automatique des sessions, 0011: le pass-through devient l'état
+                  par défaut — étend les ADR 0004/0005, 0012: verrouillage par session — amende la
+                  décision 1 de l'ADR 0011, `locked:` dans le fichier projet)
   repports/       (sic) historical analysis reports
 site/             sources of the bilingual GitHub Pages site (site/en/, site/fr/)
 ```
@@ -146,5 +149,14 @@ now that the roadmap that used to hold it is gone.
   nothing else, per `ProjectConfig`'s whitelist doctrine. Ctrl keys are unusable for any remappable
   action until `keyLabel`'s output round-trips through `gocui.Parse` (see the ADR's decision 6) —
   which is why the group keys are `g`/`G`/`A`/`X`/`W`.
+- Per-session lock state: **done (ADR 0012)**, amending decision 1 of ADR 0011. `passThroughActive`
+  is still the single flag everything reads, but `Gui.lockedBySession` (explicit entries only, keyed
+  by session id) remembers what was decided per session, and `onSelectionChanged` applies it. A
+  project file's `locked:` seeds it through `SetLockedSessions`, defaulting to "a declared
+  `command:` starts locked". The load-bearing rules: a session with *no* entry keeps ADR 0011's
+  persistence (the flag carries over untouched); only a user gesture is remembered, so technical
+  locks (`setTab` leaving the terminal tab, `backOutOfExitedSession`) must call `lockOutput` and
+  never `exitPassThrough`; and `enterPassThrough` records *before* calling `onSelectionChanged`,
+  which would otherwise re-lock what it just unlocked.
 - Detach/daemon mode ("agents keep running with the laptop closed"): out of scope unless real demand
   surfaces.

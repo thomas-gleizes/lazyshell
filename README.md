@@ -138,10 +138,16 @@ While the **output panel** is focused, these apply instead:
 Starting a session (`n`, `N`, `c`) or restarting one (`R`) lands you straight
 inside it: the output panel takes the focus, pass-through is armed, and you
 can type immediately. Moving the selection with `j` / `k` (or a click, or the
-wheel) is navigation and never changes whether pass-through is armed — it is
-a single flag for the whole app, not something reset per session: switch to
-another session while locked and you land on it still locked, switch while
-unlocked and you land on it ready to type.
+wheel) is navigation, and carries the current state over: switch to another
+session while locked and you land on it still locked, switch while unlocked
+and you land on it ready to type.
+
+The exception is a session whose state was decided about — one a project file
+declared `locked:` for (see [Project configuration](#project-configuration):
+a declared `command:` starts locked by default), or one you locked or unlocked
+by hand. That choice is remembered per session, so a `npm run dev` you keep
+locked stays locked every time you come back to it, whatever you were doing on
+the session you came from.
 
 `Ctrl+O` locks the panel — the same key, whichever session you switched to in
 the meantime. Two `Esc` in a row, within 400 ms of each other, lock it too —
@@ -737,6 +743,11 @@ sessions:
     # restarted run stays up 10s. "R" (or "W" for the group) restarts right
     # away, bypassing the wait.
     restart: on-failure
+    # Optional. A session declaring a `command:` starts *locked* — you see its
+    # output, your keys do not reach it, so a stray Ctrl-C cannot kill it. Set
+    # it explicitly to override: `false` to be able to type in it right away,
+    # `true` to lock a plain shell.
+    locked: false
 
   - name: web
     group: services
@@ -752,12 +763,24 @@ reported in the status bar — the others still start. The same goes for a bad
 `groups:` entry (empty or duplicate `name`): it is dropped and reported, and
 the groups that were fine still apply.
 
+**A session that declares a `command:` starts locked**, unless it says
+`locked: false`. Locked means the output panel shows it but does not forward
+your keystrokes to it: you can scroll, search and copy, and a mistyped `q` or
+a `Ctrl-C` meant for something else cannot kill the command. `i` or `Enter`
+takes the keyboard back, the prefix key (`Ctrl-O`) or `Esc` `Esc` gives it up
+again — and lazyshell remembers, per session, whichever you chose last, so
+moving through the list with `j`/`k` lands you in the state each session was
+left in. A bare shell declares no command and so starts ready to type in.
+
 A group declares a name and nothing else — no colour, no glyph, no key. That
 is the same rule as the rest of this file: a repository says what exists, not
 what your interface looks like. A session's `watch:` entries follow it too —
 a pattern and whether it notifies, nothing about how a match is shown. So
 does `restart:` — a policy and nothing else, no per-policy tuning of the
-backoff or a maximum-attempts knob.
+backoff or a maximum-attempts knob. `locked:` is the one key that touches the
+interface at all, and it is allowed because what it protects is the declared
+process itself: the worst a file you cloned can do with it is make you press
+`i`.
 
 **Only `shell`, `env_files`, `no_default_env`, `groups` and `sessions` are
 read from a project file.** `theme`, `keybindings`, `prefix_key` and the rest stay under

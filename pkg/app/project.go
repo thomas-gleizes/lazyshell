@@ -85,8 +85,15 @@ func (a approver) approve(pcfg config.ProjectConfig) bool {
 // order. Errors are collected rather than returned: a single bad entry must
 // not cost the user the sessions that are fine, so every problem ends up in the
 // status bar instead of aborting the launch.
-func autostart(sessions *session.Manager, pcfg config.ProjectConfig, shell string) []error {
+//
+// The map it returns is each started session's declared lock state, keyed by
+// the id the Manager assigned it — pkg/gui's SetLockedSessions input. It is
+// built here rather than derived later because this is the only place where a
+// ResolvedSession and the *session.Session it produced are both in hand;
+// pkg/session itself is deliberately kept ignorant of what "locked" means.
+func autostart(sessions *session.Manager, pcfg config.ProjectConfig, shell string) (map[string]bool, []error) {
 	specs, errs := pcfg.Validate()
+	locked := make(map[string]bool, len(specs))
 
 	for _, spec := range specs {
 		watch := make([]session.WatchSpec, len(spec.Watch))
@@ -94,7 +101,7 @@ func autostart(sessions *session.Manager, pcfg config.ProjectConfig, shell strin
 			watch[i] = session.WatchSpec{Pattern: w.Pattern, Notify: w.Notify}
 		}
 
-		if _, err := sessions.NewWithOptions(session.Options{
+		sess, err := sessions.NewWithOptions(session.Options{
 			Name:             spec.Name,
 			Group:            spec.Group,
 			Shell:            shell,
@@ -105,12 +112,17 @@ func autostart(sessions *session.Manager, pcfg config.ProjectConfig, shell strin
 			Command:          spec.Command,
 			Watch:            watch,
 			Restart:          translateRestartPolicy(spec.Restart),
-		}); err != nil {
+		})
+		if err != nil {
 			errs = append(errs, err)
+
+			continue
 		}
+
+		locked[sess.ID] = spec.Locked
 	}
 
-	return errs
+	return locked, errs
 }
 
 // translateRestartPolicy maps a validated config.RestartPolicy onto its

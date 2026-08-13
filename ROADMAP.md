@@ -143,6 +143,16 @@ l'ouverture de connexion.
   tout le contrôle d'accès ») pour une machine partagée ou avec des process tiers.
 - Impose une mise à jour de l'ADR 0006 (complément, pas remplacement).
 
+## 9. `locked:` dans le fichier projet — verrouillage par session
+
+**Statut : fait** — [ADR 0012](docs/adr/0012-verrouillage-par-session.md)
+
+Une session déclarée avec une `command:` démarre verrouillée (`locked: false` pour surcharger) : on
+la consulte sans qu'une frappe parasite puisse tuer la commande en cours. L'état verrouillé /
+pass-through devient mémorisé par session, ce qui amende la décision 1 de l'ADR 0011 (persistance
+pure d'un drapeau global) pour les sessions dont l'état a été tranché ; tout le reste garde cette
+persistance.
+
 ---
 
 ## Hors scope (rappel)

@@ -154,11 +154,20 @@ type Gui struct {
 	// to the selected session's shell. New sets it true — pass-through is the
 	// default, "locked" (editDuringScroll) is the opt-in state reached via the
 	// prefix key or the Esc-Esc pair (see docs/adr/0011-passthrough-par-defaut.md).
-	// It is a single global flag: changing the selected session (j/k, a click,
-	// the wheel) never touches it, only an explicit lock/unlock gesture does.
-	// Only ever touched from editOutput, called synchronously from gocui's own
-	// event dispatch — always the same goroutine, no mutex needed.
+	// It holds the *current* session's state: changing the selection carries it
+	// over unchanged unless the newly selected session has a remembered state
+	// in lockedBySession, which then wins (docs/adr/0012-verrouillage-par-session.md).
+	// Only ever touched from editOutput and onSelectionChanged, both called
+	// synchronously from gocui's own event dispatch — always the same
+	// goroutine, no mutex needed.
 	passThroughActive bool
+	// lockedBySession is the remembered lock state per session id, explicit
+	// entries only. Seeded by SetLockedSessions from the project file's
+	// `locked:` (and its "a declared command starts locked" default), then
+	// written by every explicit lock/unlock gesture on the selected session. A
+	// session with no entry has never been decided about, and keeps whatever
+	// the flag above already says. Same goroutine rule as passThroughActive.
+	lockedBySession map[string]bool
 	// lastEscAt is when the previous Escape was forwarded to the session, and
 	// is what turns two of them in a row into a pass-through exit (see
 	// editDuringPassThrough). Zero means there is no pair in progress. Same
@@ -462,6 +471,23 @@ func (gui *Gui) SetGroupOrder(groups []string) {
 // assert on it, the same way they do on StartupError.
 func (gui *Gui) GroupOrder() []string {
 	return gui.groupOrder
+}
+
+// SetLockedSessions records the lock state the project file declared for each
+// session it started, keyed by session id (pkg/app's autostart builds it).
+// Unlike SetGroupOrder this map keeps being written after Run — every explicit
+// lock/unlock gesture adds an entry — but only ever from gocui's own event
+// dispatch goroutine, the same rule that lets passThroughActive go without a
+// mutex. A nil map is the ordinary case (no project file) and stays usable:
+// reads on a nil map are legal, and rememberLockState allocates on first write.
+func (gui *Gui) SetLockedSessions(locked map[string]bool) {
+	gui.lockedBySession = locked
+}
+
+// LockedSessions reports what SetLockedSessions recorded, for pkg/app's
+// bootstrap tests — same purpose as GroupOrder above.
+func (gui *Gui) LockedSessions() map[string]bool {
+	return gui.lockedBySession
 }
 
 // StartupError reports what SetStartupError recorded, so pkg/app's bootstrap

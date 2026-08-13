@@ -141,11 +141,17 @@ s'appliquent :
 Démarrer une session (`n`, `N`, `c`) ou en relancer une (`R`) vous dépose
 directement dedans : le panneau de sortie prend le focus, le pass-through est
 armé, on peut taper tout de suite. Déplacer la sélection avec `j` / `k` (ou un
-clic, ou la molette) est de la navigation et ne change jamais si le
-pass-through est armé — c'est un drapeau unique pour toute l'application, pas
-quelque chose de remis à zéro par session : changer de session en étant
-verrouillé vous y dépose toujours verrouillé, changer en étant déverrouillé
-vous y dépose prêt à taper.
+clic, ou la molette) est de la navigation, et reporte l'état courant : changer
+de session en étant verrouillé vous y dépose verrouillé, changer en étant
+déverrouillé vous y dépose prêt à taper.
+
+L'exception est une session dont l'état a été tranché — une session pour
+laquelle un fichier de projet a déclaré `locked:` (voir
+[Configuration de projet](#configuration-de-projet) : une `command:` déclarée
+démarre verrouillée par défaut), ou une session que vous avez verrouillée ou
+déverrouillée à la main. Ce choix est mémorisé par session : un `npm run dev`
+que vous gardez verrouillé le reste à chaque fois que vous y revenez, quoi que
+vous fassiez sur la session d'où vous venez.
 
 `Ctrl+O` verrouille le panneau — la même touche, quelle que soit la session
 sur laquelle vous êtes passé entre-temps. Deux `Esc` d'affilée, à moins de
@@ -748,6 +754,12 @@ sessions:
     # réinitialise dès qu'un redémarrage tient 10s. « R » (ou « W » pour le
     # groupe) redémarre tout de suite, sans attendre.
     restart: on-failure
+    # Optionnel. Une session qui déclare une `command:` démarre *verrouillée* —
+    # vous voyez sa sortie, vos touches ne lui parviennent pas, donc un Ctrl-C
+    # parti de travers ne peut pas la tuer. À déclarer pour surcharger :
+    # `false` pour pouvoir y taper tout de suite, `true` pour verrouiller un
+    # simple shell.
+    locked: false
 
   - name: web
     group: services
@@ -763,12 +775,25 @@ ignorée et signalée dans la barre d'état — les autres démarrent quand mêm
 en va de même d'une mauvaise entrée de `groups:` (`name` vide ou dupliqué) :
 elle est écartée et signalée, et les groupes corrects s'appliquent quand même.
 
+**Une session qui déclare une `command:` démarre verrouillée**, sauf si elle
+dit `locked: false`. Verrouillée veut dire que le panneau de sortie l'affiche
+mais ne lui transmet pas vos frappes : on peut défiler, chercher et copier, et
+un `q` mal tapé ou un `Ctrl-C` destiné à autre chose ne peut pas tuer la
+commande. `i` ou `Entrée` reprend le clavier, la touche préfixe (`Ctrl-O`) ou
+`Échap` `Échap` le rend — et lazyshell mémorise, par session, le dernier choix,
+si bien que parcourir la liste avec `j`/`k` vous dépose dans l'état où chaque
+session a été laissée. Un simple shell ne déclare pas de commande : il démarre
+donc prêt à la saisie.
+
 Un groupe déclare un nom et rien d'autre — pas de couleur, pas de glyphe, pas de
 touche. C'est la même règle que pour le reste de ce fichier : un dépôt dit ce
 qui existe, pas à quoi ressemble votre interface. Les entrées `watch:` d'une
 session suivent la même règle : un motif et s'il notifie, rien sur comment
 une correspondance s'affiche. `restart:` aussi : une politique et rien
 d'autre, pas de réglage du délai ni de plafond de tentatives par politique.
+`locked:` est la seule clé qui touche à l'interface, et elle est admise parce
+que ce qu'elle protège est le processus déclaré lui-même : le pire qu'un
+fichier cloné puisse en faire est de vous obliger à appuyer sur `i`.
 
 **Seuls `shell`, `env_files`, `no_default_env`, `groups` et `sessions` sont lus
 depuis un fichier de projet.** `theme`, `keybindings`, `prefix_key` et le reste restent

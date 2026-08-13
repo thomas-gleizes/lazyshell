@@ -575,6 +575,10 @@ func (gui *Gui) enterPassThrough() {
 		return
 	}
 
+	// Recorded *before* onSelectionChanged, which applies the remembered state
+	// and would otherwise re-lock the session we are unlocking right here.
+	gui.rememberLockState(sess, false)
+
 	gui.passThroughActive = true
 	// An Escape pressed during a previous pass-through must not pair up with
 	// the first one pressed in this one.
@@ -583,14 +587,78 @@ func (gui *Gui) enterPassThrough() {
 	gui.refreshChrome()
 }
 
-// exitPassThrough disarms pass-through mode, back to scroll/navigation. The
-// render task is restarted so it picks up the new mode — that is what takes
-// the terminal cursor back off the panel.
+// exitPassThrough is the user's explicit "lock this panel" gesture (the prefix
+// key, the Esc-Esc pair), and is therefore remembered for the selected
+// session: coming back to it later lands locked again.
 func (gui *Gui) exitPassThrough() {
+	if sess := gui.selectedSession(); sess != nil {
+		gui.rememberLockState(sess, true)
+	}
+
+	gui.lockOutput()
+}
+
+// lockOutput disarms pass-through, back to scroll/navigation, *without*
+// recording anything. That distinction is the load-bearing part: the callers
+// here lock for a reason of their own — leaving the terminal tab (setTab), a
+// shell that exited (backOutOfExitedSession) — and a technical lock must not
+// pin the session to locked once the reason is gone. Only a user gesture
+// (exitPassThrough) is an opinion worth remembering.
+//
+// The render task is restarted so it picks up the new mode — that is what
+// takes the terminal cursor back off the panel.
+func (gui *Gui) lockOutput() {
 	gui.passThroughActive = false
 	gui.lastEscAt = time.Time{}
 	gui.restartOutput()
 	gui.refreshChrome()
+}
+
+// rememberLockState records the session's lock state, so that selecting it
+// again restores it (applyLockState). Allocates on first write: the map is nil
+// whenever no project file declared anything.
+func (gui *Gui) rememberLockState(sess *session.Session, locked bool) {
+	if gui.lockedBySession == nil {
+		gui.lockedBySession = make(map[string]bool, 4)
+	}
+
+	gui.lockedBySession[sess.ID] = locked
+}
+
+// applyLockState puts the flag back to what the newly selected session was
+// last left at. A session with no remembered state keeps the current flag —
+// ADR 0011's persistence, which stays the rule for everything the project file
+// did not declare and the user never locked by hand.
+//
+// Called from onSelectionChanged before the render task is (re)started, so the
+// task captures the right mode and the cursor lands on the right side of it.
+//
+// Restoring a *lock* is always safe; restoring pass-through carries
+// enterPassThrough's two guards, and for the same reasons: editOutput tests
+// passThroughActive before the active tab, so arming it while a static report
+// is on screen would type into something invisible, and there is nobody left
+// to type to in a shell that has exited.
+func (gui *Gui) applyLockState(sess *session.Session) {
+	locked, ok := gui.lockedBySession[sess.ID]
+	if !ok {
+		return
+	}
+
+	if !locked && (gui.outputTab != tabTerminal || sess.Status() == session.StatusExited) {
+		return
+	}
+
+	gui.passThroughActive = !locked
+	gui.lastEscAt = time.Time{}
+}
+
+// forgetLockState drops a deleted session's remembered state, alongside
+// forgetPerfHistory and for the same reason: only deleteSession removes a
+// session from the list (killing one leaves it there, exited), and an entry
+// left behind would outlive it for the life of the process. Restart, which
+// keeps the id, deliberately keeps the state with it.
+func (gui *Gui) forgetLockState(id string) {
+	delete(gui.lockedBySession, id)
 }
 
 // scrollBy adjusts the output scroll offset, clamped to the selected
