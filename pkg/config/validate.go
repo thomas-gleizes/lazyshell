@@ -35,6 +35,7 @@ func (c *Config) Validate() []error {
 		{"scrollback_size", &c.ScrollbackSize, 0, 0, def.ScrollbackSize},
 		{"sessions_panel_width", &c.SessionsPanelWidth, 5, 0, def.SessionsPanelWidth},
 		{"sessions_panel_height", &c.SessionsPanelHeight, 5, 0, def.SessionsPanelHeight},
+		{"agents_panel_height", &c.AgentsPanelHeight, 3, 0, def.AgentsPanelHeight},
 		{"portrait_max_width", &c.PortraitMaxWidth, 0, 0, def.PortraitMaxWidth},
 		{"portrait_min_height", &c.PortraitMinHeight, 0, 0, def.PortraitMinHeight},
 		{"scroll.page_lines", &c.Scroll.PageLines, 0, 0, def.Scroll.PageLines},

@@ -10,6 +10,7 @@ const (
 	sessionsViewName = "sessions"
 	outputViewName   = "output"
 	statusViewName   = "status"
+	agentsViewName   = "agents"
 
 	// sessionsWidthLandscape/sessionsHeightPortrait are the default Box.Size for
 	// the sessions panel: a width in landscape (parent direction COLUMN), a
@@ -19,6 +20,11 @@ const (
 	sessionsWidthLandscape = 40
 	sessionsHeightPortrait = 10
 	statusBarHeight        = 1
+
+	// agentsHeightLandscape is the agents dashboard's default Box.Size —
+	// landscape only, since the panel is hidden entirely in portrait mode.
+	// Overridden by pkg/config's agents_panel_height.
+	agentsHeightLandscape = 6
 
 	// portraitMaxWidth/portraitMinHeight are the default thresholds of
 	// isPortrait, overridden by pkg/config.
@@ -59,6 +65,11 @@ func (gui *Gui) rootBox() *boxlayout.Box {
 		sessionsHeight = sessionsHeightPortrait
 	}
 
+	agentsHeight := gui.agentsPanelHeight
+	if agentsHeight <= 0 {
+		agentsHeight = agentsHeightLandscape
+	}
+
 	content := &boxlayout.Box{
 		Weight: 1,
 		ConditionalDirection: func(width, height int) boxlayout.Direction {
@@ -79,9 +90,28 @@ func (gui *Gui) rootBox() *boxlayout.Box {
 				}
 			}
 
+			portrait := gui.isPortrait(width, height)
+
 			sessionsSize := sessionsWidth
-			if gui.isPortrait(width, height) {
+			if portrait {
 				sessionsSize = sessionsHeight
+			}
+
+			// The dashboard only ever shows up beside the sessions panel in
+			// landscape mode: portrait mode is already contested for space,
+			// and there is nothing to show when no agent is detected.
+			if !portrait && len(gui.detectedAgentSessions()) > 0 {
+				return []*boxlayout.Box{
+					{
+						Size:      sessionsSize,
+						Direction: boxlayout.ROW,
+						Children: []*boxlayout.Box{
+							{Window: sessionsViewName, Weight: 1},
+							{Window: agentsViewName, Size: agentsHeight},
+						},
+					},
+					{Window: outputViewName, Weight: 1},
+				}
 			}
 
 			return []*boxlayout.Box{
@@ -111,7 +141,7 @@ func (gui *Gui) layout(g *gocui.Gui) error {
 
 	dimensions := boxlayout.ArrangeWindows(gui.rootBox(), 0, 0, maxX, maxY)
 
-	for _, name := range []string{sessionsViewName, outputViewName, statusViewName} {
+	for _, name := range []string{sessionsViewName, outputViewName, statusViewName, agentsViewName} {
 		dim, ok := dimensions[name]
 		if !ok {
 			// A box with no width/height left ends up dropped by boxlayout —
@@ -137,11 +167,11 @@ func (gui *Gui) layout(g *gocui.Gui) error {
 
 		// gocui draws every registered view every frame regardless of whether
 		// SetView touched it this pass — a view simply left out of
-		// dimensions (the sessions panel while zoomed) would otherwise still
-		// be drawn at its last known bounds instead of disappearing. Visible
-		// is what actually hides it; the sessions panel is the only view
-		// that can ever be left out this way, so it is the only one that
-		// needs re-arming here.
+		// dimensions (the sessions panel while zoomed, the agents panel
+		// whenever it is hidden) would otherwise still be drawn at its last
+		// known bounds instead of disappearing. Visible is what actually
+		// hides it, which is why every view goes through this re-arming
+		// rather than just the ones that stay in dimensions every frame.
 		view.Visible = true
 
 		// Refreshed on every layout pass, not just at creation: the footer
@@ -322,5 +352,9 @@ func (gui *Gui) initView(name string, view *gocui.View) {
 	case statusViewName:
 		view.Frame = false
 		gui.renderStatus(view)
+	case agentsViewName:
+		// A passive dashboard: never focusable, never in focusOrder, no
+		// Highlight/Editable — see pkg/gui/agents_panel.go.
+		view.Title = " " + gui.tr.T("agents_panel.title") + " "
 	}
 }

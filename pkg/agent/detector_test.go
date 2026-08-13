@@ -96,3 +96,37 @@ rules:
 		t.Fatalf("got %v, want StateWorking", got)
 	}
 }
+
+func TestNameReportsManifestProcessCaseInsensitively(t *testing.T) {
+	m := mustManifest(t, `
+process: codex
+rules:
+  - state: working
+    screen_pattern: 'thinking'
+`)
+	d := NewDetector(map[string]Manifest{"codex": m})
+
+	got, ok := d.Name("CODEX")
+	if !ok {
+		t.Fatal("Name() ok = false, want true for a known process")
+	}
+	if got != "codex" {
+		t.Fatalf("Name() = %q, want %q", got, "codex")
+	}
+}
+
+func TestNameUnknownProcessIsFalse(t *testing.T) {
+	d := NewDetector(map[string]Manifest{})
+
+	if _, ok := d.Name("bash"); ok {
+		t.Fatal("Name() ok = true, want false for an unknown process")
+	}
+}
+
+func TestNameNilDetectorIsFalse(t *testing.T) {
+	var d *Detector
+
+	if _, ok := d.Name("claude"); ok {
+		t.Fatal("Name() ok = true, want false on a nil Detector")
+	}
+}

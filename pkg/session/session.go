@@ -89,8 +89,8 @@ type Session struct {
 	hookServer *hook.Server
 
 	// mu guards name, group, status, exitCode, cols, rows, agentState,
-	// hookDriven, restartAttempts, killedExplicitly and the agent-recheck
-	// bookkeeping below: name is written by
+	// agentName, hookDriven, restartAttempts, killedExplicitly and the
+	// agent-recheck bookkeeping below: name is written by
 	// SetName (the "renommage de session" ergonomics feature, phase 5) from
 	// gocui's main goroutine and read from sessionsPanelContent on goEvery's
 	// background goroutine; group has exactly that same shape, plus a read
@@ -111,12 +111,16 @@ type Session struct {
 	cols       int
 	rows       int
 	agentState agent.State
+	agentName  string
 
 	// hookDriven is set once SetAgentState is ever called for this session:
-	// from that point on, evaluateAgentState's manifest-based guesswork
-	// stops running entirely for the rest of the session's life — the
-	// authoritative channel has spoken, and 11a's screen-scraping detector is
-	// exactly that, a fallback for when nothing better is available.
+	// from that point on, evaluateAgentState's manifest-based rule matching
+	// (the actual state guess) stops running for the rest of the session's
+	// life — the authoritative channel has spoken, and 11a's screen-scraping
+	// detector is exactly that, a fallback for when nothing better is
+	// available. The process-name lookup that feeds agentName is a separate,
+	// much cheaper question than "what state is this" and keeps running
+	// regardless — see evaluateAgentState.
 	hookDriven bool
 
 	// turnStartedAt is when agentState last transitioned *into* StateWorking
@@ -242,6 +246,19 @@ func (s *Session) AgentState() agent.State {
 	defer s.mu.Unlock()
 
 	return s.agentState
+}
+
+// AgentName is the detected agent's manifest name for this session's
+// foreground process (e.g. "claude", "codex", "opencode") — "" if none
+// matched yet, or if no Detector is wired. Independent of AgentState: it is
+// derived purely from which manifest's process name matches, so it keeps
+// being refreshed by evaluateAgentState even once the session is hookDriven,
+// unlike AgentState itself. Safe to call from any goroutine.
+func (s *Session) AgentName() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.agentName
 }
 
 // TurnDuration is how long the current agent turn has been running, valid
@@ -434,21 +451,18 @@ func (s *Session) drain() {
 // agent.StateNone rather than erroring: an agent state is a gutter hint, not
 // something anything else in lazyshell depends on.
 //
-// Does nothing once hookDriven — see SetAgentState's doc comment: an
-// authoritative event has already been received, and the manifest-based
-// guesswork below has nothing left to add.
+// The rule-matching part (what state this is) does nothing once hookDriven —
+// see SetAgentState's doc comment: an authoritative event has already been
+// received, and the manifest-based guesswork has nothing left to add there.
+// The process-name lookup that feeds agentName runs regardless: it answers a
+// different, cheaper question ("which agent is this"), one the hook channel
+// never carries an answer to (see pkg/hook's package doc).
 func (s *Session) evaluateAgentState() {
 	if s.detector == nil {
 		return
 	}
 
 	s.mu.Lock()
-	if s.hookDriven {
-		s.mu.Unlock()
-
-		return
-	}
-
 	if elapsed := time.Since(s.lastAgentCheck); elapsed < agentCheckInterval {
 		remaining := agentCheckInterval - elapsed
 		pending := s.agentRecheckPending
@@ -468,12 +482,23 @@ func (s *Session) evaluateAgentState() {
 		return
 	}
 	s.lastAgentCheck = time.Now()
+	hookDriven := s.hookDriven
 	s.mu.Unlock()
 
 	name, err := foregroundProcessName(s.ptmx)
 	if err != nil {
 		s.setAgentStateUnlessHookDriven(agent.StateNone)
 
+		return
+	}
+
+	if agentName, ok := s.detector.Name(name); ok {
+		s.mu.Lock()
+		s.agentName = agentName
+		s.mu.Unlock()
+	}
+
+	if hookDriven {
 		return
 	}
 

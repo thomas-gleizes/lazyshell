@@ -6,7 +6,9 @@ import (
 
 	"github.com/jesseduffield/lazycore/pkg/boxlayout"
 
+	"github.com/thomas-gleizes/lazyshell/pkg/agent"
 	"github.com/thomas-gleizes/lazyshell/pkg/config"
+	"github.com/thomas-gleizes/lazyshell/pkg/session"
 )
 
 // Every option this phase added has to actually reach the code that used to
@@ -43,6 +45,40 @@ func TestNewCarriesLayoutOptions(t *testing.T) {
 	landscape := boxlayout.ArrangeWindows(gui.rootBox(), 0, 0, 200, 40)
 	if width := landscape[sessionsViewName].X1 - landscape[sessionsViewName].X0 + 1; width != 50 {
 		t.Errorf("landscape sessions width = %d, want the configured 50", width)
+	}
+}
+
+// AgentsPanelHeight only shows up in ArrangeWindows once a session actually
+// has a detected agent — see TestRootBoxShowsAgentsPanelBesideSessionsInLandscape
+// for the hidden/shown split; this only checks the height reaches rootBox.
+func TestNewCarriesAgentsPanelHeight(t *testing.T) {
+	cfg := config.Default()
+	cfg.AgentsPanelHeight = 9
+
+	sessions := session.NewManager()
+	t.Cleanup(sessions.Shutdown)
+
+	gui := New(sessions, cfg)
+
+	if gui.agentsPanelHeight != 9 {
+		t.Errorf("gui.agentsPanelHeight = %d, want the configured 9", gui.agentsPanelHeight)
+	}
+
+	sess, err := sessions.New("a", "/bin/sh")
+	if err != nil {
+		t.Fatalf("sessions.New: %v", err)
+	}
+	sess.SetAgentState(agent.StateWorking)
+
+	dimensions := boxlayout.ArrangeWindows(gui.rootBox(), 0, 0, 200, 40)
+
+	agents, ok := dimensions[agentsViewName]
+	if !ok {
+		t.Fatal("agents view missing despite a detected agent")
+	}
+
+	if height := agents.Y1 - agents.Y0 + 1; height != 9 {
+		t.Errorf("agents panel height = %d, want the configured 9", height)
 	}
 }
 

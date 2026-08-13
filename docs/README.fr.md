@@ -351,6 +351,7 @@ refus de tourner.
 | `scrollback_size` | entier ≥ 0 | `10000` | Lignes gardées par session une fois sorties de l'écran. |
 | `sessions_panel_width` | entier ≥ 5 | `40` | Largeur de la liste des sessions, en colonnes, en mode paysage. |
 | `sessions_panel_height` | entier ≥ 5 | `10` | Hauteur de la liste des sessions, en lignes, en mode portrait. |
+| `agents_panel_height` | entier ≥ 3 | `6` | Hauteur du tableau de bord des agents, en lignes, sous la liste des sessions en mode paysage. Masqué automatiquement si aucune session d'agent IA n'est détectée, et en mode portrait. |
 | `portrait_max_width` | entier | `84` | Le mode portrait s'applique à cette largeur de terminal ou en dessous… |
 | `portrait_min_height` | entier | `45` | …et au-dessus de cette hauteur. Le portrait empile les panneaux au lieu de les mettre côte à côte. |
 | `refresh_interval_ms` | entier, 10–1000 | `30` | Période de redessin. Un panneau inchangé n'est jamais poussé, donc le coût au repos reste proche de zéro quelle que soit la valeur. |
@@ -431,6 +432,7 @@ scrollback_size: 10000
 
 sessions_panel_width: 40
 sessions_panel_height: 10
+agents_panel_height: 6
 portrait_max_width: 84
 portrait_min_height: 45
 
@@ -535,6 +537,20 @@ un pour un autre agent — un fichier du même nom qu'un manifeste intégré le
 remplace entièrement, un nom différent s'ajoute au jeu. Voir les manifestes
 intégrés pour le format. Les manifestes sont purement locaux ; lazyshell n'en
 télécharge jamais un depuis le réseau.
+
+#### Tableau de bord des agents
+
+Dès qu'au moins une session ouverte a un agent détecté, un petit tableau de
+bord apparaît sous la liste des sessions (mode paysage uniquement — pas de
+place pour lui en portrait) listant chacune d'elles : le même point
+coloré/pulsé que le marqueur de gouttière, le nom de la session, quel agent
+CLI c'est (`claude`, `codex`, `opencode`, …, vide tant qu'il n'est pas
+détecté — dérivé du manifeste qui a matché, donc affiché même une fois la
+session pilotée par les hooks), l'état, et le temps écoulé du tour tant qu'il
+travaille. Il disparaît de lui-même dès qu'aucune session
+n'a plus d'agent détecté, donc rien à activer — seul `agents_panel_height`
+(en lignes, défaut `6`) se règle. Il est en lecture seule : naviguer vers une
+session se fait toujours depuis la liste des sessions.
 
 #### État autoritatif via des hooks
 

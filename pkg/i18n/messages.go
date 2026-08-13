@@ -355,6 +355,27 @@ var messages = map[string]map[string]string{
 		"en": "No session matches the filter.",
 	},
 
+	"agents_panel.title": {
+		"fr": "agents",
+		"en": "agents",
+	},
+	"agents_panel.state_idle": {
+		"fr": "inactif",
+		"en": "idle",
+	},
+	"agents_panel.state_working": {
+		"fr": "en cours",
+		"en": "working",
+	},
+	"agents_panel.state_blocked": {
+		"fr": "bloqué",
+		"en": "blocked",
+	},
+	"agents_panel.state_done": {
+		"fr": "terminé",
+		"en": "done",
+	},
+
 	"sessions.empty": {
 		"fr": "Aucune session — n pour en créer une",
 		"en": "No sessions — press n to create one",

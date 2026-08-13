@@ -40,3 +40,21 @@ func (d *Detector) Evaluate(processName, screenTail, title string) State {
 
 	return StateIdle
 }
+
+// Name reports the manifest's declared name for processName (e.g. "claude",
+// "codex", "opencode") — false if no manifest matches. The same lookup
+// Evaluate does internally, split out so a caller only interested in which
+// agent this is (pkg/gui's dashboard) does not need a screen tail or title to
+// ask for it.
+func (d *Detector) Name(processName string) (string, bool) {
+	if d == nil || processName == "" {
+		return "", false
+	}
+
+	m, ok := d.manifests[strings.ToLower(processName)]
+	if !ok {
+		return "", false
+	}
+
+	return m.Process, true
+}

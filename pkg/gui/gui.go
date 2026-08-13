@@ -59,6 +59,9 @@ type Gui struct {
 	// See pkg/gui/layout.go's rootBox.
 	sessionsPanelWidth  int
 	sessionsPanelHeight int
+	// agentsPanelHeight is the agents dashboard's height, in rows, under the
+	// sessions panel in landscape mode — see pkg/gui/layout.go's rootBox.
+	agentsPanelHeight int
 	// portraitMaxWidth/portraitMinHeight are the geometry at which the layout
 	// stacks the panels instead of splitting them — see isPortrait.
 	portraitMaxWidth  int
@@ -260,6 +263,13 @@ type Gui struct {
 	lastSessionsSelected int
 	sessionsDrawn        bool
 
+	// lastAgentsContent/agentsDrawn are the agents dashboard's equivalent of
+	// lastSessionsContent/sessionsDrawn above: what was last pushed, so an
+	// unchanged panel is not redrawn every tick. Same mu, no selection to
+	// track since the panel is never focusable.
+	lastAgentsContent string
+	agentsDrawn       bool
+
 	// exitHandledID is the session id watchSelectedExit (pkg/gui/exit_watch.go)
 	// last backed out of pass-through for, so a session that stays selected
 	// after exiting does not re-trigger it on every tick. Under mu: written
@@ -349,6 +359,7 @@ func New(sessions *session.Manager, cfg config.Config) *Gui {
 		configuredShell:     cfg.Shell,
 		sessionsPanelWidth:  cfg.SessionsPanelWidth,
 		sessionsPanelHeight: cfg.SessionsPanelHeight,
+		agentsPanelHeight:   cfg.AgentsPanelHeight,
 		portraitMaxWidth:    cfg.PortraitMaxWidth,
 		portraitMinHeight:   cfg.PortraitMinHeight,
 		refreshInterval:     refreshIntervalFrom(cfg.RefreshIntervalMs),
@@ -576,6 +587,7 @@ func (gui *Gui) Run() (err error) {
 	}
 
 	gui.goEvery(gui.tick(), gui.renderSessionsPanel)
+	gui.goEvery(gui.tick(), gui.renderAgentsPanel)
 
 	// A separate tick from renderSessionsPanel's, on purpose: a transition
 	// into blocked/done must be caught even on a render that gets skipped by

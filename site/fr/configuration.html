@@ -105,6 +105,7 @@
     <tr><td><code>scrollback_size</code></td><td>entier ≥ 0</td><td><code>10000</code></td><td>Lignes conservées par session une fois sorties de l'écran.</td></tr>
     <tr><td><code>sessions_panel_width</code></td><td>entier ≥ 5</td><td><code>40</code></td><td>Largeur de la liste des sessions, en colonnes, en mode paysage.</td></tr>
     <tr><td><code>sessions_panel_height</code></td><td>entier ≥ 5</td><td><code>10</code></td><td>Hauteur de la liste des sessions, en lignes, en mode portrait.</td></tr>
+    <tr><td><code>agents_panel_height</code></td><td>entier ≥ 3</td><td><code>6</code></td><td>Hauteur du tableau de bord des agents, en lignes, sous la liste des sessions en mode paysage. Masqué automatiquement si aucune session d'agent IA n'est détectée, et en mode portrait.</td></tr>
     <tr><td><code>portrait_max_width</code></td><td>entier</td><td><code>84</code></td><td>Le mode portrait s'applique à cette largeur de terminal ou en dessous…</td></tr>
     <tr><td><code>portrait_min_height</code></td><td>entier</td><td><code>45</code></td><td>…et au-dessus de cette hauteur. Le portrait empile les panneaux au lieu de les juxtaposer.</td></tr>
     <tr><td><code>refresh_interval_ms</code></td><td>entier, 10–1000</td><td><code>30</code></td><td>Période de redessin. Un panneau inchangé n'est jamais poussé, donc le coût au repos reste proche de zéro quelle que soit la valeur.</td></tr>
@@ -216,6 +217,7 @@ scrollback_size: 10000
 
 sessions_panel_width: 40
 sessions_panel_height: 10
+agents_panel_height: 6
 portrait_max_width: 84
 portrait_min_height: 45
 

@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/jesseduffield/lazycore/pkg/boxlayout"
+
+	"github.com/thomas-gleizes/lazyshell/pkg/agent"
 )
 
 func TestLayoutCreatesSessionsOutputAndStatusViews(t *testing.T) {
@@ -151,6 +153,69 @@ func TestRootBoxZoomedHidesSessionsPanel(t *testing.T) {
 	}
 	if width := output.X1 - output.X0 + 1; width != 200 {
 		t.Errorf("zoomed output width = %d, want the full 200", width)
+	}
+}
+
+// The agents dashboard only shows up beside the sessions panel when at least
+// one session has a detected agent — see pkg/gui/agents_panel.go.
+func TestRootBoxHidesAgentsPanelWithNoDetectedAgent(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+	newTestSession(t, gui, "a")
+
+	dimensions := boxlayout.ArrangeWindows(gui.rootBox(), 0, 0, 200, 50)
+
+	if _, ok := dimensions[agentsViewName]; ok {
+		t.Error("agents view is arranged despite no detected agent")
+	}
+}
+
+func TestRootBoxShowsAgentsPanelBesideSessionsInLandscape(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+
+	sess := newTestSession(t, gui, "a")
+	sess.SetAgentState(agent.StateWorking)
+
+	dimensions := boxlayout.ArrangeWindows(gui.rootBox(), 0, 0, 200, 50)
+
+	sessions, ok := dimensions[sessionsViewName]
+	if !ok {
+		t.Fatal("sessions view missing in landscape layout")
+	}
+
+	agents, ok := dimensions[agentsViewName]
+	if !ok {
+		t.Fatal("agents view missing despite a detected agent, in landscape")
+	}
+
+	if agents.Y0 <= sessions.Y1 {
+		t.Errorf("agents panel is not stacked below sessions: sessions=%v agents=%v", sessions, agents)
+	}
+
+	if agents.X0 != sessions.X0 || agents.X1 != sessions.X1 {
+		t.Errorf("agents panel does not share sessions' width: sessions=%v agents=%v", sessions, agents)
+	}
+
+	output, ok := dimensions[outputViewName]
+	if !ok {
+		t.Fatal("output view missing")
+	}
+	if output.X0 <= sessions.X1 {
+		t.Errorf("output does not start after the sessions/agents column: sessions=%v output=%v", sessions, output)
+	}
+}
+
+// Portrait mode is already contested for space, so the dashboard stays
+// hidden there even with a detected agent.
+func TestRootBoxHidesAgentsPanelInPortraitEvenWithDetectedAgent(t *testing.T) {
+	gui, _ := newHeadlessGui(t)
+
+	sess := newTestSession(t, gui, "a")
+	sess.SetAgentState(agent.StateBlocked)
+
+	dimensions := boxlayout.ArrangeWindows(gui.rootBox(), 0, 0, 80, 50)
+
+	if _, ok := dimensions[agentsViewName]; ok {
+		t.Error("agents view is arranged in portrait mode despite a detected agent")
 	}
 }
 

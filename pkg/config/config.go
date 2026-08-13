@@ -91,6 +91,11 @@ const (
 	// percentage needs a wide enough window to mean anything, and on macOS
 	// each sample costs a `ps` spawn.
 	defaultPerfRefreshIntervalMs = 5000
+	// defaultAgentsPanelHeight is the agents dashboard's height, in rows,
+	// under the sessions panel in landscape mode (pkg/gui/layout.go's
+	// rootBox). It has no portrait counterpart: the panel is hidden entirely
+	// in portrait mode, where the space is already contested.
+	defaultAgentsPanelHeight = 6
 )
 
 // Config is lazyshell's user-facing configuration. Every field has a
@@ -124,6 +129,11 @@ type Config struct {
 	// SessionsPanelHeight is the sessions list's height in portrait mode, in
 	// rows.
 	SessionsPanelHeight int `yaml:"sessions_panel_height"`
+	// AgentsPanelHeight is the agents dashboard's height, in rows, under the
+	// sessions panel in landscape mode — see pkg/gui/layout.go. The panel
+	// itself is hidden automatically when no AI agent session is detected, or
+	// in portrait mode, so there is no separate enabled flag.
+	AgentsPanelHeight int `yaml:"agents_panel_height"`
 	// PortraitMaxWidth and PortraitMinHeight are the terminal geometry at which
 	// the layout switches to stacking the panels: portrait applies when the
 	// terminal is at most PortraitMaxWidth columns wide *and* more than
@@ -350,6 +360,7 @@ func Default() Config {
 		ScrollbackSize:      defaultScrollbackSize,
 		SessionsPanelWidth:  defaultSessionsPanelWidth,
 		SessionsPanelHeight: defaultSessionsPanelHeight,
+		AgentsPanelHeight:   defaultAgentsPanelHeight,
 		PortraitMaxWidth:    defaultPortraitMaxWidth,
 		PortraitMinHeight:   defaultPortraitMinHeight,
 		RefreshIntervalMs:   defaultRefreshIntervalMs,

@@ -74,6 +74,84 @@ func TestSessionAgentStateDetectsViaManifest(t *testing.T) {
 	t.Fatalf("AgentState() never reached StateWorking, got %v", sess.AgentState())
 }
 
+// AgentName is derived purely from which manifest's process name matched,
+// independent of any rule evaluation — so it must come back populated
+// alongside AgentState once a manifest is wired.
+func TestSessionAgentNameDetectsViaManifest(t *testing.T) {
+	m := newTestManager(t)
+	probe := newTestSession(t, m, "probe")
+	waitForScreen(t, probe, "$")
+
+	processName, err := foregroundProcessName(probe.ptmx)
+	if err != nil {
+		t.Fatalf("foregroundProcessName: %v", err)
+	}
+
+	m.Detector = agent.NewDetector(map[string]agent.Manifest{
+		processName: {Process: processName},
+	})
+
+	sess := newTestSession(t, m, "agent-session")
+	waitForScreen(t, sess, "$")
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if sess.AgentName() == processName {
+			return
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatalf("AgentName() = %q, want %q", sess.AgentName(), processName)
+}
+
+// SetAgentState makes a session hookDriven, which stops evaluateAgentState's
+// rule-based state guessing — but not the separate, cheaper process-name
+// lookup that feeds AgentName, since the hook channel itself never carries an
+// agent identity (see pkg/hook's package doc). A hook-driven Claude Code
+// session must still show up as "claude" in the dashboard.
+func TestSessionAgentNameKeepsUpdatingOnceHookDriven(t *testing.T) {
+	m := newTestManager(t)
+	probe := newTestSession(t, m, "probe")
+	waitForScreen(t, probe, "$")
+
+	processName, err := foregroundProcessName(probe.ptmx)
+	if err != nil {
+		t.Fatalf("foregroundProcessName: %v", err)
+	}
+
+	m.Detector = agent.NewDetector(map[string]agent.Manifest{
+		processName: {Process: processName},
+	})
+
+	sess := newTestSession(t, m, "hook-driven")
+	waitForScreen(t, sess, "$")
+
+	sess.SetAgentState(agent.StateWorking)
+
+	if got := sess.AgentState(); got != agent.StateWorking {
+		t.Fatalf("AgentState() = %v, want StateWorking (hook-driven)", got)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if sess.AgentName() == processName {
+			// The hook event must not have been clobbered by the
+			// manifest-based guesswork in the meantime.
+			if got := sess.AgentState(); got != agent.StateWorking {
+				t.Fatalf("AgentState() = %v after AgentName caught up, want StateWorking to still hold", got)
+			}
+
+			return
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatalf("AgentName() = %q, want %q even once hookDriven", sess.AgentName(), processName)
+}
+
 // The throttle is the whole point of running detection in the drain
 // goroutine rather than the render loop: two evaluations closer together
 // than agentCheckInterval must not both do the work of a foreground-process

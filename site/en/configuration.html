@@ -104,6 +104,7 @@
     <tr><td><code>scrollback_size</code></td><td>int ≥ 0</td><td><code>10000</code></td><td>Lines kept per session once they scroll off-screen.</td></tr>
     <tr><td><code>sessions_panel_width</code></td><td>int ≥ 5</td><td><code>40</code></td><td>Sessions list width, in columns, in landscape mode.</td></tr>
     <tr><td><code>sessions_panel_height</code></td><td>int ≥ 5</td><td><code>10</code></td><td>Sessions list height, in rows, in portrait mode.</td></tr>
+    <tr><td><code>agents_panel_height</code></td><td>int ≥ 3</td><td><code>6</code></td><td>Agents dashboard height, in rows, under the sessions panel in landscape mode. Hidden automatically when no AI agent session is detected, and in portrait mode.</td></tr>
     <tr><td><code>portrait_max_width</code></td><td>int</td><td><code>84</code></td><td>Portrait mode applies at or below this terminal width…</td></tr>
     <tr><td><code>portrait_min_height</code></td><td>int</td><td><code>45</code></td><td>…and above this terminal height. Portrait stacks the panels instead of splitting them side by side.</td></tr>
     <tr><td><code>refresh_interval_ms</code></td><td>int, 10–1000</td><td><code>30</code></td><td>Redraw period. An unchanged panel is never pushed, so idle cost stays near zero at any value.</td></tr>
@@ -213,6 +214,7 @@ scrollback_size: 10000
 
 sessions_panel_width: 40
 sessions_panel_height: 10
+agents_panel_height: 6
 portrait_max_width: 84
 portrait_min_height: 45
 

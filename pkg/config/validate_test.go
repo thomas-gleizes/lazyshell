@@ -35,6 +35,12 @@ func TestValidateCorrectsAndReports(t *testing.T) {
 			wantKey: "sessions_panel_width",
 		},
 		{
+			name:    "panneau agents trop petit",
+			mutate:  func(c *Config) { c.AgentsPanelHeight = 1 },
+			check:   func(c Config) bool { return c.AgentsPanelHeight == defaultAgentsPanelHeight },
+			wantKey: "agents_panel_height",
+		},
+		{
 			name:    "scrollback négatif",
 			mutate:  func(c *Config) { c.ScrollbackSize = -1 },
 			check:   func(c Config) bool { return c.ScrollbackSize == defaultScrollbackSize },

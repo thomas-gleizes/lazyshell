@@ -340,6 +340,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `scrollback_size` | int ≥ 0 | `10000` | Lines kept per session once they scroll off-screen. |
 | `sessions_panel_width` | int ≥ 5 | `40` | Sessions list width, in columns, in landscape mode. |
 | `sessions_panel_height` | int ≥ 5 | `10` | Sessions list height, in rows, in portrait mode. |
+| `agents_panel_height` | int ≥ 3 | `6` | Agents dashboard height, in rows, under the sessions panel in landscape mode. Hidden automatically when no AI agent session is detected, and in portrait mode. |
 | `portrait_max_width` | int | `84` | Portrait mode applies at or below this terminal width… |
 | `portrait_min_height` | int | `45` | …and above this terminal height. Portrait stacks the panels instead of splitting them side by side. |
 | `refresh_interval_ms` | int, 10–1000 | `30` | Redraw period. An unchanged panel is never pushed, so idle cost stays near zero at any value. |
@@ -421,6 +422,7 @@ scrollback_size: 10000
 
 sessions_panel_width: 40
 sessions_panel_height: 10
+agents_panel_height: 6
 portrait_max_width: 84
 portrait_min_height: 45
 
@@ -529,6 +531,20 @@ Drop a `<process-name>.yml` file in `~/.config/lazyshell/agents/` (or your
 another agent — same file name as a built-in replaces it outright, a
 different name adds to the set. See the built-in manifests for the format.
 Manifests are local only; lazyshell never fetches one over the network.
+
+#### Agents dashboard
+
+When at least one open session has a detected agent, a small dashboard shows
+up under the sessions panel (landscape mode only — there is no room for it in
+portrait) listing every one of them: the same colored/pulsed dot as the
+gutter marker, the session name, which agent CLI it is (`claude`, `codex`,
+`opencode`, …, blank until detected — derived from the manifest match, so it
+keeps showing even once a session becomes hook-driven), the state, and the
+turn's elapsed time while it is working. It disappears on its own once no
+session has a detected agent left,
+so there is nothing to turn on — only `agents_panel_height` (rows, default
+`6`) to resize. It is read-only: navigating to a session still happens from
+the sessions panel.
 
 #### Authoritative state via hooks
 
