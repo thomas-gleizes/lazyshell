@@ -55,19 +55,25 @@ func TestCPUPercent(t *testing.T) {
 	})
 
 	t.Run("no previous sample falls back to the average", func(t *testing.T) {
-		// One second of CPU over the ten the session has been alive.
+		// One second of CPU over the ten the session has been alive. cpuPercent
+		// computes time.Since(created) at call time, so the expected value is
+		// derived from the same clock rather than assuming a fixed window —
+		// a hardcoded band flaked on loaded/-race CI runners where more than a
+		// beat of real time passes between capturing `created` and this call.
+		before := time.Since(created)
 		got, instant := cpuPercent(session.ProcStats{}, session.ProcStats{
 			PID: 42, CPUTime: time.Second, SampledAt: now,
 		}, created)
+		after := time.Since(created)
 
 		if instant {
 			t.Error("instant = true with nothing to compare against")
 		}
 
-		// The average divides by time.Since, so it lands just under 10 rather
-		// than exactly on it.
-		if got < 9.9 || got > 10 {
-			t.Errorf("cpuPercent = %v, want the 10%% average", got)
+		wantMax := 100 * float64(time.Second) / float64(before)
+		wantMin := 100 * float64(time.Second) / float64(after)
+		if got < wantMin || got > wantMax {
+			t.Errorf("cpuPercent = %v, want the ~10%% average (between %v and %v)", got, wantMin, wantMax)
 		}
 	})
 
