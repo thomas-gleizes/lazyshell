@@ -66,6 +66,15 @@ func (c *Config) Validate() []error {
 		c.Language = def.Language
 	}
 
+	switch c.RestoreLayout {
+	case RestoreLayoutAsk, RestoreLayoutAlways, RestoreLayoutNever:
+	default:
+		errs = append(errs, fmt.Errorf(
+			"restore_layout %q inconnu (attendu : %s, %s, %s), retour à %q",
+			c.RestoreLayout, RestoreLayoutAsk, RestoreLayoutAlways, RestoreLayoutNever, def.RestoreLayout))
+		c.RestoreLayout = def.RestoreLayout
+	}
+
 	// A marker is drawn in a four-column gutter, one column per marker, and all
 	// four can show at once — anything wider would shift every session line and
 	// break the fixed-width columns sessionsPanelContent lays out.

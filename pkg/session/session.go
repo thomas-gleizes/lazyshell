@@ -203,6 +203,14 @@ func (s *Session) Group() string {
 	return s.group
 }
 
+// Command reports the command this session was launched with, "" for a bare
+// shell. Read-only: opts is fixed for the session's lifetime (Restart spawns
+// a fresh process from the same opts rather than mutating this one), so no
+// lock is needed.
+func (s *Session) Command() string {
+	return s.opts.Command
+}
+
 // SetGroup moves the session into a group, or out of every group when given
 // "". Deliberately does not write back into s.opts: Manager.Restart reads
 // old.opts with no lock held, a read that is only safe because opts is

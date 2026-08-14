@@ -413,6 +413,10 @@ var messages = map[string]map[string]string{
 		"fr": " confirmer ",
 		"en": " confirm ",
 	},
+	"restore.confirm": {
+		"fr": "Restaurer %d session(s) (%s) ? (y/n)",
+		"en": "Restore %d session(s) (%s)? (y/n)",
+	},
 
 	"busy.title": {
 		"fr": " en cours ",

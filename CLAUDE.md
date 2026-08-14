@@ -92,7 +92,8 @@ docs/
                   par session — anti-rebond par motif, tap partagé avec la détection d'agent,
                   0010: redémarrage automatique des sessions, 0011: le pass-through devient l'état
                   par défaut — étend les ADR 0004/0005, 0012: verrouillage par session — amende la
-                  décision 1 de l'ADR 0011, `locked:` dans le fichier projet)
+                  décision 1 de l'ADR 0011, `locked:` dans le fichier projet, 0013: persistance de la
+                  disposition entre deux lancements — `restore_layout` dans la config utilisateur)
   repports/       (sic) historical analysis reports
 site/             sources of the bilingual GitHub Pages site (site/en/, site/fr/)
 ```
@@ -160,3 +161,12 @@ now that the roadmap that used to hold it is gone.
   which would otherwise re-lock what it just unlocked.
 - Detach/daemon mode ("agents keep running with the laptop closed"): out of scope unless real demand
   surfaces.
+- Layout persistence across launches: **done (ADR 0013)**. At exit, `App.snapshotState` saves every
+  session's name/group/cwd/launch-command to `~/.config/lazyshell/state/<hash-of-cwd>.yml`
+  (`config.SaveState`/`StateSession` — narrower than `SessionSpec` on purpose, no `env`/`watch`/
+  `restart`/`locked`). Read back only when `pcfg.Path == ""` (no `lazyshell.yml` found) — a project
+  file always wins and the two are never merged. `Config.RestoreLayout` (`ask`/`always`/`never`)
+  picks between a startup confirmation popup, a silent restore, or never offering it; `ask` needs the
+  terminal already up (`showConfirm` sizes from `g.Size()`), so `pkg/app` hands `Gui.pendingRestore`
+  across via `SetPendingRestore` and `Gui.Run` queues the popup with `g.Update` just before
+  `MainLoop`, the same pattern `startControlServer` already uses for the same reason.

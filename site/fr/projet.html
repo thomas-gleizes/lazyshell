@@ -223,6 +223,33 @@ sessions:
   <strong>refusée</strong> plutôt que supposée.
 </p>
 
+<h2 id="persistance">Persistance de la disposition</h2>
+
+<p>
+  À la fermeture, lazyshell enregistre pour le répertoire courant le nom, le groupe, le répertoire de
+  travail et la commande de lancement de chaque session dans
+  <code>~/.config/lazyshell/state/&lt;hash-du-répertoire&gt;.yml</code> — pas ce qui se passe en
+  direct dans le shell, seulement la recette avec laquelle il a démarré. Relancez depuis ce même
+  répertoire sans <code>lazyshell.yml</code> présent, et lazyshell propose de restaurer cette
+  disposition à la place de l'unique session par défaut habituelle.
+</p>
+
+<p>
+  <a href="configuration.html#reference"><code>restore_layout</code></a> contrôle ce que « propose »
+  veut dire : <code>ask</code> (défaut) affiche une popup de confirmation nommant les sessions qui
+  seraient recréées ; <code>always</code> les restaure sans la montrer ; <code>never</code> ne la
+  propose jamais, mais la disposition continue d'être enregistrée quand même — repasser à
+  <code>ask</code>/<code>always</code> plus tard la retrouve donc intacte. Refuser la popup laisse la
+  liste de sessions vide, exactement là où vous laisse <code>--no-autostart</code>, avec
+  <code>n</code> à portée de main pour en démarrer une à la main.
+</p>
+
+<p>
+  Un <code>lazyshell.yml</code> présent dans le répertoire l'emporte toujours : ce sont ses sessions
+  déclarées qui démarrent, et la disposition enregistrée n'est même pas lue — seulement tenue à jour
+  au cas où le fichier serait retiré plus tard.
+</p>
+
 <footer class="pagefoot">
   <span>lazyshell — licence du dépôt</span>
   <a href="https://github.com/thomas-gleizes/lazyshell">Code source</a>

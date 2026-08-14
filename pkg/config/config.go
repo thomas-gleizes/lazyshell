@@ -96,6 +96,17 @@ const (
 	// rootBox). It has no portrait counterpart: the panel is hidden entirely
 	// in portrait mode, where the space is already contested.
 	defaultAgentsPanelHeight = 6
+	// defaultRestoreLayout is the saved-layout prompt's behavior — see
+	// Config.RestoreLayout.
+	defaultRestoreLayout = RestoreLayoutAsk
+)
+
+// RestoreLayoutAsk/Always/Never are Config.RestoreLayout's three valid
+// values — see its doc comment.
+const (
+	RestoreLayoutAsk    = "ask"
+	RestoreLayoutAlways = "always"
+	RestoreLayoutNever  = "never"
 )
 
 // Config is lazyshell's user-facing configuration. Every field has a
@@ -188,6 +199,14 @@ type Config struct {
 	// whose output line is displayed" shape as Claude Code's own
 	// statusLine. Empty means no stats line.
 	AgentStatsCommand string `yaml:"agent_stats_command"`
+	// RestoreLayout controls the prompt offered at launch when no
+	// lazyshell.yml is present and a previous run's layout was saved for this
+	// directory (docs/adr/0013-persistance-de-la-disposition.md): "ask" (the
+	// default) shows a confirmation popup, "always" restores it with no
+	// prompt, "never" never offers it. A project file's declared sessions
+	// always take priority over a saved layout regardless of this setting —
+	// the two are never merged.
+	RestoreLayout string `yaml:"restore_layout"`
 
 	// Warnings lists the keys the file contained but this struct has no field
 	// for, so that a typo says why it does nothing instead of being silently
@@ -399,6 +418,7 @@ func Default() Config {
 		Perf:              Perf{RefreshIntervalMs: defaultPerfRefreshIntervalMs},
 		Control:           Control{Enabled: false},
 		AgentStatsCommand: "",
+		RestoreLayout:     defaultRestoreLayout,
 	}
 }
 

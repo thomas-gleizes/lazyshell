@@ -216,6 +216,30 @@ sessions:
   approval is <strong>refused</strong> rather than assumed.
 </p>
 
+<h2 id="layout-persistence">Layout persistence</h2>
+
+<p>
+  When you quit, lazyshell saves each session's name, group, working directory and launch command
+  for the current directory to <code>~/.config/lazyshell/state/&lt;hash-of-the-directory&gt;.yml</code> —
+  not anything live inside the shell, just the recipe it was started with. Launch it again from that
+  same directory with no <code>lazyshell.yml</code> present, and it offers to restore that layout
+  instead of starting the usual lone default session.
+</p>
+
+<p>
+  <a href="configuration.html#reference"><code>restore_layout</code></a> controls what "offers"
+  means: <code>ask</code> (the default) shows a confirmation popup naming the sessions it would
+  recreate; <code>always</code> restores them with no prompt; <code>never</code> never offers it,
+  though the layout keeps being saved regardless — so switching back to <code>ask</code>/<code>always</code>
+  later still finds it. Declining the popup leaves the session list empty, the same place
+  <code>--no-autostart</code> leaves you, with <code>n</code> right there to start one by hand.
+</p>
+
+<p>
+  A <code>lazyshell.yml</code> in the directory always wins: its declared sessions are what starts,
+  and the saved layout is never even read, only kept up to date in case the file is later removed.
+</p>
+
 <footer class="pagefoot">
   <span>lazyshell — see the repository for its licence</span>
   <a href="https://github.com/thomas-gleizes/lazyshell">Source code</a>

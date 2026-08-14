@@ -384,6 +384,7 @@ used instead — never a silent no-op, never a refusal to run.
 | `env_tab.mask_secrets` | bool | `true` | Whether the output panel's env tab masks the value of variables whose name looks like a credential (`TOKEN`, `SECRET`, `PASSWORD`, `AUTH`, `..._KEY`). The panel is as shareable as a screenshot of it; set to `false` to see the real values. |
 | `control.enabled` | bool | `false` | Whether the agent control API is open — the socket `lazyshell ctl` drives a running lazyshell over. Off by default, and read [Agent control API](#agent-control-api) before turning it on: it lets any process running as you create sessions, type into them and read their output. |
 | `agent_stats_command` | string | `""` | Run for the selected AI agent session, with `$LAZYSHELL_SESSION_ID` in its environment; its first line of stdout is shown next to the turn duration. Empty disables it. |
+| `restore_layout` | `ask` \| `always` \| `never` | `ask` | What to do, at launch, with a saved session layout for the current directory (see [Layout persistence](#layout-persistence)) when there is no `lazyshell.yml`: `ask` shows a confirmation popup, `always` restores it with no prompt, `never` never offers it. |
 
 Key specs use `gocui.Parse` syntax: a bare character (`n`), or `Ctrl+N`,
 `Alt+Space`, `Tab`, `Esc`.
@@ -520,6 +521,8 @@ control:
   enabled: false
 
 agent_stats_command: ""
+
+restore_layout: ask
 ```
 
 ### AI agent sessions
@@ -689,6 +692,26 @@ in its environment, and shows its first line of output next to the
 duration — the same "external command, show its output line" shape as
 Claude Code's own `statusLine`. lazyshell does not parse or track token
 usage itself.
+
+## Layout persistence
+
+When you quit, lazyshell saves each session's name, group, working directory
+and launch command for the current directory to
+`~/.config/lazyshell/state/<hash-of-the-directory>.yml` — not anything live
+inside the shell, just the recipe it was started with. Launch it again from
+that same directory with no `lazyshell.yml` present, and it offers to
+restore that layout instead of starting the usual lone default session.
+
+`restore_layout` controls what "offers" means: `ask` (the default) shows a
+confirmation popup naming the sessions it would recreate; `always` restores
+them with no prompt; `never` never offers it, though the layout keeps being
+saved regardless — so switching back to `ask`/`always` later still finds it.
+Declining the popup leaves the session list empty, the same place
+`--no-autostart` leaves you, with `n` right there to start one by hand.
+
+A `lazyshell.yml` in the directory always wins: its declared sessions are
+what starts, and the saved layout is never even read, only kept up to date
+in case the file is later removed.
 
 ## Project configuration
 

@@ -14,18 +14,19 @@ avec sa doc (README + `docs/README.fr.md` + `site/`) — voir la politique de la
 
 ## 1. Persistance de la disposition entre deux lancements
 
-**Statut : idée**
+**Statut : fait** — [ADR 0013](docs/adr/0013-persistance-de-la-disposition.md)
 
-Le mode démon reste hors scope (les pty ne survivent pas), mais la *recette* peut survivre : à la
-sortie, écrire `nom + cwd + command + groupe` de chaque session dans
-`~/.config/lazyshell/state/<hash-du-cwd>.yml`, et au lancement suivant proposer de restaurer.
+Le mode démon reste hors scope (les pty ne survivent pas), mais la *recette* de chaque session —
+`nom + cwd + command + groupe` — survit à la sortie dans
+`~/.config/lazyshell/state/<hash-du-cwd>.yml`, et le lancement suivant propose de la restaurer.
 
-- Aucun process persistant, aucun changement dans `pkg/session` : c'est de la sérialisation de
-  `SessionSpec`.
-- Question ouverte : interaction avec un `lazyshell.yml` présent — l'état restauré s'ajoute-t-il aux
-  sessions déclarées, les remplace-t-il, ou la restauration est-elle proposée seulement en son
-  absence ?
-- Question ouverte : restauration proposée (popup) ou automatique derrière un flag.
+La restauration n'est offerte qu'en l'absence de `lazyshell.yml` (un fichier projet, déclaratif et
+passé par le magasin de confiance, garde toujours la priorité sur un enregistrement implicite) ;
+`restore_layout: ask` (défaut) affiche une popup, `always` restaure sans la montrer, `never` ne la
+propose jamais — l'état est écrit à la sortie dans tous les cas. Aucun changement dans `pkg/session`
+au-delà d'un accesseur pur (`Session.Command()`) ; `SessionSpec` reste intact, le fichier d'état
+utilise son propre type plus étroit (pas d'`env`/`watch`/`restart`/`locked`, hors du périmètre que ce
+point fixait).
 
 ## 2. `ctl wait` — attendre un état au lieu de le sonder
 

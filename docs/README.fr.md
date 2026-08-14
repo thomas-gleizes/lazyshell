@@ -395,6 +395,7 @@ refus de tourner.
 | `env_tab.mask_secrets` | booléen | `true` | Si l'onglet env du panneau de sortie masque la valeur des variables dont le nom ressemble à un identifiant (`TOKEN`, `SECRET`, `PASSWORD`, `AUTH`, `..._KEY`). Le panneau est aussi partageable qu'une capture d'écran ; à `false` pour voir les vraies valeurs. |
 | `control.enabled` | booléen | `false` | Si l'API de contrôle par les agents est ouverte — le socket que `lazyshell ctl` pilote. Désactivée par défaut, et lire [API de contrôle par les agents](#api-de-contrôle-par-les-agents) avant de l'activer : elle permet à tout processus tournant sous votre compte de créer des sessions, d'y taper et de lire leur sortie. |
 | `agent_stats_command` | chaîne | `""` | Lancée pour la session d'agent IA sélectionnée, avec `$LAZYSHELL_SESSION_ID` dans son environnement ; la première ligne de sa sortie standard est affichée à côté de la durée du tour. Vide la désactive. |
+| `restore_layout` | `ask` \| `always` \| `never` | `ask` | Ce que fait le lancement d'une disposition de sessions sauvegardée pour le répertoire courant (voir [Persistance de la disposition](#persistance-de-la-disposition)) quand il n'y a pas de `lazyshell.yml` : `ask` affiche une popup de confirmation, `always` restaure sans la montrer, `never` ne la propose jamais. |
 
 Les specs de touches utilisent la syntaxe de `gocui.Parse` : un caractère seul
 (`n`), ou `Ctrl+N`, `Alt+Space`, `Tab`, `Esc`.
@@ -525,6 +526,8 @@ control:
   enabled: false
 
 agent_stats_command: ""
+
+restore_layout: ask
 ```
 
 ### Sessions d'agents IA
@@ -698,6 +701,26 @@ chaque tick) avec `$LAZYSHELL_SESSION_ID` dans son environnement, et affiche la
 première ligne de sa sortie à côté de la durée — la même forme « commande
 externe, on affiche sa ligne de sortie » que la `statusLine` de Claude Code.
 lazyshell ne parse ni ne suit lui-même la consommation de tokens.
+
+## Persistance de la disposition
+
+À la fermeture, lazyshell enregistre pour le répertoire courant le nom, le groupe, le répertoire de
+travail et la commande de lancement de chaque session dans
+`~/.config/lazyshell/state/<hash-du-répertoire>.yml` — pas ce qui se passe en direct dans le shell,
+seulement la recette avec laquelle il a démarré. Relancez depuis ce même répertoire sans
+`lazyshell.yml` présent, et lazyshell propose de restaurer cette disposition à la place de l'unique
+session par défaut habituelle.
+
+`restore_layout` contrôle ce que « propose » veut dire : `ask` (défaut) affiche une popup de
+confirmation nommant les sessions qui seraient recréées ; `always` les restaure sans la montrer ;
+`never` ne la propose jamais, mais la disposition continue d'être enregistrée quand même — repasser
+à `ask`/`always` plus tard la retrouve donc intacte. Refuser la popup laisse la liste de sessions
+vide, exactement là où vous laisse `--no-autostart`, avec `n` à portée de main pour en démarrer une à
+la main.
+
+Un `lazyshell.yml` présent dans le répertoire l'emporte toujours : ce sont ses sessions déclarées qui
+démarrent, et la disposition enregistrée n'est même pas lue — seulement tenue à jour au cas où le
+fichier serait retiré plus tard.
 
 ## Configuration de projet
 

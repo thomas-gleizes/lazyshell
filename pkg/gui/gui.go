@@ -168,6 +168,14 @@ type Gui struct {
 	// session with no entry has never been decided about, and keeps whatever
 	// the flag above already says. Same goroutine rule as passThroughActive.
 	lockedBySession map[string]bool
+	// pendingRestore/restoreShell are a saved layout (config.LoadState) and
+	// the shell to launch it with, recorded by SetPendingRestore when
+	// Config.RestoreLayout is "ask". Run queues the confirmation popup for it
+	// once the terminal is up; nil means there is nothing to offer. Written
+	// only before Run, read only from gocui's own goroutine — same rule as
+	// lockedBySession.
+	pendingRestore *config.StateFile
+	restoreShell   string
 	// lastEscAt is when the previous Escape was forwarded to the session, and
 	// is what turns two of them in a row into a pass-through exit (see
 	// editDuringPassThrough). Zero means there is no pair in progress. Same
@@ -660,6 +668,15 @@ func (gui *Gui) Run() (err error) {
 	// blank while three sessions are demonstrably running.
 	if len(gui.sessions.List()) > 0 {
 		gui.onSelectionChanged()
+	}
+
+	// Queued rather than shown directly: the first layout pass has not run
+	// yet at this point, and showConfirm sizes itself from g.Size(), which
+	// MainLoop's initial layout is what actually makes meaningful.
+	if gui.pendingRestore != nil {
+		g.Update(func(*gocui.Gui) error {
+			return gui.confirmRestoreLayout()
+		})
 	}
 
 	if err := g.MainLoop(); err != nil && !goerrors.Is(err, gocui.ErrQuit) {

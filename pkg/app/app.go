@@ -133,18 +133,51 @@ func newApp(opts Options, approve approver, errOut io.Writer) *App {
 	}
 
 	// Declared lock states, filled by autostart only: a session started any
-	// other way (the default one below, `n`, `ctl new`) has no declared state
-	// and keeps the pass-through persistence of ADR 0011.
+	// other way (the default one below, `n`, `ctl new`, a restored layout)
+	// has no declared state and keeps the pass-through persistence of ADR
+	// 0011.
 	var lockedSessions map[string]bool
+	// pendingRestore is non-nil only when a saved layout exists and
+	// cfg.RestoreLayout is "ask": pkg/gui shows the confirmation popup once
+	// the terminal is up, rather than this function deciding on stdin, which
+	// is not available once gocui has taken over.
+	var pendingRestore *config.StateFile
+	var restoreShell string
 
 	switch {
-	case len(pcfg.Sessions) == 0:
-		// Nothing declared (or no project file at all): start a single
-		// default session so the user isn't dropped into an empty list —
-		// but leave focus on the sessions panel (gui.New / layout default),
-		// not inside the new shell.
+	case len(pcfg.Sessions) == 0 && pcfg.Path != "":
+		// An empty project file: it explicitly declares nothing, so a saved
+		// layout is never consulted — start a single default session so the
+		// user isn't dropped into an empty list, same as always.
 		if _, err := sessions.New("session-1", resolveShell(cfg.Shell)); err != nil {
 			startupErrs = append(startupErrs, err)
+		}
+	case len(pcfg.Sessions) == 0:
+		// No project file at all: a saved layout for this directory
+		// (ROADMAP.md's "persistance de la disposition") takes the default
+		// session's place when there is one to offer.
+		shell := resolveShell(cfg.Shell)
+
+		cwd, err := os.Getwd()
+		if err != nil {
+			startupErrs = append(startupErrs, err)
+		}
+
+		state, err := config.LoadState(cwd)
+		if err != nil {
+			startupErrs = append(startupErrs, err)
+		}
+
+		switch {
+		case state == nil || len(state.Sessions) == 0 || cfg.RestoreLayout == config.RestoreLayoutNever:
+			if _, err := sessions.New("session-1", shell); err != nil {
+				startupErrs = append(startupErrs, err)
+			}
+		case cfg.RestoreLayout == config.RestoreLayoutAlways:
+			startupErrs = append(startupErrs, restoreState(sessions, state, shell)...)
+		default: // config.RestoreLayoutAsk
+			pendingRestore = state
+			restoreShell = shell
 		}
 	case opts.NoAutostart:
 		startupErrs = append(startupErrs,
@@ -171,6 +204,10 @@ func newApp(opts Options, approve approver, errOut io.Writer) *App {
 	g.SetLockedSessions(lockedSessions)
 	g.SetDebug(dbg)
 	g.SetStartupError(joinErrors(startupErrs))
+
+	if pendingRestore != nil {
+		g.SetPendingRestore(pendingRestore, restoreShell)
+	}
 
 	return &App{sessions: sessions, gui: g, debug: dbg}
 }
@@ -281,6 +318,27 @@ func (a *App) Run() error {
 	// logs still lands in the file. No-op when --debug was not given.
 	defer func() { _ = a.debug.Close() }()
 	defer a.sessions.Shutdown()
+	// Registered after Shutdown so LIFO runs it first, snapshotting the
+	// layout while every session's fields (name, group, cwd, launch command)
+	// are still exactly what they were live — Shutdown only kills the
+	// processes, but running before it removes any doubt.
+	defer a.snapshotState()
 
 	return a.gui.Run()
+}
+
+// snapshotState saves the current session layout for this directory
+// (config.SaveState), so the next launch can offer to restore it — see
+// ROADMAP.md's "persistance de la disposition entre deux lancements" and
+// docs/adr/0013-persistance-de-la-disposition.md. Written unconditionally,
+// even when a lazyshell.yml drove this run: the recording costs nothing and
+// stays useful if that file is ever removed. Best-effort: a directory
+// lazyshell cannot write to must not turn quitting into an error.
+func (a *App) snapshotState() {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return
+	}
+
+	_ = config.SaveState(cwd, snapshotSessions(a.sessions.List()))
 }
