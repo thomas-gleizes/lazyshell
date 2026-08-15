@@ -17,6 +17,7 @@ linters:
         - commandes
         - existant
         - surveill
+        - persistance
   exclusions:
     presets:
       - comments
