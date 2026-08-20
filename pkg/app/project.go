@@ -112,6 +112,7 @@ func autostart(sessions *session.Manager, pcfg config.ProjectConfig, shell strin
 			Command:          spec.Command,
 			Watch:            watch,
 			Restart:          translateRestartPolicy(spec.Restart),
+			StopOnFailure:    spec.StopOnFailure,
 		})
 		if err != nil {
 			errs = append(errs, err)

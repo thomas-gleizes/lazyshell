@@ -96,6 +96,13 @@ type SessionSpec struct {
 	// "never" (or empty), "on-failure", or "always". See resolveRestartPolicy
 	// for what happens to anything else.
 	Restart string `yaml:"restart"`
+	// StopOnFailure, when true, kills the session outright as soon as its
+	// declared Command exits non-zero (detected via the shell's own OSC 133
+	// integration, pkg/screen), instead of leaving the shell open underneath
+	// as the default does. False (the zero value) leaves today's behaviour
+	// untouched. Declaring it without a Command is accepted but inert — see
+	// warnIfStopOnFailureIsInert.
+	StopOnFailure bool `yaml:"stop_on_failure"`
 	// Locked is whether this session starts in locked mode — the output panel
 	// showing it but not forwarding keystrokes to it. Nil means "not
 	// declared", and Validate then locks the session if, and only if, it
@@ -154,6 +161,12 @@ type ResolvedSession struct {
 	// a bad watch pattern, a bad restart policy is a single scalar with a
 	// safe default, not a list of independent entries.
 	Restart RestartPolicy
+	// StopOnFailure is whether this session should be killed outright when
+	// its Command exits non-zero, instead of leaving the shell open
+	// underneath. Carried through unresolved — Validate never forces it
+	// false even when Command is empty, in which case it is simply inert
+	// (see warnIfStopOnFailureIsInert for why that case is still reported).
+	StopOnFailure bool
 	// Locked is whether the session starts locked, already resolved: the
 	// declared value if there was one, else "it has a Command". Never nil —
 	// SessionSpec.Locked's "not declared" state does not survive validation,
@@ -304,18 +317,23 @@ func (p ProjectConfig) Validate() ([]ResolvedSession, []error) {
 			errs = append(errs, restartErr)
 		}
 
+		if err := warnIfStopOnFailureIsInert(name, spec); err != nil {
+			errs = append(errs, err)
+		}
+
 		seen[name] = true
 		resolved = append(resolved, ResolvedSession{
-			Name:         name,
-			Group:        group,
-			Cwd:          cwd,
-			Command:      spec.Command,
-			Env:          spec.Env,
-			EnvFiles:     resolveEnvFilePaths(dir, append(append([]string{}, p.EnvFiles...), spec.EnvFiles...)),
-			NoDefaultEnv: noDefaultEnv,
-			Watch:        watch,
-			Restart:      restart,
-			Locked:       resolveLocked(spec),
+			Name:          name,
+			Group:         group,
+			Cwd:           cwd,
+			Command:       spec.Command,
+			Env:           spec.Env,
+			EnvFiles:      resolveEnvFilePaths(dir, append(append([]string{}, p.EnvFiles...), spec.EnvFiles...)),
+			NoDefaultEnv:  noDefaultEnv,
+			Watch:         watch,
+			Restart:       restart,
+			StopOnFailure: spec.StopOnFailure,
+			Locked:        resolveLocked(spec),
 		})
 	}
 
@@ -380,6 +398,20 @@ func resolveRestartPolicy(sessionName, raw string) (RestartPolicy, error) {
 			"session %q: restart %q inconnu (attendu : never, on-failure, always), retour à never",
 			sessionName, raw)
 	}
+}
+
+// warnIfStopOnFailureIsInert reports a session that declares stop_on_failure
+// with no command to watch — harmless, since newSession's own guard
+// (opts.StopOnFailure && opts.Command != "") never spawns the watcher in
+// that case, but silent about it would leave a project author wondering why
+// nothing happened. Never drops the session, the same "bad value, safe
+// no-op" tolerance as resolveRestartPolicy.
+func warnIfStopOnFailureIsInert(sessionName string, spec SessionSpec) error {
+	if spec.StopOnFailure && strings.TrimSpace(spec.Command) == "" {
+		return fmt.Errorf("session %q: stop_on_failure sans command : n'a aucun effet", sessionName)
+	}
+
+	return nil
 }
 
 // ResolvedGroups returns the declared group names, trimmed, in declaration

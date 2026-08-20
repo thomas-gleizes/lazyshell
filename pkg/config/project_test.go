@@ -467,6 +467,35 @@ func TestValidateDropsInvalidRestartFallsBackToNever(t *testing.T) {
 	}
 }
 
+// stop_on_failure: is a plain bool, carried through unresolved — unlike
+// locked:, there is no heuristic default to fall back to, so declaring it
+// true without a command is accepted but reported, never dropped.
+func TestValidateCarriesStopOnFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		spec     SessionSpec
+		wantVal  bool
+		wantErrs int
+	}{
+		{"default false", SessionSpec{Name: "api", Command: "make dev"}, false, 0},
+		{"declared true with a command", SessionSpec{Name: "api", Command: "make dev", StopOnFailure: true}, true, 0},
+		{"declared true without a command warns but is not dropped", SessionSpec{Name: "api", StopOnFailure: true}, true, 1},
+	} {
+		pcfg := ProjectConfig{
+			Path:     filepath.Join(t.TempDir(), "lazyshell.yml"),
+			Sessions: []SessionSpec{tc.spec},
+		}
+
+		valid, errs := pcfg.Validate()
+		if len(errs) != tc.wantErrs {
+			t.Fatalf("%s: errs = %v, want %d", tc.name, errs, tc.wantErrs)
+		}
+		if len(valid) != 1 || valid[0].StopOnFailure != tc.wantVal {
+			t.Errorf("%s: got %+v, want StopOnFailure = %v", tc.name, valid, tc.wantVal)
+		}
+	}
+}
+
 // locked: resolves to a plain bool: what the file says if it says anything,
 // else "this session declares a command" — the ADR 0012 rule, which is what
 // keeps a stray keystroke from killing a declared `npm run dev`.

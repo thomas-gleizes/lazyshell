@@ -101,17 +101,23 @@ type Manager struct {
 	RestartBackoffBase     time.Duration
 	RestartBackoffMax      time.Duration
 	RestartSuccessDuration time.Duration
+
+	// StopOnFailurePollInterval tunes watchStopOnFailure's poll rate.
+	// Exported, like KillTimeout and the Restart* fields above, so tests can
+	// shrink it instead of waiting on DefaultStopOnFailurePollInterval.
+	StopOnFailurePollInterval time.Duration
 }
 
 // NewManager returns an empty Manager, ready to create sessions.
 func NewManager() *Manager {
 	return &Manager{
-		sessions:               make(map[string]*Session),
-		restarts:               make(map[string]*restartState),
-		KillTimeout:            DefaultKillTimeout,
-		RestartBackoffBase:     DefaultRestartBackoffBase,
-		RestartBackoffMax:      DefaultRestartBackoffMax,
-		RestartSuccessDuration: DefaultRestartSuccessDuration,
+		sessions:                  make(map[string]*Session),
+		restarts:                  make(map[string]*restartState),
+		KillTimeout:               DefaultKillTimeout,
+		RestartBackoffBase:        DefaultRestartBackoffBase,
+		RestartBackoffMax:         DefaultRestartBackoffMax,
+		RestartSuccessDuration:    DefaultRestartSuccessDuration,
+		StopOnFailurePollInterval: DefaultStopOnFailurePollInterval,
 	}
 }
 
@@ -156,6 +162,19 @@ type Options struct {
 	// test, every session Options built without mentioning it — keeps
 	// meaning "never" with no explicit opt-out required. See restart.go.
 	Restart RestartPolicy
+	// StopOnFailure, combined with a non-empty Command, kills the session
+	// outright the moment that Command's own exit code (learned via the
+	// shell's OSC 133 integration, pkg/screen.Screen.LastCommandExit) is
+	// non-zero — instead of the default of leaving the shell running
+	// underneath (see newSession's doc comment on why Command is injected
+	// rather than exec'd). It only ever looks at the very first
+	// command-exit event this incarnation's Screen ever reports: the
+	// session's shell keeps running afterwards, and a later command the
+	// user types by hand must never be mistaken for the one this option is
+	// about. The Go zero value (false) is today's existing behaviour,
+	// unchanged, so no existing Options{} literal needs updating. See
+	// stop_on_failure.go.
+	StopOnFailure bool
 }
 
 // New starts shell behind a pty, in the current working directory, and
@@ -300,6 +319,10 @@ func (m *Manager) newSession(id string, opts Options) (*Session, error) {
 
 	if opts.Restart != RestartNever {
 		go m.supervise(id, sess)
+	}
+
+	if opts.StopOnFailure && opts.Command != "" {
+		go m.watchStopOnFailure(id, sess)
 	}
 
 	m.mu.RLock()

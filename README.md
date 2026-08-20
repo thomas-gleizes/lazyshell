@@ -766,6 +766,11 @@ sessions:
     # restarted run stays up 10s. "R" (or "W" for the group) restarts right
     # away, bypassing the wait.
     restart: on-failure
+    # Optional, false by default. When the command exits non-zero, kill the
+    # session outright instead of leaving the shell open underneath — the
+    # opposite of the default just above. Has no effect without a command:
+    # there is nothing to watch.
+    stop_on_failure: false
     # Optional. A session declaring a `command:` starts *locked* — you see its
     # output, your keys do not reach it, so a stray Ctrl-C cannot kill it. Set
     # it explicitly to override: `false` to be able to type in it right away,
@@ -800,7 +805,10 @@ is the same rule as the rest of this file: a repository says what exists, not
 what your interface looks like. A session's `watch:` entries follow it too —
 a pattern and whether it notifies, nothing about how a match is shown. So
 does `restart:` — a policy and nothing else, no per-policy tuning of the
-backoff or a maximum-attempts knob. `locked:` is the one key that touches the
+backoff or a maximum-attempts knob. `stop_on_failure:` is the one exception to
+"the shell is still there" documented above: paired with `restart:`, an
+explicit kill always wins over a pending automatic restart, the same rule
+`systemctl stop` gives `Restart=on-failure`. `locked:` is the one key that touches the
 interface at all, and it is allowed because what it protects is the declared
 process itself: the worst a file you cloned can do with it is make you press
 `i`.

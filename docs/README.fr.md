@@ -777,6 +777,11 @@ sessions:
     # réinitialise dès qu'un redémarrage tient 10s. « R » (ou « W » pour le
     # groupe) redémarre tout de suite, sans attendre.
     restart: on-failure
+    # Optionnel, faux par défaut. Quand la commande se termine avec un code non
+    # nul, tue la session directement au lieu de laisser le shell ouvert en
+    # dessous — l'inverse du comportement par défaut ci-dessus. Sans effet
+    # sans commande : il n'y a rien à surveiller.
+    stop_on_failure: false
     # Optionnel. Une session qui déclare une `command:` démarre *verrouillée* —
     # vous voyez sa sortie, vos touches ne lui parviennent pas, donc un Ctrl-C
     # parti de travers ne peut pas la tuer. À déclarer pour surcharger :
@@ -814,7 +819,10 @@ qui existe, pas à quoi ressemble votre interface. Les entrées `watch:` d'une
 session suivent la même règle : un motif et s'il notifie, rien sur comment
 une correspondance s'affiche. `restart:` aussi : une politique et rien
 d'autre, pas de réglage du délai ni de plafond de tentatives par politique.
-`locked:` est la seule clé qui touche à l'interface, et elle est admise parce
+`stop_on_failure:` est la seule exception au « le shell est toujours là »
+documenté plus haut : combiné à `restart:`, un arrêt explicite l'emporte
+toujours sur un redémarrage automatique en attente — la même règle que
+`systemctl stop` face à `Restart=on-failure`. `locked:` est la seule clé qui touche à l'interface, et elle est admise parce
 que ce qu'elle protège est le processus déclaré lui-même : le pire qu'un
 fichier cloné puisse en faire est de vous obliger à appuyer sur `i`.
 

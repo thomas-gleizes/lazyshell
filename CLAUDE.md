@@ -93,7 +93,9 @@ docs/
                   0010: redémarrage automatique des sessions, 0011: le pass-through devient l'état
                   par défaut — étend les ADR 0004/0005, 0012: verrouillage par session — amende la
                   décision 1 de l'ADR 0011, `locked:` dans le fichier projet, 0013: persistance de la
-                  disposition entre deux lancements — `restore_layout` dans la config utilisateur)
+                  disposition entre deux lancements — `restore_layout` dans la config utilisateur,
+                  0014: arrêt de session sur échec de la commande — `stop_on_failure:` dans le
+                  fichier projet, étend la supervision de l'ADR 0010)
   repports/       (sic) historical analysis reports
 site/             sources of the bilingual GitHub Pages site (site/en/, site/fr/)
 ```
@@ -170,3 +172,13 @@ now that the roadmap that used to hold it is gone.
   terminal already up (`showConfirm` sizes from `g.Size()`), so `pkg/app` hands `Gui.pendingRestore`
   across via `SetPendingRestore` and `Gui.Run` queues the popup with `g.Update` just before
   `MainLoop`, the same pattern `startControlServer` already uses for the same reason.
+- Stop-on-failure: **done (ADR 0014)**, extending ADR 0010's restart supervision. `stop_on_failure:`
+  in a project file kills a session outright when its declared `command:` exits non-zero, instead
+  of the default of leaving the shell open underneath. Implemented as `watchStopOnFailure`, a
+  polling goroutine inside `pkg/session` (`stop_on_failure.go`) — not a `pkg/gui` tick check —
+  because `pkg/session` must not depend on `pkg/gui`, and `pkg/app`'s `autostart` creates project
+  sessions before `gui.Run` starts its own tick. The load-bearing rules: it only ever acts on the
+  *first* OSC 133 command-exit event a fresh incarnation's `Screen` reports (`seq == 1`) — never a
+  later command the user types by hand in the same still-alive shell — and it kills through
+  `Manager.Kill`, never `Session.Kill` directly, which is what makes `killedExplicitly` suppress a
+  pending `restart: on-failure` instead of the session resurrecting itself.
