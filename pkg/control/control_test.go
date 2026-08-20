@@ -24,6 +24,7 @@ type fakeHandler struct {
 	output   string
 	newID    string
 	count    int
+	waitInfo SessionInfo
 	err      error
 }
 
@@ -94,6 +95,12 @@ func (h *fakeHandler) GroupKill(group string) (int, error) {
 	return h.count, h.err
 }
 
+func (h *fakeHandler) Wait(idOrName, group, state string, timeout time.Duration) (SessionInfo, error) {
+	h.record("wait %s %s %s %s", idOrName, group, state, timeout)
+
+	return h.waitInfo, h.err
+}
+
 // tempSocketPath returns a socket path under a short, explicit temp dir rather
 // than t.TempDir(), for the reason pkg/hook's identically named helper gives:
 // that helper embeds the test's name in the path and a Unix socket path is
@@ -130,6 +137,7 @@ func TestEveryVerbReachesTheHandlerAndAnswers(t *testing.T) {
 		output:   "bonjour\n",
 		newID:    "session-2",
 		count:    3,
+		waitInfo: SessionInfo{ID: "session-1", Name: "chef", Status: "running", AgentState: "blocked"},
 	}
 	path := startServer(t, h)
 
@@ -197,6 +205,17 @@ func TestEveryVerbReachesTheHandlerAndAnswers(t *testing.T) {
 				return nil
 			},
 		},
+		{
+			name: "wait",
+			req:  Request{Verb: VerbWait, ID: "session-1", State: "blocked", Timeout: 30},
+			want: func(r Response) error {
+				if len(r.Sessions) != 1 || r.Sessions[0].ID != "session-1" || r.Sessions[0].AgentState != "blocked" {
+					return fmt.Errorf("sessions = %+v", r.Sessions)
+				}
+
+				return nil
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -228,6 +247,7 @@ func TestEveryVerbReachesTheHandlerAndAnswers(t *testing.T) {
 		"group session-1 agents",
 		`group-send agents "ls\r"`,
 		"group-kill agents",
+		"wait session-1  blocked 30s",
 	}
 
 	got := h.snapshot()
@@ -427,5 +447,48 @@ func TestConcurrentConnections(t *testing.T) {
 func TestCallOnAMissingSocketFails(t *testing.T) {
 	if _, err := Call(tempSocketPath(t, "absent.sock"), Request{Verb: VerbList}); err == nil {
 		t.Fatal("Call on a missing socket returned no error — `lazyshell ctl` must be able to exit non-zero")
+	}
+}
+
+func TestResolveWaitTimeout(t *testing.T) {
+	tests := []struct {
+		seconds int
+		want    time.Duration
+	}{
+		{0, DefaultWaitTimeout},
+		{-1, DefaultWaitTimeout},
+		{5, 5 * time.Second},
+		{300, 300 * time.Second},
+	}
+
+	for _, tt := range tests {
+		if got := resolveWaitTimeout(tt.seconds); got != tt.want {
+			t.Errorf("resolveWaitTimeout(%d) = %s, want %s", tt.seconds, got, tt.want)
+		}
+	}
+}
+
+// callDeadline must never be what actually fires for a wait that legitimately
+// ran the full length of its own timeout — that has to be the server's
+// structured Response{OK:false}, not a raw transport timeout. Pinning the
+// exact numbers here is what would catch a future edit accidentally
+// shrinking the margin back down to nothing.
+func TestCallDeadline(t *testing.T) {
+	tests := []struct {
+		name string
+		req  Request
+		want time.Duration
+	}{
+		{"non-wait verb ignores Timeout", Request{Verb: VerbList, Timeout: 999}, callTimeout},
+		{"wait with no timeout uses the default", Request{Verb: VerbWait}, DefaultWaitTimeout + waitDeadlineMargin},
+		{"wait with an explicit timeout", Request{Verb: VerbWait, Timeout: 5}, 5*time.Second + waitDeadlineMargin},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := callDeadline(tt.req); got != tt.want {
+				t.Errorf("callDeadline(%+v) = %s, want %s", tt.req, got, tt.want)
+			}
+		})
 	}
 }

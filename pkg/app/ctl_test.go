@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/thomas-gleizes/lazyshell/pkg/control"
 )
@@ -93,6 +94,18 @@ func (h *recordingHandler) Rename(id, name string) error {
 	h.record(control.Request{Verb: control.VerbRename, ID: id, Name: name})
 
 	return h.err
+}
+
+func (h *recordingHandler) Wait(idOrName, group, state string, timeout time.Duration) (control.SessionInfo, error) {
+	h.record(control.Request{
+		Verb: control.VerbWait, ID: idOrName, Group: group, State: state, Timeout: int(timeout.Seconds()),
+	})
+
+	if len(h.sessions) > 0 {
+		return h.sessions[0], h.err
+	}
+
+	return control.SessionInfo{}, h.err
 }
 
 // startCtlServer stands a control socket up and points $LAZYSHELL_CONTROL_SOCK
@@ -196,6 +209,27 @@ func TestParseArgsCtlVerbsAndFlags(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:     "wait on a single session",
+			args:     []string{"ctl", "wait", "session-1", "--state", "blocked", "--timeout", "30"},
+			wantVerb: control.VerbWait,
+			wantArgs: []string{"session-1"},
+			check: func(t *testing.T, inv Invocation) {
+				if inv.Ctl.State != "blocked" || inv.Ctl.Timeout != 30 {
+					t.Errorf("Ctl = %+v", inv.Ctl)
+				}
+			},
+		},
+		{
+			name:     "wait on a group with no explicit timeout",
+			args:     []string{"ctl", "wait", "--group", "agents", "--state", "done"},
+			wantVerb: control.VerbWait,
+			check: func(t *testing.T, inv Invocation) {
+				if inv.Ctl.Group != "agents" || inv.Ctl.State != "done" || inv.Ctl.Timeout != 0 {
+					t.Errorf("Ctl = %+v", inv.Ctl)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -239,6 +273,10 @@ func TestParseArgsCtlRejectsTyposAndWrongArity(t *testing.T) {
 		{"ctl", "ungroup"},
 		{"ctl", "group-send", "agents"},
 		{"ctl", "group-kill"},
+		{"ctl", "wait", "session-1"},          // missing --state
+		{"ctl", "wait", "--group", "agents"},  // missing --state
+		{"ctl", "wait", "--state", "blocked"}, // neither session nor --group
+		{"ctl", "wait", "session-1", "--group", "agents", "--state", "blocked"}, // both
 	}
 
 	for _, args := range tests {
@@ -401,6 +439,34 @@ func TestRunCtlSendsTheRightRequestForEachVerb(t *testing.T) {
 		}
 		if !strings.Contains(out, "3") {
 			t.Errorf("group-kill output = %q, want the count of sessions killed", out)
+		}
+	})
+
+	t.Run("wait sends the target, state and timeout, and prints the matched session", func(t *testing.T) {
+		h.sessions = []control.SessionInfo{{ID: "session-1", Name: "chef", Status: "running", AgentState: "blocked"}}
+
+		out, err := runCtl(t, "wait", "session-1", "--state", "blocked", "--timeout", "5")
+		if err != nil {
+			t.Fatalf("wait: %v", err)
+		}
+
+		if got := h.snapshot(); got.Verb != control.VerbWait || got.ID != "session-1" ||
+			got.State != "blocked" || got.Timeout != 5 {
+			t.Errorf("wait request = %+v", got)
+		}
+
+		if !strings.Contains(out, "session-1") || !strings.Contains(out, "blocked") {
+			t.Errorf("wait output = %q, want the matched session's line", out)
+		}
+	})
+
+	t.Run("wait --group sends the group, not an id", func(t *testing.T) {
+		if _, err := runCtl(t, "wait", "--group", "agents", "--state", "done"); err != nil {
+			t.Fatalf("wait --group: %v", err)
+		}
+
+		if got := h.snapshot(); got.Verb != control.VerbWait || got.ID != "" || got.Group != "agents" || got.State != "done" {
+			t.Errorf("wait --group request = %+v", got)
 		}
 	})
 

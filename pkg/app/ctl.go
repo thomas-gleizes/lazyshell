@@ -189,6 +189,17 @@ func buildCtlRequest(inv Invocation) (control.Request, error) {
 	case control.VerbGroupKill:
 		req.Group = inv.CtlArgs[0]
 
+	case control.VerbWait:
+		// Exactly one of {positional session, --group} — already enforced by
+		// parseCtlArgs, so whichever is set here is the one the caller meant.
+		if len(inv.CtlArgs) == 1 {
+			req.ID = inv.CtlArgs[0]
+		}
+
+		req.Group = inv.Ctl.Group
+		req.State = inv.Ctl.State
+		req.Timeout = inv.Ctl.Timeout
+
 	default:
 		return req, fmt.Errorf("lazyshell ctl : verbe non géré %q", inv.CtlVerb)
 	}
@@ -203,26 +214,7 @@ func printCtlResponse(inv Invocation, resp control.Response, out io.Writer) {
 	switch inv.CtlVerb {
 	case control.VerbList:
 		for _, s := range resp.Sessions {
-			status := s.Status
-			// "exited" alone is half the answer to the question this verb is
-			// most often asked ("did it work?"), and the code is right there.
-			if s.ExitCode != nil {
-				status = fmt.Sprintf("%s (%d)", status, *s.ExitCode)
-			}
-
-			line := fmt.Sprintf("%-12s %-20s %s", s.ID, s.Name, status)
-			if s.AgentState != "" {
-				line += " " + s.AgentState
-			}
-
-			// Appended rather than given a column of its own: the three
-			// fixed-width fields above are what a caller scrapes, and
-			// inserting into them would break every existing script.
-			if s.Group != "" {
-				line += " [" + s.Group + "]"
-			}
-
-			fmt.Fprintln(out, line)
+			fmt.Fprintln(out, formatCtlSessionLine(s))
 		}
 
 	case control.VerbRead:
@@ -233,5 +225,36 @@ func printCtlResponse(inv Invocation, resp control.Response, out io.Writer) {
 
 	case control.VerbGroupSend, control.VerbGroupKill:
 		fmt.Fprintf(out, "%d session(s)\n", resp.Count)
+
+	case control.VerbWait:
+		if len(resp.Sessions) > 0 {
+			fmt.Fprintln(out, formatCtlSessionLine(resp.Sessions[0]))
+		}
 	}
+}
+
+// formatCtlSessionLine is one session's line, shared by VerbList (every
+// session) and VerbWait (the single one that matched) so the two verbs read
+// the same way to a script scraping either.
+func formatCtlSessionLine(s control.SessionInfo) string {
+	status := s.Status
+	// "exited" alone is half the answer to the question this verb is
+	// most often asked ("did it work?"), and the code is right there.
+	if s.ExitCode != nil {
+		status = fmt.Sprintf("%s (%d)", status, *s.ExitCode)
+	}
+
+	line := fmt.Sprintf("%-12s %-20s %s", s.ID, s.Name, status)
+	if s.AgentState != "" {
+		line += " " + s.AgentState
+	}
+
+	// Appended rather than given a column of its own: the three
+	// fixed-width fields above are what a caller scrapes, and
+	// inserting into them would break every existing script.
+	if s.Group != "" {
+		line += " [" + s.Group + "]"
+	}
+
+	return line
 }

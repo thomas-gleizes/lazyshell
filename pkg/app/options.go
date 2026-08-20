@@ -33,7 +33,7 @@ const (
 	// pkg/update and pkg/app/update_cmd.go.
 	CommandUpdate = "update"
 	// CommandCtl drives a running lazyshell over the agent control socket:
-	// list/read/new/send/kill/rename plus the group verbs, in
+	// list/read/new/send/kill/rename/wait plus the group verbs, in
 	// Invocation.CtlVerb. Only works when
 	// config.Control.Enabled is true — see pkg/control and pkg/app/ctl.go.
 	CommandCtl = "ctl"
@@ -53,6 +53,11 @@ var ctlVerbs = map[string]struct{ minArgs, maxArgs int }{
 	control.VerbGroup:     {2, 2}, // session + group
 	control.VerbGroupSend: {2, -1},
 	control.VerbGroupKill: {1, 1},
+
+	// 0 or 1 positional: the session, when --group is not used instead — see
+	// the VerbWait-specific check in parseCtlArgs, which arity alone cannot
+	// express (it must be exactly one of {positional, --group}, not either).
+	control.VerbWait: {0, 1},
 
 	// A client-side alias only: it maps to VerbGroup with an empty group.
 	// Spelled out as its own verb because "lazyshell ctl group api" with the
@@ -157,6 +162,12 @@ type CtlOptions struct {
 	// JSON prints the raw control.Response instead of the human rendering,
 	// for a caller that would rather parse than scrape.
 	JSON bool
+	// State is `ctl wait --state`: the agent state to wait for (idle/working/
+	// blocked/done).
+	State string
+	// Timeout is `ctl wait --timeout`, in seconds. Zero or unset means
+	// control.DefaultWaitTimeout.
+	Timeout int
 }
 
 // Invocation is a fully parsed command line.
@@ -207,6 +218,10 @@ Pilotage d'un lazyshell en cours (nécessite control.enabled dans la config) :
   lazyshell ctl group-send <groupe> <texte…> [--enter]
                                             écrit dans tout un groupe
   lazyshell ctl group-kill <groupe>         termine tout un groupe
+  lazyshell ctl wait <session> --state E [--timeout N]
+                                            attend qu'une session atteigne l'état E
+  lazyshell ctl wait --group G --state E [--timeout N]
+                                            attend que le premier membre du groupe l'atteigne
 
   <session> est un id (session-2) ou un nom exact ; --json donne la réponse brute.
   --command est tapé dans le shell de la session, il ne le remplace pas : une
@@ -220,6 +235,9 @@ Pilotage d'un lazyshell en cours (nécessite control.enabled dans la config) :
     « 0 session » silencieux. group-send saute les sessions déjà terminées.
   Relancer un groupe n'est pas exposé ici : aucun verbe restart n'existe pour
     une session seule non plus. C'est la touche W, dans l'interface.
+  wait bloque jusqu'à l'état demandé (idle/working/blocked/done) ou --timeout
+    (120 s par défaut) ; sortie non nulle si le délai expire ou si la session
+    visée se termine avant, comme tout échec de ctl.
 
 Options :
   -f, --config-file <fichier>   fichier de projet à utiliser
@@ -343,6 +361,8 @@ func parseCtlArgs(inv Invocation, args []string) (Invocation, error) {
 	fs.IntVar(&inv.Ctl.Tail, "tail", 0, "n'affiche que les N dernières lignes")
 	fs.BoolVar(&inv.Ctl.Enter, "enter", false, "ajoute un retour chariot au texte envoyé")
 	fs.BoolVar(&inv.Ctl.JSON, "json", false, "affiche la réponse brute en JSON")
+	fs.StringVar(&inv.Ctl.State, "state", "", "état d'agent à attendre (idle, working, blocked, done)")
+	fs.IntVar(&inv.Ctl.Timeout, "timeout", 0, "délai maximum en secondes pour wait (0 = défaut)")
 
 	var positional []string
 
@@ -381,6 +401,23 @@ func parseCtlArgs(inv Invocation, args []string) (Invocation, error) {
 			inv.CtlVerb, got, arityText(arity.minArgs, arity.maxArgs), usage)
 	}
 
+	// wait's real arity — exactly one of {positional session, --group}, never
+	// both and never neither — is not expressible by ctlVerbs' {min,max}
+	// pair alone, so it is checked here instead, on the same "a typo is a
+	// usage error, not a request sent to a running lazyshell" philosophy.
+	if inv.CtlVerb == control.VerbWait {
+		if inv.Ctl.State == "" {
+			return inv, fmt.Errorf("lazyshell ctl wait attend --state (idle, working, blocked ou done)\n\n%s", usage)
+		}
+
+		switch {
+		case len(inv.CtlArgs) == 0 && inv.Ctl.Group == "":
+			return inv, fmt.Errorf("lazyshell ctl wait attend une session ou --group\n\n%s", usage)
+		case len(inv.CtlArgs) == 1 && inv.Ctl.Group != "":
+			return inv, fmt.Errorf("lazyshell ctl wait : préciser une session ou --group, pas les deux\n\n%s", usage)
+		}
+	}
+
 	return inv, nil
 }
 
@@ -402,5 +439,6 @@ func ctlVerbList() string {
 	return strings.Join([]string{
 		control.VerbList, control.VerbRead, control.VerbNew,
 		control.VerbSend, control.VerbKill, control.VerbRename,
+		control.VerbWait,
 	}, ", ")
 }

@@ -30,9 +30,11 @@ const onGUITimeout = 2 * time.Second
 // Each runs on one of pkg/control's per-connection goroutines, never on
 // gocui's, which splits them in two:
 //
-//   - List, Read, Send and GroupSend touch only things that carry their own
-//     mutex — session.Manager's map, pkg/screen's emulator, Session.Write's
-//     pty — and so run inline.
+//   - List, Read, Send, GroupSend and Wait touch only things that carry their
+//     own mutex — session.Manager's map, pkg/screen's emulator,
+//     Session.Write's pty, Session.AgentState/Status's own getters — and so
+//     run inline. Wait additionally blocks for up to its own timeout, which
+//     is fine precisely because nothing it touches belongs to gocui.
 //   - New, Rename and SetGroup go through onGUI: they spend gui.sessionCounter,
 //     repaint the panel, or move a session in the display order the selection
 //     indexes into — all of which belong to gocui's goroutine.
@@ -106,34 +108,41 @@ func (gui *Gui) List(group string) []control.SessionInfo {
 			continue
 		}
 
-		info := control.SessionInfo{
-			ID:     sess.ID,
-			Name:   sess.Name(),
-			Status: sess.Status().String(),
-			Group:  sess.Group(),
-			Cwd:    sess.Cwd,
-		}
-
-		// StateNone is "not an agent session", and has no spelling on purpose
-		// (see agent.ParseState) — it must not become the string "none".
-		if state := sess.AgentState(); state != agent.StateNone {
-			info.AgentState = state.String()
-		}
-
-		// Only for an exited session, and by pointer so that exit code 0 —
-		// success, the answer most often being waited on — is reported as 0
-		// rather than vanishing. See SessionInfo.ExitCode.
-		if sess.Status() == session.StatusExited {
-			code := sess.ExitCode()
-			info.ExitCode = &code
-		}
-
-		infos = append(infos, info)
+		infos = append(infos, gui.sessionInfo(sess))
 	}
 
 	gui.debug.Event("control: list (%d sessions)", len(infos))
 
 	return infos
+}
+
+// sessionInfo is the flat control.SessionInfo one session maps to — shared by
+// List and Wait so ExitCode's pointer rule and AgentState's "empty, not none"
+// rule stay defined in exactly one place.
+func (gui *Gui) sessionInfo(sess *session.Session) control.SessionInfo {
+	info := control.SessionInfo{
+		ID:     sess.ID,
+		Name:   sess.Name(),
+		Status: sess.Status().String(),
+		Group:  sess.Group(),
+		Cwd:    sess.Cwd,
+	}
+
+	// StateNone is "not an agent session", and has no spelling on purpose
+	// (see agent.ParseState) — it must not become the string "none".
+	if state := sess.AgentState(); state != agent.StateNone {
+		info.AgentState = state.String()
+	}
+
+	// Only for an exited session, and by pointer so that exit code 0 —
+	// success, the answer most often being waited on — is reported as 0
+	// rather than vanishing. See SessionInfo.ExitCode.
+	if sess.Status() == session.StatusExited {
+		code := sess.ExitCode()
+		info.ExitCode = &code
+	}
+
+	return info
 }
 
 // Read returns a session's output as plain text — no SGR, no cursor
@@ -360,6 +369,122 @@ func (gui *Gui) GroupKill(group string) (int, error) {
 	}
 
 	return killed, errors.Join(errs...)
+}
+
+// waitPollInterval is how often Wait checks agent state and process status
+// while it has no cheaper signal to wait on. Same shape and duration as
+// session.DefaultStopOnFailurePollInterval, for the same reason: both are
+// "is there a channel for this? no — poll" answers to a condition that only
+// changes on pty output or process exit, neither of which either package
+// wants to hook a callback into.
+const waitPollInterval = 200 * time.Millisecond
+
+// Wait blocks until idOrName — or, with idOrName empty and group set, the
+// first session of group — reaches state, or timeout elapses first.
+//
+// Inline, never onGUI: it polls only Session.AgentState/Status, both
+// self-mutexed getters safe from any goroutine, and never touches anything
+// gocui owns. A wait bounded by minutes would blow onGUI's 2 s guard many
+// times over even if it didn't need to touch gocui at all — see this file's
+// top comment.
+func (gui *Gui) Wait(idOrName, group, state string, timeout time.Duration) (control.SessionInfo, error) {
+	want, ok := agent.ParseState(state)
+	if !ok {
+		return control.SessionInfo{}, fmt.Errorf("état inconnu %q (attendu idle, working, blocked ou done)", state)
+	}
+
+	var (
+		targets []*session.Session
+		// soloDone is nil in group mode, so the select case below never fires —
+		// a single member exiting mid-wait is the ordinary case there, handled
+		// instead by the ticker branch's allExited check.
+		soloDone <-chan struct{}
+	)
+
+	if group != "" {
+		members, err := gui.resolveGroup(group)
+		if err != nil {
+			return control.SessionInfo{}, err
+		}
+
+		targets = members
+	} else {
+		sess, err := gui.resolveSession(idOrName)
+		if err != nil {
+			return control.SessionInfo{}, err
+		}
+
+		targets = []*session.Session{sess}
+		soloDone = sess.Done()
+	}
+
+	if timeout <= 0 {
+		timeout = control.DefaultWaitTimeout
+	}
+
+	gui.debug.Event("control: wait id=%q group=%q state=%s timeout=%s", idOrName, group, state, timeout)
+
+	if sess := firstInState(targets, want); sess != nil {
+		return gui.sessionInfo(sess), nil
+	}
+
+	ticker := time.NewTicker(waitPollInterval)
+	defer ticker.Stop()
+
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+
+	for {
+		select {
+		case <-deadline.C:
+			return control.SessionInfo{}, fmt.Errorf(
+				"délai dépassé (%s) : aucune session n'a atteint l'état %q", timeout, state)
+
+		case <-soloDone:
+			if sess := firstInState(targets, want); sess != nil {
+				return gui.sessionInfo(sess), nil
+			}
+
+			return control.SessionInfo{}, fmt.Errorf("session terminée avant d'atteindre l'état %q", state)
+
+		case <-ticker.C:
+			if sess := firstInState(targets, want); sess != nil {
+				return gui.sessionInfo(sess), nil
+			}
+
+			if allExited(targets) {
+				return control.SessionInfo{}, fmt.Errorf(
+					"toutes les sessions du groupe se sont terminées sans atteindre l'état %q", state)
+			}
+		}
+	}
+}
+
+// firstInState reports the first of targets already at want, in the same
+// order resolveSession/resolveGroup produced them — manager/creation order
+// for a group, never the panel's group-display order (a render-only concept,
+// per ADR 0007).
+func firstInState(targets []*session.Session, want agent.State) *session.Session {
+	for _, sess := range targets {
+		if sess.AgentState() == want {
+			return sess
+		}
+	}
+
+	return nil
+}
+
+// allExited reports whether every one of targets has exited — Wait's group-mode
+// give-up condition, deliberately requiring *all* of them rather than any one:
+// a single member finishing mid-wait is the ordinary case, not a failure.
+func allExited(targets []*session.Session) bool {
+	for _, sess := range targets {
+		if sess.Status() != session.StatusExited {
+			return false
+		}
+	}
+
+	return true
 }
 
 // resolveGroup is resolveSession's group counterpart: the members of group, or

@@ -30,9 +30,9 @@ point fixait).
 
 ## 2. `ctl wait` — attendre un état au lieu de le sonder
 
-**Statut : idée**
+**Statut : fait** — [ADR 0015](docs/adr/0015-ctl-wait.md)
 
-Le verbe qui manque côté orchestration. Aujourd'hui un agent chef d'orchestre doit boucler sur
+Le verbe qui manquait côté orchestration : un agent chef d'orchestre n'a plus besoin de boucler sur
 `ctl list` pour savoir qu'une session est passée `blocked`.
 
 ```sh
@@ -40,13 +40,19 @@ lazyshell ctl wait build --state done --timeout 300
 lazyshell ctl wait --group agents --state blocked   # rend la main au premier qui bloque
 ```
 
-- Reste en lecture seule / déclaratif : ne déplace pas le curseur de sécurité posé par
-  l'ADR 0006, donc pas de nouvel ADR attendu.
-- Contrainte : c'est la première requête *longue* du protocole ligne-JSON, qui est aujourd'hui
-  strictement requête→réponse immédiate. Il faut décider comment le serveur tient la connexion
-  ouverte sans bloquer la boucle GUI (cf. la répartition de goroutines de `pkg/gui/control.go`, qui
-  est une règle de correction et non de style).
-- `--timeout` obligatoire ou défaut ? Sortie non nulle sur timeout, cohérente avec le reste de `ctl`.
+Reste en lecture seule / déclaratif : ne déplace pas le curseur de sécurité posé par l'ADR 0006 —
+aucun jeton, aucune capacité qu'un sondage en boucle n'offrait déjà. Un nouvel ADR a quand même été
+écrit, pas pour la sécurité mais parce que `wait` est la première requête du protocole ligne-JSON à
+bloquer plutôt que répondre tout de suite : il tourne en ligne (inline), jamais via `onGUI` — dont
+la garde de 2 s existe pour détecter une boucle GUI bloquée, pas pour borner un travail légitimement
+long —, en sondant `Session.AgentState()`/`Status()` à 200 ms comme `stop_on_failure.go`. Le délai
+côté client (`pkg/control/client.go`) devient dépendant du verbe : `wait` obtient son propre délai
+de timeout plus une marge, pour que ce soit toujours le serveur qui réponde
+`Response{OK:false}` en premier, jamais une coupure transport brute au même instant.
+
+`--timeout` est optionnel, 120 s par défaut ; un délai dépassé, une session/groupe/état inconnu, ou
+la session visée qui sort avant d'atteindre l'état sont tous une sortie non nulle, cohérente avec
+le reste de `ctl`.
 
 ## 3. Intégration shell OSC 133 (bornes de commande)
 

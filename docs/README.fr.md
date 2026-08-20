@@ -601,7 +601,8 @@ défaut : voir [API de contrôle par les agents](#api-de-contrôle-par-les-agent
 `control.enabled: true` ouvre un second socket — un par processus lazyshell, pas
 un par session — que `lazyshell ctl` utilise pour piloter un lazyshell en cours.
 C'est ce dont un agent « chef d'orchestre » a besoin : lister les autres
-sessions, lire ce qu'elles ont affiché, en démarrer de nouvelles, y taper.
+sessions, lire ce qu'elles ont affiché, en démarrer de nouvelles, y taper, ou
+attendre qu'une session atteigne un état donné plutôt que le sonder.
 
 ```sh
 lazyshell ctl list                                # id, nom, statut, état d'agent, groupe
@@ -612,6 +613,20 @@ lazyshell ctl send build 'echo bonjour' --enter   # comme si c'était tapé
 lazyshell ctl kill build
 lazyshell ctl rename build tests
 ```
+
+`wait` bloque jusqu'à ce qu'une session — ou, avec `--group` au lieu d'une
+cible, le premier membre de ce groupe — atteigne un état d'agent donné, au
+lieu de faire boucler un chef d'orchestre sur `ctl list` :
+
+```sh
+lazyshell ctl wait build --state blocked --timeout 300
+lazyshell ctl wait --group agents --state blocked   # rend la main au premier qui bloque
+```
+
+`--timeout` est en secondes et optionnel (120 par défaut) ; un délai dépassé,
+une session/un groupe/un état inconnu, ou la session visée qui se termine
+avant d'atteindre l'état, sont tous rapportés comme un échec — la même sortie
+non nulle que toute autre erreur de `ctl`, jamais un blocage.
 
 Les groupes (voir [Groupes](#groupes)) sont lisibles et modifiables depuis ici,
 ce qui est justement ce qui permet à un agent d'en orchestrer plusieurs autres

@@ -594,7 +594,8 @@ separate feature, off by default: see [Agent control API](#agent-control-api).
 `control.enabled: true` opens a second socket — one per lazyshell process,
 not one per session — over which `lazyshell ctl` drives a running lazyshell.
 It is what an "orchestrator" agent needs: list the other sessions, read what
-they printed, start new ones, type into them.
+they printed, start new ones, type into them, or wait for one to reach a
+given state instead of polling for it.
 
 ```sh
 lazyshell ctl list                                # id, name, status, agent state, group
@@ -605,6 +606,20 @@ lazyshell ctl send build 'echo bonjour' --enter   # as if typed
 lazyshell ctl kill build
 lazyshell ctl rename build tests
 ```
+
+`wait` blocks until a session — or, with `--group` instead of a target, the
+first member of that group — reaches a given agent state, instead of an
+orchestrator having to loop on `ctl list`:
+
+```sh
+lazyshell ctl wait build --state blocked --timeout 300
+lazyshell ctl wait --group agents --state blocked   # returns on the first one that blocks
+```
+
+`--timeout` is in seconds and optional, defaulting to 120; a timeout, an
+unknown session/group/state, or the targeted session exiting before reaching
+the state are all reported as a failure — same non-zero exit as any other
+`ctl` error, never a hang.
 
 Groups (see [Groups](#groups)) are readable and writable from here, which is
 what lets one agent orchestrate several others as a unit:

@@ -144,9 +144,9 @@
 
 <p>
   The hook channel above only lets an agent describe itself. Letting one <em>act</em> — create
-  sessions, read what the others printed, type into them — is a separate feature on a separate
-  socket, off unless <code>control.enabled</code> says otherwise. It is what an "orchestrator"
-  agent needs.
+  sessions, read what the others printed, type into them, or wait for one to reach a given state —
+  is a separate feature on a separate socket, off unless <code>control.enabled</code> says
+  otherwise. It is what an "orchestrator" agent needs.
 </p>
 
 <pre><code>lazyshell ctl list                                # id, name, status, agent state
@@ -174,6 +174,21 @@ lazyshell ctl group-kill agents</code></pre>
   its kill succeeded. <code>group-send</code> skips sessions that have already exited. Restarting a
   group is deliberately not exposed — there is no <code>restart</code> verb for a single session
   either; it stays the <kbd>W</kbd> key, in the interface.
+</p>
+
+<p>
+  <code>wait</code> blocks until a session — or, with <code>--group</code> instead of a target, the
+  first member of that group — reaches a given agent state, instead of an orchestrator having to
+  loop on <code>ctl list</code>:
+</p>
+
+<pre><code>lazyshell ctl wait build --state blocked --timeout 300
+lazyshell ctl wait --group agents --state blocked   # returns on the first one that blocks</code></pre>
+
+<p>
+  <code>--timeout</code> is in seconds and optional, defaulting to 120; a timeout, an unknown
+  session/group/state, or the targeted session exiting before reaching the state are all reported
+  as a failure — same non-zero exit as any other <code>ctl</code> error, never a hang.
 </p>
 
 <p>

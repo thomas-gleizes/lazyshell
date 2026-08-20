@@ -17,6 +17,27 @@ import (
 // than hanging the agent that called it.
 const callTimeout = 3 * time.Second
 
+// waitDeadlineMargin is added on top of a VerbWait request's own timeout to
+// get the client's transport deadline (see callDeadline). It must be
+// comfortably larger than the server's own poll granularity so the server
+// always has time to notice its deadline and answer with a structured
+// Response{OK:false} before the client's raw "i/o timeout" would otherwise
+// fire on the exact same event — a strictly worse version of the same
+// answer.
+const waitDeadlineMargin = 5 * time.Second
+
+// callDeadline is the transport deadline Call sets for req: callTimeout for
+// every verb except VerbWait, which needs room for its own caller-supplied
+// timeout instead — callTimeout's 3 s is sized for VerbNew/VerbKill, not for
+// a request that is meant to block for minutes.
+func callDeadline(req Request) time.Duration {
+	if req.Verb != VerbWait {
+		return callTimeout
+	}
+
+	return resolveWaitTimeout(req.Timeout) + waitDeadlineMargin
+}
+
 // IsLive reports whether something is actually accepting connections on path.
 // Used to tell a live control socket from one a crashed lazyshell left behind:
 // the file surviving proves nothing, only a successful dial does.
@@ -43,7 +64,9 @@ const dialProbeTimeout = 200 * time.Millisecond
 // The returned error is about the *transport*: no socket, no answer, garbage
 // on the wire. A verb that lazyshell understood and refused comes back as a
 // Response with OK false and Error set, with a nil error here. Callers must
-// check both.
+// check both. For VerbWait specifically, this distinction is what lets a
+// legitimate timeout answer as the former (Response{OK:false}) rather than
+// the latter — see callDeadline.
 func Call(path string, req Request) (Response, error) {
 	conn, err := net.DialTimeout("unix", path, callTimeout)
 	if err != nil {
@@ -51,7 +74,7 @@ func Call(path string, req Request) (Response, error) {
 	}
 	defer func() { _ = conn.Close() }()
 
-	if err := conn.SetDeadline(time.Now().Add(callTimeout)); err != nil {
+	if err := conn.SetDeadline(time.Now().Add(callDeadline(req))); err != nil {
 		return Response{}, fmt.Errorf("control: set deadline: %w", err)
 	}
 

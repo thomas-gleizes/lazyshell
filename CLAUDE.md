@@ -98,7 +98,9 @@ docs/
                   décision 1 de l'ADR 0011, `locked:` dans le fichier projet, 0013: persistance de la
                   disposition entre deux lancements — `restore_layout` dans la config utilisateur,
                   0014: arrêt de session sur échec de la commande — `stop_on_failure:` dans le
-                  fichier projet, étend la supervision de l'ADR 0010)
+                  fichier projet, étend la supervision de l'ADR 0010, 0015: `ctl wait` — premier
+                  verbe du protocole de contrôle à bloquer plutôt que répondre tout de suite, ne
+                  rouvre pas le modèle de sécurité de l'ADR 0006)
   repports/       (sic) historical analysis reports
 site/             sources of the bilingual GitHub Pages site (site/en/, site/fr/)
 ```
@@ -150,17 +152,21 @@ now that the roadmap that used to hold it is gone.
 - Windows support: explicitly out of scope (no Unix pty).
 - Agent control API (agents creating panels / reading other sessions' output via a socket): **done
   (ADR 0006)**, and the decision it reverses was explicit, so read that ADR before touching any of
-  it. `pkg/control` + `lazyshell ctl`, nine verbs (`list`/`read`/`new`/`send`/`kill`/`rename` plus
-  ADR 0007's `group`/`group-send`/`group-kill`), on a
+  it. `pkg/control` + `lazyshell ctl`, ten verbs (`list`/`read`/`new`/`send`/`kill`/`rename` plus
+  ADR 0007's `group`/`group-send`/`group-kill` and ADR 0015's `wait`), on a
   *separate* socket with a *separate* protocol (line-JSON, request→response) from the phase 11b hook
   channel — which stays inbound/declarative and open by default precisely because all it can do is
   move a marker. The load-bearing rules: `control.enabled` is false by default and, when false,
   there is no socket at all and no `$LAZYSHELL_CONTROL_SOCK` in any session's environment (its
   absence is the signal); there is no token, so enabling it means every process running as the user
   can drive lazyshell; `ctl` exits non-zero on failure, the exact opposite of `lazyshell hook`; and
-  the goroutine split in `pkg/gui/control.go` (`list`/`read`/`send`/`group-send` inline,
+  the goroutine split in `pkg/gui/control.go` (`list`/`read`/`send`/`group-send`/`wait` inline,
   `new`/`rename`/`group` through `onGUI`, `kill`/`group-kill` split between the two) is a
-  correctness rule, not a style choice.
+  correctness rule, not a style choice. `wait` (ADR 0015) is the first verb that blocks rather than
+  answering immediately — it stays inline (its own bounded poll loop, never `onGUI`, whose 2s guard
+  exists precisely to catch a wedged event loop, not to bound legitimate work) and required making
+  the client's own transport deadline verb-aware (`pkg/control/client.go`'s `callDeadline`) so a
+  real `wait` timeout answers as a structured `Response{OK:false}`, not a raw transport error.
 - Session groups: **done (ADR 0007)**. One group per session, a *display* property — `Manager.order`
   stays the creation order and the grouping is recomputed every tick. The load-bearing rule, and the
   one to read the ADR before touching: `gui.selectedIndex` indexes **sessions** in display order,

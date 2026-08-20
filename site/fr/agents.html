@@ -149,10 +149,10 @@
 
 <p>
   Le canal de hooks ci-dessus ne permet à un agent que de <em>se décrire</em>. Lui permettre
-  d'<em>agir</em> — créer des sessions, lire ce que les autres ont affiché, y taper — est une
-  fonctionnalité distincte, sur une socket distincte, désactivée sauf si
-  <code>control.enabled</code> en décide autrement. C'est ce dont un agent « chef d'orchestre » a
-  besoin.
+  d'<em>agir</em> — créer des sessions, lire ce que les autres ont affiché, y taper, ou attendre
+  qu'une session atteigne un état donné — est une fonctionnalité distincte, sur une socket
+  distincte, désactivée sauf si <code>control.enabled</code> en décide autrement. C'est ce dont un
+  agent « chef d'orchestre » a besoin.
 </p>
 
 <pre><code>lazyshell ctl list                                # id, nom, statut, état d'agent
@@ -181,6 +181,22 @@ lazyshell ctl group-kill agents</code></pre>
   <code>group-send</code> saute les sessions déjà terminées. Relancer un groupe n'est délibérément
   pas exposé — aucun verbe <code>restart</code> n'existe pour une session seule non plus ; cela
   reste la touche <kbd>W</kbd>, dans l'interface.
+</p>
+
+<p>
+  <code>wait</code> bloque jusqu'à ce qu'une session — ou, avec <code>--group</code> au lieu d'une
+  cible, le premier membre de ce groupe — atteigne un état d'agent donné, au lieu de faire boucler
+  un chef d'orchestre sur <code>ctl list</code> :
+</p>
+
+<pre><code>lazyshell ctl wait build --state blocked --timeout 300
+lazyshell ctl wait --group agents --state blocked   # rend la main au premier qui bloque</code></pre>
+
+<p>
+  <code>--timeout</code> est en secondes et optionnel (120 par défaut) ; un délai dépassé, une
+  session/un groupe/un état inconnu, ou la session visée qui se termine avant d'atteindre l'état,
+  sont tous rapportés comme un échec — la même sortie non nulle que toute autre erreur de
+  <code>ctl</code>, jamais un blocage.
 </p>
 
 <p>
