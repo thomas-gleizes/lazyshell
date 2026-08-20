@@ -154,6 +154,80 @@ pass-through devient mémorisé par session, ce qui amende la décision 1 de l'A
 pure d'un drapeau global) pour les sessions dont l'état a été tranché ; tout le reste garde cette
 persistance.
 
+## 10. Éditeur de configuration graphique sur le site statique
+
+**Statut : idée**
+
+Le site (`site/en/configuration.html` / `site/fr/configuration.html`) documente aujourd'hui
+`lazyshell.yml` (fichier projet) et la config utilisateur sous forme de tableau + exemple YAML
+statique. L'idée est un éditeur à deux écrans, entièrement client (GitHub Pages ne sert que du
+statique, pas de backend) :
+
+- **Gauche** : formulaire graphique, un champ par clé de `Config` (`pkg/config/config.go`) ou de
+  `ProjectConfig`/`SessionSpec` (`pkg/config/project.go`) selon l'onglet choisi (config globale /
+  config projet), avec autocomplétion sur les valeurs à énumération fermée (`theme`, `language`,
+  `restore_layout: ask|always|never`, `restart: never|on-failure|always`, etc.) pour éliminer la
+  faute de frappe qui fait aujourd'hui échouer silencieusement une clé (`Warnings` dans
+  `ProjectConfig` existe précisément pour ce cas côté runtime — le formulaire doit rendre l'erreur
+  impossible avant même d'arriver au YAML).
+- **Droite** : le YAML généré en direct, en lecture, copiable en un clic — c'est le seul artefact
+  qui compte, l'utilisateur le colle dans son `lazyshell.yml` ou sa config utilisateur.
+- Le sens inverse (coller un YAML existant à gauche pour le retrouver dans le formulaire) est
+  probablement nécessaire aussi, sinon l'éditeur ne sert qu'à créer un fichier neuf, jamais à en
+  modifier un.
+
+Points à trancher avant de concevoir :
+
+- **Source de vérité du schéma** : soit un schéma JSON/YAML généré à partir des structs Go
+  (`ProjectConfig`, `SessionSpec`, `WatchSpec`, `GroupSpec`, `Config`) pour que le formulaire ne
+  dérive jamais du binaire réel, soit un schéma entretenu à la main dans `site/` — la politique de
+  langue documentaire (voir `CLAUDE.md`) penche pour la génération automatique, faute de quoi c'est
+  une quatrième source à synchroniser à la main en plus de `README.md` / `docs/README.fr.md` /
+  `site/`. `pkg/config/doc_test.go` fait déjà ce genre de vérification croisée pour `README.md` ;
+  un outil similaire pourrait faire tourner la génération de schéma en CI.
+- **Bilingue** : le site est `site/en/` + `site/fr/` (voir la politique de langue dans `CLAUDE.md`) ;
+  labels de champs et messages d'aide doivent exister dans les deux, ce qui rapproche ça d'un petit
+  `pkg/i18n` côté JS plutôt que du texte en dur dans le HTML.
+- **Portée** : couvrir `Config` (utilisateur) et `ProjectConfig` (projet) sont deux schémas
+  différents avec des champs qui ne se recouvrent pas (`ProjectConfig` est un sous-ensemble
+  volontairement restreint, voir sa doctrine de liste blanche) — probablement deux onglets plutôt
+  qu'un seul formulaire à bascule.
+- Tout ceci reste un outil de documentation/aide à la saisie, jamais un lecteur/écrivain du fichier
+  projet réel de l'utilisateur : pas d'accès au système de fichiers depuis GitHub Pages, l'éditeur
+  ne fait que produire du texte à copier-coller.
+
+## 11. Redémarrage forcé d'une session en marche
+
+**Statut : idée**
+
+`R` (`restartSession`, `pkg/gui/sessions_panel.go:884`) refuse aujourd'hui tant que la session
+n'est pas `StatusExited` (`sessions.restart_running`) — même refus, un cran plus bas, côté
+`Manager.Restart` (`pkg/session/manager.go:226-228`, `"still running, cannot restart"`). L'idée est
+une variante qui tue la session en marche puis la relance, plutôt que d'obliger l'utilisateur à
+tuer (`x`/`Ctrl-C` dans la session) puis rappuyer sur `R`.
+
+- Composition plutôt que nouvelle primitive : `Manager.Kill` (qui pose déjà `killedExplicitly` et
+  appelle `cancelSupervision`) suivi de `Manager.Restart` fait exactement ça sans toucher
+  `pkg/session` — c'est le même enchaînement que `Manager.Remove` fait déjà pour la suppression
+  (tuer si en marche, puis l'action). `killedExplicitly` est ce qui empêche un `restart:
+  on-failure` déclaré de résurrecter la session entre les deux étapes (voir l'ADR 0014) ; une
+  nouvelle `Session` reconstruite par `newSession` reparlant à zéro, rien à réinitialiser à la main.
+- Geste destructif : contrairement à `R` sur une session déjà sortie, ça tue un process vivant
+  (serveur de dev, build en cours) — doit passer par `gui.showConfirm`, comme `killSession` /
+  `deleteSession`, pas silencieux.
+- Tension avec `restartGroup` (`pkg/gui/group.go:345`) : son commentaire dit explicitement que
+  sauter les sessions encore en marche est voulu (« une session à moitié sortie du groupe, moitié
+  vivante, est l'état normal »). Un redémarrage forcé au niveau session ne doit pas changer ce
+  comportement pour `W` sans décision séparée — sinon `W` devient une façon de tuer accidentellement
+  tout un groupe vivant d'un coup.
+- Touche à choisir : réutiliser `R` avec confirmation (le cas "en marche" et le cas "sortie" restent
+  la même intention, juste un préalable en plus) plutôt qu'une deuxième touche dédiée, sauf si la
+  confirmation systématique gêne le cas déjà couvert (session sortie, pas destructeur, pas de
+  confirmation aujourd'hui) — à trancher en concevant.
+- Interaction avec le verrouillage (ADR 0012) : une session verrouillée reste une cible légitime,
+  c'est un geste explicite de l'utilisateur sur la session sélectionnée, pas une frappe qui fuit
+  dedans.
+
 ---
 
 ## Hors scope (rappel)
