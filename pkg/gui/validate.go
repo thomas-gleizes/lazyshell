@@ -91,6 +91,30 @@ func validateKeybindings(keymap map[string]string) []error {
 	return errs
 }
 
+// ActionIDs lists every remappable action id, sorted — the same source
+// knownActions checks against, exported for cmd/gen-config-schema so a
+// keybindings: row in the generated form can offer them as a closed choice
+// instead of free text, without that tool re-deriving the list by hand from
+// bindings() itself.
+func ActionIDs() []string {
+	return sortedKeys(knownActions())
+}
+
+// ColorNameHints lists the ANSI color names resolveColor accepts as an alias
+// (see ansiColorAliases), sorted. A theme/marker color also accepts any W3C
+// name or "#rrggbb" — this is a hint list for cmd/gen-config-schema's
+// generated form, not the closed set validateTheme actually enforces.
+func ColorNameHints() []string {
+	names := make([]string, 0, len(ansiColorAliases))
+	for name := range ansiColorAliases {
+		names = append(names, name)
+	}
+
+	sort.Strings(names)
+
+	return names
+}
+
 // knownActions is the set of ids bindings() answers to — the same source
 // resolveBinding consults, so the two can never disagree about what is
 // remappable.

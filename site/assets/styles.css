@@ -380,6 +380,151 @@ footer.pagefoot {
   gap: 0.6rem 1.2rem;
 }
 
+/* ---------- config editor ---------- */
+
+.cfg-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0 0 1.4rem;
+  border-bottom: 1px solid var(--border);
+}
+.cfg-tab {
+  font: inherit;
+  font-size: 0.9rem;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 0.6rem 0.2rem;
+  margin-bottom: -1px;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+.cfg-tab:hover { color: var(--text); }
+.cfg-tab.active { color: var(--accent-text); border-bottom-color: var(--accent); font-weight: 500; }
+
+.cfg-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.cfg-form {
+  min-width: 0;
+  max-height: 78vh;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.cfg-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem 0.2rem;
+  margin: 0 0 1rem;
+}
+.cfg-group-legend {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-faint);
+  padding: 0 0.3rem;
+}
+
+.cfg-field { margin: 0 0 1rem; }
+.cfg-field-head { margin-bottom: 0.3rem; }
+.cfg-field-head code { font-size: 0.82em; }
+
+.cfg-field input[type="text"],
+.cfg-field input[type="number"],
+.cfg-field select {
+  width: 100%;
+  max-width: 32rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-family: var(--mono);
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+.cfg-field input[type="checkbox"] { width: 1.1rem; height: 1.1rem; }
+
+.cfg-help {
+  margin: 0.3rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-soft);
+  max-width: 58ch;
+}
+.cfg-default {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+}
+
+.cfg-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.8rem 0.9rem 0.2rem;
+  margin: 0 0 0.7rem;
+}
+.cfg-item legend {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--text-soft);
+  padding: 0 0.3rem;
+}
+
+.cfg-list-rows { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem; }
+.cfg-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.cfg-list-row > input,
+.cfg-list-row > select { flex: 1; min-width: 0; }
+.cfg-map-key {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.5rem;
+}
+.cfg-map-add select { flex: 0 0 auto; max-width: 12rem; }
+
+.cfg-add, .cfg-remove {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.6rem;
+}
+
+.cfg-yaml { min-width: 0; }
+.cfg-yaml-actions { margin-bottom: 0.6rem; }
+.cfg-yaml pre {
+  max-height: 32vh;
+  overflow: auto;
+}
+.cfg-yaml textarea {
+  width: 100%;
+  min-height: 9rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+}
+.cfg-warnings {
+  margin: 0.6rem 0;
+  font-size: 0.82rem;
+}
+.cfg-warnings-title { margin: 0 0 0.2rem; color: var(--warn); font-weight: 500; }
+.cfg-warnings ul { margin: 0; padding-left: 1.2rem; color: var(--text-soft); }
+
+@media (max-width: 900px) {
+  .cfg-columns { grid-template-columns: 1fr; }
+  .cfg-form { max-height: none; }
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 900px) {

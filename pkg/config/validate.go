@@ -2,6 +2,71 @@ package config
 
 import "fmt"
 
+// NumericBound is one entry of NumericBounds — see its doc comment.
+type NumericBound struct {
+	// Key is the field's dotted config key, e.g. "scroll.half_page_divisor".
+	Key string
+	// Min and Max bound the field. Max == 0 means "no upper bound" — the same
+	// convention clamp itself uses.
+	Min, Max int
+}
+
+// NumericBounds is every int field Validate clamps, keyed by dotted config
+// key, exported so the config-schema generator (cmd/gen-config-schema) can
+// advertise the exact same bounds a running lazyshell would enforce, instead
+// of a second hand-copied table that could quietly drift from this one.
+//
+// Bounds are deliberately loose: the point is to catch a value that would
+// break the UI (a zero-width panel, a redraw loop that pins a core), not to
+// second-guess someone who wants a 400-column sessions list on an ultrawide.
+var NumericBounds = []NumericBound{
+	{"refresh_interval_ms", 10, 1000},
+	{"kill_timeout_ms", 100, 0},
+	{"scrollback_size", 0, 0},
+	{"sessions_panel_width", 5, 0},
+	{"sessions_panel_height", 5, 0},
+	{"agents_panel_height", 3, 0},
+	{"portrait_max_width", 0, 0},
+	{"portrait_min_height", 0, 0},
+	{"scroll.page_lines", 0, 0},
+	{"scroll.half_page_divisor", 1, 0},
+	{"mouse.wheel_lines", 1, 0},
+}
+
+// numericField resolves a NumericBounds key to the *int it names on c. Only
+// Validate and Default (via each other's *Config) call this, immediately
+// after building the key from the same literal NumericBounds slice, so an
+// unmatched key would be an immediate nil-pointer panic in Validate's own
+// test coverage — not a silent drift.
+func (c *Config) numericField(key string) *int {
+	switch key {
+	case "refresh_interval_ms":
+		return &c.RefreshIntervalMs
+	case "kill_timeout_ms":
+		return &c.KillTimeoutMs
+	case "scrollback_size":
+		return &c.ScrollbackSize
+	case "sessions_panel_width":
+		return &c.SessionsPanelWidth
+	case "sessions_panel_height":
+		return &c.SessionsPanelHeight
+	case "agents_panel_height":
+		return &c.AgentsPanelHeight
+	case "portrait_max_width":
+		return &c.PortraitMaxWidth
+	case "portrait_min_height":
+		return &c.PortraitMinHeight
+	case "scroll.page_lines":
+		return &c.Scroll.PageLines
+	case "scroll.half_page_divisor":
+		return &c.Scroll.HalfPageDivisor
+	case "mouse.wheel_lines":
+		return &c.Mouse.WheelLines
+	default:
+		return nil
+	}
+}
+
 // Validate checks every numeric and enumerated field, replacing whatever is out
 // of range with its built-in default and reporting what it did.
 //
@@ -21,30 +86,17 @@ func (c *Config) Validate() []error {
 
 	var errs []error
 
-	// Bounds are deliberately loose: the point is to catch a value that would
-	// break the UI (a zero-width panel, a redraw loop that pins a core), not to
-	// second-guess someone who wants a 400-column sessions list on an ultrawide.
-	checks := []struct {
-		name     string
-		field    *int
-		min, max int
-		fallback int
-	}{
-		{"refresh_interval_ms", &c.RefreshIntervalMs, 10, 1000, def.RefreshIntervalMs},
-		{"kill_timeout_ms", &c.KillTimeoutMs, 100, 0, def.KillTimeoutMs},
-		{"scrollback_size", &c.ScrollbackSize, 0, 0, def.ScrollbackSize},
-		{"sessions_panel_width", &c.SessionsPanelWidth, 5, 0, def.SessionsPanelWidth},
-		{"sessions_panel_height", &c.SessionsPanelHeight, 5, 0, def.SessionsPanelHeight},
-		{"agents_panel_height", &c.AgentsPanelHeight, 3, 0, def.AgentsPanelHeight},
-		{"portrait_max_width", &c.PortraitMaxWidth, 0, 0, def.PortraitMaxWidth},
-		{"portrait_min_height", &c.PortraitMinHeight, 0, 0, def.PortraitMinHeight},
-		{"scroll.page_lines", &c.Scroll.PageLines, 0, 0, def.Scroll.PageLines},
-		{"scroll.half_page_divisor", &c.Scroll.HalfPageDivisor, 1, 0, def.Scroll.HalfPageDivisor},
-		{"mouse.wheel_lines", &c.Mouse.WheelLines, 1, 0, def.Mouse.WheelLines},
-	}
+	// NumericBounds is the single source for both what gets clamped here and
+	// what the config-schema generator advertises as a field's min/max — the
+	// two must never say something different about the same key. numericField
+	// resolves a bound's dotted key to the *int it actually clamps, on this
+	// instance and on def, so the bound itself never has to duplicate a field
+	// pointer.
+	for _, b := range NumericBounds {
+		field := c.numericField(b.Key)
+		fallback := def.numericField(b.Key)
 
-	for _, check := range checks {
-		if err := clamp(check.name, check.field, check.min, check.max, check.fallback); err != nil {
+		if err := clamp(b.Key, field, b.Min, b.Max, *fallback); err != nil {
 			errs = append(errs, err)
 		}
 	}

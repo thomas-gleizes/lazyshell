@@ -314,6 +314,12 @@ exits, the saved file is re-read and anything wrong with it (an unknown key, an
 out-of-range value, an unparseable keybinding) is reported straight away rather
 than at the next start.
 
+The [config editor](https://thomas-gleizes.github.io/lazyshell/en/config-editor.html) on the
+documentation site offers the same reference as a form instead of a table — one field per option,
+generated from this same source, so a typo on an enum value or an action id is not something you
+can make there. It runs entirely in your browser and only ever produces YAML text to copy into a
+real file; it never reads or writes one.
+
 `lazyshell` reads its YAML config file from (first match wins):
 
 1. `$LAZYSHELL_CONFIG`, if set
@@ -836,6 +842,7 @@ keyboard. Other keys are ignored, with a warning on stderr.
 | `sessions[].no_default_env` | bool | inherits the project's setting | Overrides it for this session only, in either direction. |
 | `sessions[].watch` | list of `{pattern, notify}` | `[]` | A regex evaluated against each output line, and whether a match notifies. Toggle one on the fly with `v`. |
 | `sessions[].restart` | `never` \| `on-failure` \| `always` | `never` | Restarts the shell automatically when the command exits, with a delay that doubles each consecutive attempt (1s, 2s, 4s… capped at 60s), reset once a restarted run stays up 10s. `R` (or `W` for the group) restarts right away, bypassing the wait. |
+| `sessions[].stop_on_failure` | bool | `false` | Kills the session outright as soon as `command:` exits non-zero, instead of leaving the shell open underneath. An explicit kill always wins over a pending `restart:`. No effect without a `command:`, reported on stderr if declared that way. |
 | `sessions[].locked` | bool | `true` if `command:` is declared, else `false` | An explicit value always wins over the heuristic. |
 
 ### .env files

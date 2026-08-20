@@ -109,6 +109,13 @@ const (
 	RestoreLayoutNever  = "never"
 )
 
+// RestoreLayoutValues lists RestoreLayout's valid values, in the order they
+// are documented in — enumerable the same way Languages already is, for
+// anything that needs to offer a closed choice (validation error messages,
+// the config-schema generator) rather than re-deriving it from the constants
+// above by hand.
+var RestoreLayoutValues = []string{RestoreLayoutAsk, RestoreLayoutAlways, RestoreLayoutNever}
+
 // Config is lazyshell's user-facing configuration. Every field has a
 // meaningful default (see Default), so a config file only needs to mention
 // the fields it wants to override.

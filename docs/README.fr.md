@@ -324,6 +324,12 @@ l'éditeur, le fichier enregistré est relu et tout ce qui cloche (clé inconnue
 valeur hors bornes, raccourci illisible) est signalé immédiatement plutôt qu'au
 prochain démarrage.
 
+L'[éditeur de config](https://thomas-gleizes.github.io/lazyshell/fr/editeur-config.html) du site de
+documentation offre la même référence sous forme de formulaire plutôt que de tableau — un champ par
+option, généré depuis cette même source, où une faute de frappe sur une valeur d'énumération ou un
+identifiant d'action est impossible à faire. Tout se passe dans le navigateur, et il ne produit
+jamais que du texte YAML à copier dans un vrai fichier ; il ne lit ni n'écrit jamais l'un d'eux.
+
 `lazyshell` lit son fichier YAML depuis (première correspondance gagnante) :
 
 1. `$LAZYSHELL_CONFIG`, s'il est défini
@@ -850,6 +856,7 @@ stderr.
 | `sessions[].no_default_env` | bool | hérite du réglage du projet | Le surcharge pour cette session seulement, dans un sens comme dans l'autre. |
 | `sessions[].watch` | liste de `{pattern, notify}` | `[]` | Un motif regex évalué sur chaque ligne de sortie, et s'il notifie en cas de correspondance. `v` en arme un à la volée. |
 | `sessions[].restart` | `never` \| `on-failure` \| `always` | `never` | Redémarre le shell automatiquement quand la commande se termine, avec un délai qui double à chaque tentative (1s, 2s, 4s… plafonné à 60s), réinitialisé dès qu'un redémarrage tient 10s. « R » (ou « W » pour le groupe) redémarre tout de suite, sans attendre. |
+| `sessions[].stop_on_failure` | bool | `false` | Tue la session dès que `command:` sort en erreur, au lieu de laisser le shell ouvert dessous. Un arrêt explicite l'emporte toujours sur un `restart:` en attente. Sans effet sans `command:`, signalé sur stderr si déclaré ainsi. |
 | `sessions[].locked` | bool | `true` si `command:` est déclaré, sinon `false` | Une valeur explicite l'emporte toujours sur l'heuristique. |
 
 ### Fichiers .env

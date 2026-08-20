@@ -135,6 +135,13 @@ const (
 	RestartAlways    RestartPolicy = "always"
 )
 
+// RestartPolicyValues lists restart:'s valid *written* values — "never"
+// rather than RestartNever's actual empty string, since that is what a
+// project file author types and what the config-schema generator needs to
+// offer as a closed choice. Enumerable the same way config.Languages already
+// is, instead of re-deriving it from the constants above by hand.
+var RestartPolicyValues = []string{"never", string(RestartOnFailure), string(RestartAlways)}
+
 // ResolvedSession is a SessionSpec that passed validation, with its working
 // directory made absolute. This — not SessionSpec — is what session creation
 // consumes, so an unresolved relative path cannot reach a pty by accident.

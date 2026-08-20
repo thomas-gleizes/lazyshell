@@ -59,8 +59,11 @@ surfaced in the sessions panel.
 
 ```
 cmd/
-  lazyshell/      main entrypoint
-  spike-pty/      phase-1 pty spike (kept for reference, not part of the shipped binary)
+  lazyshell/          main entrypoint
+  spike-pty/          phase-1 pty spike (kept for reference, not part of the shipped binary)
+  gen-config-schema/  generates site/assets/config-schema.json (the config editor's data) from
+                      pkg/config's structs and README.md/docs/README.fr.md — run via `go generate`
+                      (pkg/config/doc.go), not part of the shipped binary
 pkg/
   app/            bootstrap: load config, build SessionManager, run gui.Run()
   session/        SessionManager: CRUD (New, Kill, List); Session{cmd, ptmx, scrollback, status};
@@ -118,6 +121,15 @@ site/             sources of the bilingual GitHub Pages site (site/en/, site/fr/
   reference"/"Référence des champs" table in all three surfaces (`README.md`, `docs/README.fr.md`,
   `site/en/project.html` + `site/fr/projet.html`). Keep it current by hand with the same discipline
   `doc_test.go` enforces mechanically for the global config.
+- **`site/assets/config-schema.json`** (the [config editor](https://thomas-gleizes.github.io/lazyshell/en/config-editor.html)'s
+  data) is a fifth surface describing the same two schemas, but — unlike the four above — it is
+  generated, not hand-kept in sync: `cmd/gen-config-schema` reflects over `Config`/`ProjectConfig`
+  and parses its bilingual help text straight out of `README.md`'s and `docs/README.fr.md`'s own
+  reference tables, so a field added to one of those four surfaces is picked up here automatically
+  the next time someone runs `make generate` — never edit this file by hand. A CI step
+  (`.github/workflows/ci.yml`, `git diff --exit-code` after regenerating) fails the build if it
+  drifts from what the generator currently produces, the same drift protection `doc_test.go` gives
+  `README.md`.
 - ADRs (`docs/adr/`) and the historical reports (`docs/repports/`) are French, and stay French —
   they are records of decisions taken, not living documentation.
 - The application itself ships both languages (`pkg/i18n`, `language:` config); its CLI output

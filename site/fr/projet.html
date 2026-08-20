@@ -31,6 +31,7 @@
     <li><a href="configuration.html">Configuration</a></li>
     <li><a href="agents.html">Sessions d'agents IA</a></li>
     <li><a class="current" href="projet.html">Configuration de projet</a></li>
+    <li><a href="editeur-config.html">Éditeur de config</a></li>
     <li><a href="developpement.html">Développement</a></li>
   </ul>
   <h2>Sur cette page</h2>
@@ -168,6 +169,7 @@ sessions:
     <tr><td><code>sessions[].no_default_env</code></td><td>bool</td><td>hérite du réglage du projet</td><td>Le surcharge pour cette session seulement, dans un sens comme dans l'autre.</td></tr>
     <tr><td><code>sessions[].watch</code></td><td>liste de <code>{pattern, notify}</code></td><td><code>[]</code></td><td>Un motif regex évalué sur chaque ligne de sortie, et s'il notifie en cas de correspondance. <code>v</code> en arme un à la volée.</td></tr>
     <tr><td><code>sessions[].restart</code></td><td><code>never</code> | <code>on-failure</code> | <code>always</code></td><td><code>never</code></td><td>Redémarre le shell automatiquement quand la commande se termine, avec un délai qui double à chaque tentative (1s, 2s, 4s… plafonné à 60s), réinitialisé dès qu'un redémarrage tient 10s. <code>R</code> (ou <code>W</code> pour le groupe) redémarre tout de suite, sans attendre.</td></tr>
+    <tr><td><code>sessions[].stop_on_failure</code></td><td>bool</td><td><code>false</code></td><td>Tue la session dès que <code>command:</code> sort en erreur, au lieu de laisser le shell ouvert dessous. Un arrêt explicite l'emporte toujours sur un <code>restart:</code> en attente. Sans effet sans <code>command:</code>, signalé sur stderr si déclaré ainsi.</td></tr>
     <tr><td><code>sessions[].locked</code></td><td>bool</td><td><code>true</code> si <code>command:</code> est déclaré, sinon <code>false</code></td><td>Une valeur explicite l'emporte toujours sur l'heuristique.</td></tr>
   </tbody>
 </table>

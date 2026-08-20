@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Éditeur de config — lazyshell</title>
+<meta name="description" content="Un formulaire côté navigateur pour la config utilisateur et le lazyshell.yml de lazyshell, avec un aperçu YAML en direct à copier dans son propre fichier.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❯</text></svg>">
+<link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="index.html">lazyshell</a>
+  <span class="spacer"></span>
+  <nav class="toplinks">
+    <a href="https://github.com/thomas-gleizes/lazyshell">GitHub</a>
+    <a href="https://github.com/thomas-gleizes/lazyshell/releases">Releases</a>
+    <a class="langswitch" href="../en/config-editor.html">EN</a>
+  </nav>
+</header>
+
+<div class="shell">
+
+<aside class="sidebar">
+  <h2>Documentation</h2>
+  <ul>
+    <li><a href="index.html">Accueil</a></li>
+    <li><a href="installation.html">Installation</a></li>
+    <li><a href="utilisation.html">Utilisation</a></li>
+    <li><a href="configuration.html">Configuration</a></li>
+    <li><a href="agents.html">Sessions d'agent IA</a></li>
+    <li><a href="projet.html">Configuration de projet</a></li>
+    <li><a class="current" href="editeur-config.html">Éditeur de config</a></li>
+    <li><a href="developpement.html">Développement</a></li>
+  </ul>
+  <h2>Sur cette page</h2>
+  <ul>
+    <li><a href="#config">Config utilisateur</a></li>
+    <li><a href="#project">Projet (lazyshell.yml)</a></li>
+  </ul>
+</aside>
+
+<main>
+
+<h1>Éditeur de config</h1>
+<p class="lede">
+  Un champ par option, généré directement depuis le code source de lazyshell
+  (<code>pkg/config</code>) plutôt que tenu à jour à la main — une faute de frappe sur une valeur
+  d'énumération ou un identifiant d'action est ici impossible à faire. Le YAML à droite est le seul
+  artefact qui compte : copiez-le dans votre <a href="configuration.html">config utilisateur</a> ou
+  votre <a href="projet.html"><code>lazyshell.yml</code> de projet</a>.
+</p>
+
+<div class="note">
+  <p>
+    Tout se passe dans votre navigateur. Rien ici ne lit ni n'écrit un fichier réel — GitHub Pages ne
+    sert que du statique, et cette page n'a aucun moyen d'atteindre votre système de fichiers même si
+    elle le voulait. Collez un fichier existant ci-dessous pour le recharger dans le formulaire, puis
+    continuez à l'éditer.
+  </p>
+</div>
+
+<div class="cfg-tabs" role="tablist">
+  <button class="cfg-tab active" data-tab="config" type="button" role="tab">Config utilisateur</button>
+  <button class="cfg-tab" data-tab="project" type="button" role="tab">Projet (lazyshell.yml)</button>
+</div>
+
+<div id="config-editor-root">
+
+<section class="cfg-panel" id="config" data-panel="config">
+  <div class="cfg-columns">
+    <div class="cfg-form" id="form-config"></div>
+    <div class="cfg-yaml">
+      <div class="cfg-yaml-actions">
+        <button class="btn primary" id="copy-config" type="button">Copier le YAML</button>
+      </div>
+      <pre><code id="yaml-config"></code></pre>
+      <div class="cfg-warnings" id="warnings-config"></div>
+      <h3>Charger un fichier existant</h3>
+      <p class="cfg-help">Collez un <code>config.yml</code> ci-dessous pour en remplir le formulaire.</p>
+      <textarea id="paste-config" rows="8" placeholder="# collez config.yml ici"></textarea>
+      <p><button class="btn" id="apply-config" type="button">Appliquer</button></p>
+    </div>
+  </div>
+</section>
+
+<section class="cfg-panel" id="project" data-panel="project" hidden>
+  <div class="cfg-columns">
+    <div class="cfg-form" id="form-project"></div>
+    <div class="cfg-yaml">
+      <div class="cfg-yaml-actions">
+        <button class="btn primary" id="copy-project" type="button">Copier le YAML</button>
+      </div>
+      <pre><code id="yaml-project"></code></pre>
+      <div class="cfg-warnings" id="warnings-project"></div>
+      <h3>Charger un fichier existant</h3>
+      <p class="cfg-help">Collez un <code>lazyshell.yml</code> ci-dessous pour en remplir le formulaire.</p>
+      <textarea id="paste-project" rows="8" placeholder="# collez lazyshell.yml ici"></textarea>
+      <p><button class="btn" id="apply-project" type="button">Appliquer</button></p>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<datalist id="colorlist-config"></datalist>
+<datalist id="colorlist-project"></datalist>
+
+<footer class="pagefoot">
+  <span>lazyshell — voir le dépôt pour sa licence</span>
+  <a href="https://github.com/thomas-gleizes/lazyshell">Code source</a>
+  <a href="https://github.com/thomas-gleizes/lazyshell/issues">Signaler un problème</a>
+  <a href="../en/config-editor.html">English</a>
+</footer>
+
+</main>
+</div>
+
+<script src="../assets/config-editor.js" defer></script>
+</body>
+</html>

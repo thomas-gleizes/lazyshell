@@ -41,3 +41,13 @@ jobs:
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
+      # site/assets/config-schema.json is generated, not hand-written (see
+      # pkg/config/doc.go's //go:generate and cmd/gen-config-schema) — this
+      # is that file's doc_test.go: it fails the build the same way a stale
+      # README table would, instead of silently letting the committed JSON
+      # drift from Config/ProjectConfig. Runs once here, not in the test
+      # job's matrix, since generation has no OS-specific behavior.
+      - name: Generated config-schema.json is up to date
+        run: |
+          go generate ./...
+          git diff --exit-code -- site/assets/config-schema.json

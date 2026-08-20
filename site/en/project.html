@@ -31,6 +31,7 @@
     <li><a href="configuration.html">Configuration</a></li>
     <li><a href="agents.html">AI agent sessions</a></li>
     <li><a class="current" href="project.html">Project configuration</a></li>
+    <li><a href="config-editor.html">Config editor</a></li>
     <li><a href="development.html">Development</a></li>
   </ul>
   <h2>On this page</h2>
@@ -164,6 +165,7 @@ sessions:
     <tr><td><code>sessions[].no_default_env</code></td><td>bool</td><td>inherits the project's setting</td><td>Overrides it for this session only, in either direction.</td></tr>
     <tr><td><code>sessions[].watch</code></td><td>list of <code>{pattern, notify}</code></td><td><code>[]</code></td><td>A regex evaluated against each output line, and whether a match notifies. Toggle one on the fly with <code>v</code>.</td></tr>
     <tr><td><code>sessions[].restart</code></td><td><code>never</code> | <code>on-failure</code> | <code>always</code></td><td><code>never</code></td><td>Restarts the shell automatically when the command exits, with a delay that doubles each consecutive attempt (1s, 2s, 4s… capped at 60s), reset once a restarted run stays up 10s. <code>R</code> (or <code>W</code> for the group) restarts right away, bypassing the wait.</td></tr>
+    <tr><td><code>sessions[].stop_on_failure</code></td><td>bool</td><td><code>false</code></td><td>Kills the session outright as soon as <code>command:</code> exits non-zero, instead of leaving the shell open underneath. An explicit kill always wins over a pending <code>restart:</code>. No effect without a <code>command:</code>, reported on stderr if declared that way.</td></tr>
     <tr><td><code>sessions[].locked</code></td><td>bool</td><td><code>true</code> if <code>command:</code> is declared, else <code>false</code></td><td>An explicit value always wins over the heuristic.</td></tr>
   </tbody>
 </table>

@@ -156,45 +156,35 @@ persistance.
 
 ## 10. Éditeur de configuration graphique sur le site statique
 
-**Statut : idée**
+**Statut : fait**
 
-Le site (`site/en/configuration.html` / `site/fr/configuration.html`) documente aujourd'hui
-`lazyshell.yml` (fichier projet) et la config utilisateur sous forme de tableau + exemple YAML
-statique. L'idée est un éditeur à deux écrans, entièrement client (GitHub Pages ne sert que du
-statique, pas de backend) :
+`site/en/config-editor.html` / `site/fr/editeur-config.html` : un formulaire deux-volets,
+entièrement client (`site/assets/config-editor.js`, zéro dépendance, zéro étape de build, comme
+tout le reste de `site/`), un onglet par schéma (config utilisateur / `lazyshell.yml`). À gauche,
+un champ par clé, avec `<select>` sur toute valeur à énumération fermée (`language`,
+`restore_layout`, `restart`, les identifiants d'action de `keybindings:`) — la faute de frappe que
+`Warnings`/`unknownKeys` signalent aujourd'hui côté runtime devient impossible à faire côté
+formulaire. À droite, le YAML généré en direct (n'émet que ce qui diffère du défaut), copiable en
+un clic ; coller un fichier existant recharge le formulaire depuis lui, avec les clés non
+reconnues signalées plutôt qu'ignorées en silence — le même traitement que `Warnings` côté Go.
 
-- **Gauche** : formulaire graphique, un champ par clé de `Config` (`pkg/config/config.go`) ou de
-  `ProjectConfig`/`SessionSpec` (`pkg/config/project.go`) selon l'onglet choisi (config globale /
-  config projet), avec autocomplétion sur les valeurs à énumération fermée (`theme`, `language`,
-  `restore_layout: ask|always|never`, `restart: never|on-failure|always`, etc.) pour éliminer la
-  faute de frappe qui fait aujourd'hui échouer silencieusement une clé (`Warnings` dans
-  `ProjectConfig` existe précisément pour ce cas côté runtime — le formulaire doit rendre l'erreur
-  impossible avant même d'arriver au YAML).
-- **Droite** : le YAML généré en direct, en lecture, copiable en un clic — c'est le seul artefact
-  qui compte, l'utilisateur le colle dans son `lazyshell.yml` ou sa config utilisateur.
-- Le sens inverse (coller un YAML existant à gauche pour le retrouver dans le formulaire) est
-  probablement nécessaire aussi, sinon l'éditeur ne sert qu'à créer un fichier neuf, jamais à en
-  modifier un.
+Le point qui restait à trancher — schéma généré ou maintenu à la main — est résolu en faveur de la
+génération : `cmd/gen-config-schema` (nouveau, suit la convention d'un binaire par dossier de
+`cmd/`, pas un générateur interne à `pkg/config` puisqu'il importe `pkg/gui` pour les
+identifiants d'action et les noms de couleur ANSI) réfléchit sur `Config`/`ProjectConfig`/
+`SessionSpec`/`WatchSpec`/`GroupSpec`, source les bornes numériques et les énumérations depuis
+`pkg/config` (`NumericBounds`, `RestoreLayoutValues`, `RestartPolicyValues`, tous exportés pour
+l'occasion, une seule source de vérité partagée avec `Validate()`), et extrait le texte d'aide
+bilingue directement des tableaux `### Reference`/`### Field reference` de `README.md` et
+`docs/README.fr.md` plutôt que d'inventer une cinquième source. `site/assets/config-schema.json`
+est généré et committé (`//go:generate` dans `pkg/config/doc.go`, cible `make generate`) — pas
+généré en CI et uploadé, puisque `pages.yml` n'a explicitement aucune étape de build et que ce
+fichier suit le même modèle que `styles.css` (produit puis committé, servi tel quel). Une étape
+CI (`git diff --exit-code` après régénération) protège le fichier committé de la dérive, le même
+principe que `doc_test.go`/`catalog_test.go` appliquent déjà pour `README.md`/`pkg/i18n`.
 
-Points à trancher avant de concevoir :
-
-- **Source de vérité du schéma** : soit un schéma JSON/YAML généré à partir des structs Go
-  (`ProjectConfig`, `SessionSpec`, `WatchSpec`, `GroupSpec`, `Config`) pour que le formulaire ne
-  dérive jamais du binaire réel, soit un schéma entretenu à la main dans `site/` — la politique de
-  langue documentaire (voir `CLAUDE.md`) penche pour la génération automatique, faute de quoi c'est
-  une quatrième source à synchroniser à la main en plus de `README.md` / `docs/README.fr.md` /
-  `site/`. `pkg/config/doc_test.go` fait déjà ce genre de vérification croisée pour `README.md` ;
-  un outil similaire pourrait faire tourner la génération de schéma en CI.
-- **Bilingue** : le site est `site/en/` + `site/fr/` (voir la politique de langue dans `CLAUDE.md`) ;
-  labels de champs et messages d'aide doivent exister dans les deux, ce qui rapproche ça d'un petit
-  `pkg/i18n` côté JS plutôt que du texte en dur dans le HTML.
-- **Portée** : couvrir `Config` (utilisateur) et `ProjectConfig` (projet) sont deux schémas
-  différents avec des champs qui ne se recouvrent pas (`ProjectConfig` est un sous-ensemble
-  volontairement restreint, voir sa doctrine de liste blanche) — probablement deux onglets plutôt
-  qu'un seul formulaire à bascule.
-- Tout ceci reste un outil de documentation/aide à la saisie, jamais un lecteur/écrivain du fichier
-  projet réel de l'utilisateur : pas d'accès au système de fichiers depuis GitHub Pages, l'éditeur
-  ne fait que produire du texte à copier-coller.
+Reste un outil de documentation/aide à la saisie : aucun accès au système de fichiers réel depuis
+GitHub Pages, l'éditeur ne produit que du texte à copier-coller.
 
 ## 11. Redémarrage forcé d'une session en marche
 

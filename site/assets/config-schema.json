@@ -1,0 +1,583 @@
+{
+  "config": [
+    {
+      "key": "language",
+      "type": "enum",
+      "default": "fr",
+      "enum": [
+        "en",
+        "fr"
+      ],
+      "help_en": "UI language: bindings, popups, status bar, footers and session messages. CLI output (`lazyshell config ...`) stays French.",
+      "help_fr": "Langue de l'interface : raccourcis, popups, barre d'état, pieds de panneaux et messages de session. La sortie CLI (`lazyshell config ...`) reste en français."
+    },
+    {
+      "key": "shell",
+      "type": "string",
+      "default": "",
+      "help_en": "Command started behind each session's pty. Empty means `$SHELL`, falling back to `/bin/bash`.",
+      "help_fr": "Commande lancée derrière le pty de chaque session. Vide signifie `$SHELL`, avec repli sur `/bin/bash`."
+    },
+    {
+      "key": "term",
+      "type": "string",
+      "default": "xterm-256color",
+      "help_en": "`TERM` announced to sessions. Lower it to make programs degrade on purpose.",
+      "help_fr": "`TERM` annoncé aux sessions. L'abaisser fait dégrader les programmes exprès."
+    },
+    {
+      "key": "scrollback_size",
+      "type": "int",
+      "default": 10000,
+      "min": 0,
+      "help_en": "Lines kept per session once they scroll off-screen.",
+      "help_fr": "Lignes gardées par session une fois sorties de l'écran."
+    },
+    {
+      "key": "sessions_panel_width",
+      "type": "int",
+      "default": 40,
+      "min": 5,
+      "help_en": "Sessions list width, in columns, in landscape mode.",
+      "help_fr": "Largeur de la liste des sessions, en colonnes, en mode paysage."
+    },
+    {
+      "key": "sessions_panel_height",
+      "type": "int",
+      "default": 10,
+      "min": 5,
+      "help_en": "Sessions list height, in rows, in portrait mode.",
+      "help_fr": "Hauteur de la liste des sessions, en lignes, en mode portrait."
+    },
+    {
+      "key": "agents_panel_height",
+      "type": "int",
+      "default": 6,
+      "min": 3,
+      "help_en": "Agents dashboard height, in rows, under the sessions panel in landscape mode. Hidden automatically when no AI agent session is detected, and in portrait mode.",
+      "help_fr": "Hauteur du tableau de bord des agents, en lignes, sous la liste des sessions en mode paysage. Masqué automatiquement si aucune session d'agent IA n'est détectée, et en mode portrait."
+    },
+    {
+      "key": "portrait_max_width",
+      "type": "int",
+      "default": 84,
+      "min": 0,
+      "help_en": "Portrait mode applies at or below this terminal width…",
+      "help_fr": "Le mode portrait s'applique à cette largeur de terminal ou en dessous…"
+    },
+    {
+      "key": "portrait_min_height",
+      "type": "int",
+      "default": 45,
+      "min": 0,
+      "help_en": "…and above this terminal height. Portrait stacks the panels instead of splitting them side by side.",
+      "help_fr": "…et au-dessus de cette hauteur. Le portrait empile les panneaux au lieu de les mettre côte à côte."
+    },
+    {
+      "key": "refresh_interval_ms",
+      "type": "int",
+      "default": 30,
+      "min": 10,
+      "max": 1000,
+      "help_en": "Redraw period. An unchanged panel is never pushed, so idle cost stays near zero at any value.",
+      "help_fr": "Période de redessin. Un panneau inchangé n'est jamais poussé, donc le coût au repos reste proche de zéro quelle que soit la valeur."
+    },
+    {
+      "key": "kill_timeout_ms",
+      "type": "int",
+      "default": 2000,
+      "min": 100,
+      "help_en": "Wait after `SIGTERM` before escalating to `SIGKILL`, and again before giving up.",
+      "help_fr": "Attente après `SIGTERM` avant de passer à `SIGKILL`, puis à nouveau avant d'abandonner."
+    },
+    {
+      "key": "prefix_key",
+      "type": "string",
+      "default": "Ctrl+O",
+      "help_en": "Locks the panel: one press, out of pass-through. Must be a control key, and it can no longer be typed into a session. `$LAZYSHELL_PREFIX` overrides it.",
+      "help_fr": "Verrouille le panneau : une pression, sortie du pass-through. Doit être une touche de contrôle, et elle ne peut plus être tapée dans une session. `$LAZYSHELL_PREFIX` la surcharge."
+    },
+    {
+      "key": "keybindings",
+      "type": "map",
+      "default": {},
+      "mapKeyOptions": [
+        "arm_watch",
+        "broadcast_group",
+        "copy_last_output",
+        "cycle_focus",
+        "delete_session",
+        "duplicate_session",
+        "export_session",
+        "filter_group",
+        "filter_sessions",
+        "help",
+        "jump_next_blocked",
+        "jump_next_prompt",
+        "jump_prev_prompt",
+        "kill_group",
+        "kill_session",
+        "new_named_session",
+        "new_session",
+        "new_session_in_dir",
+        "next_tab",
+        "prev_tab",
+        "quit",
+        "rename_session",
+        "restart_group",
+        "restart_session",
+        "select_next",
+        "select_prev",
+        "set_group",
+        "toggle_broadcast",
+        "toggle_debug",
+        "zoom"
+      ],
+      "help_en": "Remaps an action id to a key spec. An action left out keeps its default key.",
+      "help_fr": "Remappe un identifiant d'action vers une spec de touche. Une action omise garde sa touche par défaut."
+    },
+    {
+      "key": "markers.bell",
+      "type": "string",
+      "default": "!",
+      "help_en": "Gutter marker for a session that rang while hidden. `\"\"` turns it off.",
+      "help_fr": "Marqueur de gouttière pour une session qui a sonné pendant qu'elle était cachée. `\"\"` le désactive."
+    },
+    {
+      "key": "markers.alt_screen",
+      "type": "string",
+      "default": "#",
+      "help_en": "Gutter marker for a session running a full-screen application. `\"\"` turns it off.",
+      "help_fr": "Marqueur pour une session faisant tourner une application plein écran. `\"\"` le désactive."
+    },
+    {
+      "key": "markers.activity",
+      "type": "string",
+      "default": "●",
+      "help_en": "Gutter marker for a session that produced output while hidden. `\"\"` turns it off.",
+      "help_fr": "Marqueur pour une session ayant produit de la sortie pendant qu'elle était cachée. `\"\"` le désactive."
+    },
+    {
+      "key": "markers.broadcast",
+      "type": "string",
+      "default": "+",
+      "help_en": "Gutter marker for a session marked to receive broadcast keystrokes. `\"\"` turns it off.",
+      "help_fr": "Marqueur pour une session marquée pour recevoir les frappes diffusées. `\"\"` le désactive."
+    },
+    {
+      "key": "markers.agent_idle",
+      "type": "string",
+      "default": "●",
+      "help_en": "Gutter marker for a detected AI agent session that is idle. `\"\"` turns it off.",
+      "help_fr": "Marqueur pour une session d'agent IA détectée, au repos. `\"\"` le désactive."
+    },
+    {
+      "key": "markers.agent_working",
+      "type": "string",
+      "default": "●",
+      "help_en": "Gutter marker for a detected AI agent session that is working. `\"\"` turns it off.",
+      "help_fr": "Marqueur pour une session d'agent IA détectée, en train de travailler. `\"\"` le désactive."
+    },
+    {
+      "key": "markers.agent_blocked",
+      "type": "string",
+      "default": "●",
+      "help_en": "Gutter marker for a detected AI agent session waiting on you. `\"\"` turns it off.",
+      "help_fr": "Marqueur pour une session d'agent IA détectée qui vous attend. `\"\"` le désactive."
+    },
+    {
+      "key": "markers.agent_done",
+      "type": "string",
+      "default": "●",
+      "help_en": "Gutter marker for a detected AI agent session that finished its turn. `\"\"` turns it off.",
+      "help_fr": "Marqueur pour une session d'agent IA détectée ayant fini son tour. `\"\"` le désactive."
+    },
+    {
+      "key": "markers.agent_idle_color",
+      "type": "color",
+      "default": "green",
+      "help_en": "Color for `markers.agent_idle`.",
+      "help_fr": "Couleur de `markers.agent_idle`."
+    },
+    {
+      "key": "markers.agent_working_color",
+      "type": "color",
+      "default": "yellow",
+      "help_en": "Color for `markers.agent_working`. Pulses between full and dimmed brightness (twice a second) while the agent is working — the only one of the four states that animates.",
+      "help_fr": "Couleur de `markers.agent_working`. Alterne entre pleine et faible luminosité (deux fois par seconde) tant que l'agent travaille — le seul des quatre états animé."
+    },
+    {
+      "key": "markers.agent_blocked_color",
+      "type": "color",
+      "default": "red",
+      "help_en": "Color for `markers.agent_blocked`.",
+      "help_fr": "Couleur de `markers.agent_blocked`."
+    },
+    {
+      "key": "markers.agent_done_color",
+      "type": "color",
+      "default": "blue",
+      "help_en": "Color for `markers.agent_done`.",
+      "help_fr": "Couleur de `markers.agent_done`."
+    },
+    {
+      "key": "markers.command_failed",
+      "type": "string",
+      "default": "✗",
+      "help_en": "Marker (next to its exit code, in the name/status columns rather than the gutter) for a non-agent session whose last command — per [shell-integration OSC 133](#shell-integration-osc-133) — exited non-zero. `\"\"` turns it off.",
+      "help_fr": "Marqueur (à côté de son code de sortie, dans les colonnes nom/état plutôt que dans la gouttière) pour une session sans agent dont la dernière commande — via l'[intégration shell OSC 133](#intégration-shell-osc-133) — a échoué. `\"\"` le désactive."
+    },
+    {
+      "key": "markers.restart",
+      "type": "string",
+      "default": "↻",
+      "help_en": "Marker (next to its attempt count, in the name/status columns rather than the gutter) for a session that has needed at least one automatic restart (see [Project configuration](#project-configuration)'s `restart:`). `\"\"` turns it off.",
+      "help_fr": "Marqueur (à côté de son compteur de tentatives, dans les colonnes nom/état plutôt que dans la gouttière) pour une session ayant eu besoin d'au moins un redémarrage automatique (voir [Configuration de projet](#configuration-de-projet), `restart:`). `\"\"` le désactive."
+    },
+    {
+      "key": "scroll.page_lines",
+      "type": "int",
+      "default": 0,
+      "min": 0,
+      "help_en": "Lines `PgUp`/`PgDn` move by. `0` means one full panel height.",
+      "help_fr": "Lignes parcourues par `PgUp`/`PgDn`. `0` signifie une hauteur de panneau entière."
+    },
+    {
+      "key": "scroll.half_page_divisor",
+      "type": "int",
+      "default": 2,
+      "min": 1,
+      "help_en": "`Ctrl-U`/`Ctrl-D` move by the panel height divided by this.",
+      "help_fr": "`Ctrl-U`/`Ctrl-D` parcourent la hauteur du panneau divisée par cette valeur."
+    },
+    {
+      "key": "theme.active_border_color",
+      "type": "color",
+      "default": "",
+      "help_en": "Focused panel's border.",
+      "help_fr": "Bordure du panneau qui a le focus."
+    },
+    {
+      "key": "theme.inactive_border_color",
+      "type": "color",
+      "default": "",
+      "help_en": "Every other panel's border.",
+      "help_fr": "Bordure de tous les autres panneaux."
+    },
+    {
+      "key": "theme.selected_bg_color",
+      "type": "color",
+      "default": "",
+      "help_en": "Selected line's background in the sessions list.",
+      "help_fr": "Fond de la ligne sélectionnée dans la liste des sessions."
+    },
+    {
+      "key": "theme.locked_border_color",
+      "type": "color",
+      "default": "",
+      "help_en": "Output panel's border while locked (i.e. not in pass-through).",
+      "help_fr": "Bordure du panneau de sortie quand il est verrouillé (hors pass-through)."
+    },
+    {
+      "key": "theme.tab_active_color",
+      "type": "color",
+      "default": "",
+      "help_en": "Selected tab in the output panel's tab strip.",
+      "help_fr": "Onglet sélectionné dans la barre d'onglets du panneau de sortie."
+    },
+    {
+      "key": "clipboard.fallback_command",
+      "type": "string",
+      "default": "",
+      "help_en": "Command run with the yanked text on its stdin, instead of OSC 52, for a terminal that does not support it. There is no way to detect support, so this is a manual switch: empty means OSC 52 only.",
+      "help_fr": "Commande lancée avec le texte copié sur son stdin, à la place d'OSC 52, pour un terminal qui ne le gère pas. Il n'y a aucun moyen de détecter le support, c'est donc un interrupteur manuel : vide signifie OSC 52 seulement."
+    },
+    {
+      "key": "notify.fallback_command",
+      "type": "string",
+      "default": "",
+      "help_en": "Command run with the notification text on its stdin, instead of OSC 9/777, when a detected AI agent session goes blocked or done. Empty means OSC only.",
+      "help_fr": "Commande lancée avec le texte de notification sur son stdin, à la place d'OSC 9/777, quand une session d'agent IA détectée passe en blocked ou done. Vide signifie OSC seulement."
+    },
+    {
+      "key": "window_title.enabled",
+      "type": "bool",
+      "default": true,
+      "help_en": "Whether the host terminal's window/tab title tracks the focused session (its name, plus its live OSC 0/2 title when one is set) via OSC 0.",
+      "help_fr": "Si le titre de fenêtre/onglet du terminal hôte suit la session sélectionnée (son nom, plus son titre OSC 0/2 en direct s'il y en a un), via OSC 0."
+    },
+    {
+      "key": "mouse.enabled",
+      "type": "bool",
+      "default": true,
+      "help_en": "Click, wheel and drag support. Turning it on costs `Shift-Up`/`Shift-Down` pass-through — gocui gives those keys and the mouse buttons the same values, so they cannot both work. Set to `false` to get them back.",
+      "help_fr": "Support du clic, de la molette et du glisser. L'activer coûte le pass-through de `Shift-Up`/`Shift-Down` — gocui donne à ces touches et aux boutons de la souris les mêmes valeurs, donc les deux ne peuvent pas marcher ensemble. À `false` pour les récupérer."
+    },
+    {
+      "key": "mouse.wheel_lines",
+      "type": "int",
+      "default": 3,
+      "min": 1,
+      "help_en": "Lines one wheel notch scrolls the output panel by.",
+      "help_fr": "Lignes parcourues dans le panneau de sortie par un cran de molette."
+    },
+    {
+      "key": "mouse.forward_to_app",
+      "type": "bool",
+      "default": true,
+      "help_en": "Whether a program inside a session may receive the mouse itself, and only once it has asked for it with a DECSET 9/1000/1002/1003 (`vim` with `set mouse=a`, `htop`). A shell or an AI agent CLI never asks, so the wheel keeps scrolling lazyshell's scrollback.",
+      "help_fr": "Si un programme dans une session peut recevoir la souris lui-même, et seulement une fois qu'il l'a demandée avec un DECSET 9/1000/1002/1003 (`vim` avec `set mouse=a`, `htop`). Un shell ou une CLI d'agent IA ne la demande jamais, donc la molette continue de faire défiler le scrollback de lazyshell."
+    },
+    {
+      "key": "env_tab.mask_secrets",
+      "type": "bool",
+      "default": true,
+      "help_en": "Whether the output panel's env tab masks the value of variables whose name looks like a credential (`TOKEN`, `SECRET`, `PASSWORD`, `AUTH`, `..._KEY`). The panel is as shareable as a screenshot of it; set to `false` to see the real values.",
+      "help_fr": "Si l'onglet env du panneau de sortie masque la valeur des variables dont le nom ressemble à un identifiant (`TOKEN`, `SECRET`, `PASSWORD`, `AUTH`, `..._KEY`). Le panneau est aussi partageable qu'une capture d'écran ; à `false` pour voir les vraies valeurs."
+    },
+    {
+      "key": "perf.refresh_interval_ms",
+      "type": "int",
+      "default": 5000,
+      "help_en": "How often every session's processes are sampled for the resources tab. This runs in the background whether or not that tab is open, so its curves already go back further than the moment you opened them; all sessions are sampled in one pass, so the cost does not grow with their number. `0` turns sampling off entirely — it is the one periodic job that spawns a process, so someone who never opens the tab need not pay for it.",
+      "help_fr": "Fréquence d'échantillonnage des processus de chaque session pour l'onglet ressources. Ça tourne en arrière-plan que l'onglet soit ouvert ou non, donc ses courbes remontent déjà plus loin que le moment où vous l'avez ouvert ; toutes les sessions sont échantillonnées en une passe, donc le coût ne croît pas avec leur nombre. `0` coupe complètement l'échantillonnage — c'est le seul travail périodique qui lance un processus, donc qui n'ouvre jamais l'onglet n'a pas à le payer."
+    },
+    {
+      "key": "control.enabled",
+      "type": "bool",
+      "default": false,
+      "help_en": "Whether the agent control API is open — the socket `lazyshell ctl` drives a running lazyshell over. Off by default, and read [Agent control API](#agent-control-api) before turning it on: it lets any process running as you create sessions, type into them and read their output.",
+      "help_fr": "Si l'API de contrôle par les agents est ouverte — le socket que `lazyshell ctl` pilote. Désactivée par défaut, et lire [API de contrôle par les agents](#api-de-contrôle-par-les-agents) avant de l'activer : elle permet à tout processus tournant sous votre compte de créer des sessions, d'y taper et de lire leur sortie."
+    },
+    {
+      "key": "agent_stats_command",
+      "type": "string",
+      "default": "",
+      "help_en": "Run for the selected AI agent session, with `$LAZYSHELL_SESSION_ID` in its environment; its first line of stdout is shown next to the turn duration. Empty disables it.",
+      "help_fr": "Lancée pour la session d'agent IA sélectionnée, avec `$LAZYSHELL_SESSION_ID` dans son environnement ; la première ligne de sa sortie standard est affichée à côté de la durée du tour. Vide la désactive."
+    },
+    {
+      "key": "restore_layout",
+      "type": "enum",
+      "default": "ask",
+      "enum": [
+        "ask",
+        "always",
+        "never"
+      ],
+      "help_en": "What to do, at launch, with a saved session layout for the current directory (see [Layout persistence](#layout-persistence)) when there is no `lazyshell.yml`: `ask` shows a confirmation popup, `always` restores it with no prompt, `never` never offers it.",
+      "help_fr": "Ce que fait le lancement d'une disposition de sessions sauvegardée pour le répertoire courant (voir [Persistance de la disposition](#persistance-de-la-disposition)) quand il n'y a pas de `lazyshell.yml` : `ask` affiche une popup de confirmation, `always` restaure sans la montrer, `never` ne la propose jamais."
+    }
+  ],
+  "project": [
+    {
+      "key": "shell",
+      "type": "string",
+      "defaultText_en": "`\"\"`",
+      "defaultText_fr": "`\"\"`",
+      "help_en": "Overrides the user config's `shell`, for this project only.",
+      "help_fr": "Surcharge le `shell` de la config utilisateur, pour ce projet seulement."
+    },
+    {
+      "key": "sessions",
+      "type": "list",
+      "defaultText_en": "`[]`",
+      "defaultText_fr": "`[]`",
+      "itemType": "struct",
+      "itemFields": [
+        {
+          "key": "sessions[].name",
+          "type": "string",
+          "defaultText_en": "—",
+          "defaultText_fr": "—",
+          "help_en": "Must be non-empty and unique; an invalid entry is skipped and reported, the others still start.",
+          "help_fr": "Doit être non vide et unique ; une entrée invalide est ignorée et signalée, les autres démarrent quand même."
+        },
+        {
+          "key": "sessions[].group",
+          "type": "string",
+          "defaultText_en": "`\"\"` (ungrouped)",
+          "defaultText_fr": "`\"\"` (sans groupe)",
+          "help_en": "Need not be declared in `groups:`.",
+          "help_fr": "Pas besoin d'être déclaré dans `groups:`."
+        },
+        {
+          "key": "sessions[].cwd",
+          "type": "string",
+          "defaultText_en": "this file's own directory",
+          "defaultText_fr": "le dossier de ce fichier",
+          "help_en": "Resolved relative to *this file*, not to where you launched lazyshell from. `~` is expanded.",
+          "help_fr": "Résolu relativement à *ce fichier*, pas à l'endroit d'où lazyshell a été lancé. `~` est expansé."
+        },
+        {
+          "key": "sessions[].command",
+          "type": "string",
+          "defaultText_en": "`\"\"` (bare shell)",
+          "defaultText_fr": "`\"\"` (simple shell)",
+          "help_en": "Typed into the shell once it is up, not exec'd in its place: when it exits (or you `Ctrl-C` it), the shell is still there.",
+          "help_fr": "Tapée dans le shell une fois qu'il est là, pas exécutée à sa place : à sa fin (ou après un `Ctrl-C`), le shell reste ouvert."
+        },
+        {
+          "key": "sessions[].env",
+          "type": "map",
+          "defaultText_en": "`{}`",
+          "defaultText_fr": "`{}`",
+          "help_en": "Always wins, over every `.env` file layer (see below).",
+          "help_fr": "Gagne toujours, sur toutes les couches de fichier `.env` (voir plus bas)."
+        },
+        {
+          "key": "sessions[].env_files",
+          "type": "list",
+          "defaultText_en": "`[]`",
+          "defaultText_fr": "`[]`",
+          "itemType": "string",
+          "help_en": "On top of the project's own `env_files`, for this session only.",
+          "help_fr": "En plus des `env_files` du projet, pour cette session seulement."
+        },
+        {
+          "key": "sessions[].no_default_env",
+          "type": "bool",
+          "defaultText_en": "inherits the project's setting",
+          "defaultText_fr": "hérite du réglage du projet",
+          "nilable": true,
+          "help_en": "Overrides it for this session only, in either direction.",
+          "help_fr": "Le surcharge pour cette session seulement, dans un sens comme dans l'autre."
+        },
+        {
+          "key": "sessions[].watch",
+          "type": "list",
+          "defaultText_en": "`[]`",
+          "defaultText_fr": "`[]`",
+          "itemType": "struct",
+          "itemFields": [
+            {
+              "key": "sessions[].watch[].pattern",
+              "type": "string"
+            },
+            {
+              "key": "sessions[].watch[].notify",
+              "type": "bool"
+            }
+          ],
+          "help_en": "A regex evaluated against each output line, and whether a match notifies. Toggle one on the fly with `v`.",
+          "help_fr": "Un motif regex évalué sur chaque ligne de sortie, et s'il notifie en cas de correspondance. `v` en arme un à la volée."
+        },
+        {
+          "key": "sessions[].restart",
+          "type": "enum",
+          "defaultText_en": "`never`",
+          "defaultText_fr": "`never`",
+          "enum": [
+            "never",
+            "on-failure",
+            "always"
+          ],
+          "help_en": "Restarts the shell automatically when the command exits, with a delay that doubles each consecutive attempt (1s, 2s, 4s… capped at 60s), reset once a restarted run stays up 10s. `R` (or `W` for the group) restarts right away, bypassing the wait.",
+          "help_fr": "Redémarre le shell automatiquement quand la commande se termine, avec un délai qui double à chaque tentative (1s, 2s, 4s… plafonné à 60s), réinitialisé dès qu'un redémarrage tient 10s. « R » (ou « W » pour le groupe) redémarre tout de suite, sans attendre."
+        },
+        {
+          "key": "sessions[].stop_on_failure",
+          "type": "bool",
+          "defaultText_en": "`false`",
+          "defaultText_fr": "`false`",
+          "help_en": "Kills the session outright as soon as `command:` exits non-zero, instead of leaving the shell open underneath. An explicit kill always wins over a pending `restart:`. No effect without a `command:`, reported on stderr if declared that way.",
+          "help_fr": "Tue la session dès que `command:` sort en erreur, au lieu de laisser le shell ouvert dessous. Un arrêt explicite l'emporte toujours sur un `restart:` en attente. Sans effet sans `command:`, signalé sur stderr si déclaré ainsi."
+        },
+        {
+          "key": "sessions[].locked",
+          "type": "bool",
+          "defaultText_en": "`true` if `command:` is declared, else `false`",
+          "defaultText_fr": "`true` si `command:` est déclaré, sinon `false`",
+          "nilable": true,
+          "help_en": "An explicit value always wins over the heuristic.",
+          "help_fr": "Une valeur explicite l'emporte toujours sur l'heuristique."
+        }
+      ],
+      "help_en": "Started in file order; the first one is selected.",
+      "help_fr": "Démarrées dans l'ordre du fichier ; la première est sélectionnée."
+    },
+    {
+      "key": "groups",
+      "type": "list",
+      "defaultText_en": "`[]`",
+      "defaultText_fr": "`[]`",
+      "itemType": "struct",
+      "itemFields": [
+        {
+          "key": "groups[].name",
+          "type": "string"
+        }
+      ],
+      "help_en": "Declares this project's groups and the order their headers appear in the sessions panel. A session may name a group not listed here; it simply sorts after the declared ones.",
+      "help_fr": "Déclare les groupes de ce projet et l'ordre de leurs en-têtes dans le panneau des sessions. Une session peut citer un groupe absent d'ici ; il se place simplement après les groupes déclarés."
+    },
+    {
+      "key": "env_files",
+      "type": "list",
+      "defaultText_en": "`[]`",
+      "defaultText_fr": "`[]`",
+      "itemType": "string",
+      "help_en": "`.env`-style files loaded, in order, for every session this project declares — before each session's own `env_files`, and before its inline `env`.",
+      "help_fr": "Fichiers `.env` chargés, dans l'ordre, pour toutes les sessions déclarées par ce projet — avant les `env_files` propres à chaque session, et avant son `env` inline."
+    },
+    {
+      "key": "no_default_env",
+      "type": "bool",
+      "defaultText_en": "`false`",
+      "defaultText_fr": "`false`",
+      "nilable": true,
+      "help_en": "Disables the automatic `\u003csession cwd\u003e/.env` lookup for every declared session, unless a session's own `no_default_env` overrides it back on.",
+      "help_fr": "Désactive la recherche automatique de `\u003ccwd de la session\u003e/.env` pour toutes les sessions déclarées, sauf si une session la réactive elle-même."
+    }
+  ],
+  "colorNames": [
+    "black",
+    "blue",
+    "brightblack",
+    "brightblue",
+    "brightcyan",
+    "brightgreen",
+    "brightmagenta",
+    "brightred",
+    "brightwhite",
+    "brightyellow",
+    "cyan",
+    "green",
+    "magenta",
+    "red",
+    "white",
+    "yellow"
+  ],
+  "actionIds": [
+    "arm_watch",
+    "broadcast_group",
+    "copy_last_output",
+    "cycle_focus",
+    "delete_session",
+    "duplicate_session",
+    "export_session",
+    "filter_group",
+    "filter_sessions",
+    "help",
+    "jump_next_blocked",
+    "jump_next_prompt",
+    "jump_prev_prompt",
+    "kill_group",
+    "kill_session",
+    "new_named_session",
+    "new_session",
+    "new_session_in_dir",
+    "next_tab",
+    "prev_tab",
+    "quit",
+    "rename_session",
+    "restart_group",
+    "restart_session",
+    "select_next",
+    "select_prev",
+    "set_group",
+    "toggle_broadcast",
+    "toggle_debug",
+    "zoom"
+  ]
+}
