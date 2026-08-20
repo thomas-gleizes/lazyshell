@@ -832,6 +832,26 @@ sous votre seul contrôle : un dépôt que vous avez cloné ne doit pas pouvoir
 remapper votre clavier. Les autres clés sont ignorées, avec un avertissement sur
 stderr.
 
+### Référence des champs
+
+| Clé | Type | Défaut | Effet |
+| --- | --- | --- | --- |
+| `shell` | string | `""` | Surcharge le `shell` de la config utilisateur, pour ce projet seulement. |
+| `env_files` | []string | `[]` | Fichiers `.env` chargés, dans l'ordre, pour toutes les sessions déclarées par ce projet — avant les `env_files` propres à chaque session, et avant son `env` inline. |
+| `no_default_env` | bool | `false` | Désactive la recherche automatique de `<cwd de la session>/.env` pour toutes les sessions déclarées, sauf si une session la réactive elle-même. |
+| `groups` | liste de `{name}` | `[]` | Déclare les groupes de ce projet et l'ordre de leurs en-têtes dans le panneau des sessions. Une session peut citer un groupe absent d'ici ; il se place simplement après les groupes déclarés. |
+| `sessions` | liste d'entrées de session | `[]` | Démarrées dans l'ordre du fichier ; la première est sélectionnée. |
+| `sessions[].name` | string, requis | — | Doit être non vide et unique ; une entrée invalide est ignorée et signalée, les autres démarrent quand même. |
+| `sessions[].group` | string | `""` (sans groupe) | Pas besoin d'être déclaré dans `groups:`. |
+| `sessions[].cwd` | string | le dossier de ce fichier | Résolu relativement à *ce fichier*, pas à l'endroit d'où lazyshell a été lancé. `~` est expansé. |
+| `sessions[].command` | string | `""` (simple shell) | Tapée dans le shell une fois qu'il est là, pas exécutée à sa place : à sa fin (ou après un `Ctrl-C`), le shell reste ouvert. |
+| `sessions[].env` | map[string]string | `{}` | Gagne toujours, sur toutes les couches de fichier `.env` (voir plus bas). |
+| `sessions[].env_files` | []string | `[]` | En plus des `env_files` du projet, pour cette session seulement. |
+| `sessions[].no_default_env` | bool | hérite du réglage du projet | Le surcharge pour cette session seulement, dans un sens comme dans l'autre. |
+| `sessions[].watch` | liste de `{pattern, notify}` | `[]` | Un motif regex évalué sur chaque ligne de sortie, et s'il notifie en cas de correspondance. `v` en arme un à la volée. |
+| `sessions[].restart` | `never` \| `on-failure` \| `always` | `never` | Redémarre le shell automatiquement quand la commande se termine, avec un délai qui double à chaque tentative (1s, 2s, 4s… plafonné à 60s), réinitialisé dès qu'un redémarrage tient 10s. « R » (ou « W » pour le groupe) redémarre tout de suite, sans attendre. |
+| `sessions[].locked` | bool | `true` si `command:` est déclaré, sinon `false` | Une valeur explicite l'emporte toujours sur l'heuristique. |
+
 ### Fichiers .env
 
 Chaque session — déclarée dans un fichier de projet ou non — charge

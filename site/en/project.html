@@ -37,6 +37,7 @@
   <ul>
     <li><a href="#idea">The idea</a></li>
     <li><a href="#example">Example</a></li>
+    <li><a href="#fields">Field reference</a></li>
     <li><a href="#scope">What is read, what is not</a></li>
     <li><a href="#env">.env files</a></li>
     <li><a href="#which">Which file is used</a></li>
@@ -142,6 +143,31 @@ sessions:
   list, and it simply sorts after the declared ones. A bad <code>groups:</code> entry (empty or
   duplicate <code>name</code>) is dropped and reported like a bad session, and the rest still apply.
 </p>
+
+<h2 id="fields">Field reference</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Key</th><th>Type</th><th>Default</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr><td><code>shell</code></td><td>string</td><td><code>""</code></td><td>Overrides the user config's <code>shell</code>, for this project only.</td></tr>
+    <tr><td><code>env_files</code></td><td>[]string</td><td><code>[]</code></td><td><code>.env</code>-style files loaded, in order, for every session this project declares — before each session's own <code>env_files</code>, and before its inline <code>env</code>.</td></tr>
+    <tr><td><code>no_default_env</code></td><td>bool</td><td><code>false</code></td><td>Disables the automatic <code>&lt;session cwd&gt;/.env</code> lookup for every declared session, unless a session's own <code>no_default_env</code> overrides it back on.</td></tr>
+    <tr><td><code>groups</code></td><td>list of <code>{name}</code></td><td><code>[]</code></td><td>Declares this project's groups and the order their headers appear in the sessions panel. A session may name a group not listed here; it simply sorts after the declared ones.</td></tr>
+    <tr><td><code>sessions</code></td><td>list of session entries</td><td><code>[]</code></td><td>Started in file order; the first one is selected.</td></tr>
+    <tr><td><code>sessions[].name</code></td><td>string, required</td><td>—</td><td>Must be non-empty and unique; an invalid entry is skipped and reported, the others still start.</td></tr>
+    <tr><td><code>sessions[].group</code></td><td>string</td><td><code>""</code> (ungrouped)</td><td>Need not be declared in <code>groups:</code>.</td></tr>
+    <tr><td><code>sessions[].cwd</code></td><td>string</td><td>this file's own directory</td><td>Resolved relative to <em>this file</em>, not to where you launched lazyshell from. <code>~</code> is expanded.</td></tr>
+    <tr><td><code>sessions[].command</code></td><td>string</td><td><code>""</code> (bare shell)</td><td>Typed into the shell once it is up, not exec'd in its place: when it exits (or you <code>Ctrl-C</code> it), the shell is still there.</td></tr>
+    <tr><td><code>sessions[].env</code></td><td>map[string]string</td><td><code>{}</code></td><td>Always wins, over every <code>.env</code> file layer (see <a href="#env">below</a>).</td></tr>
+    <tr><td><code>sessions[].env_files</code></td><td>[]string</td><td><code>[]</code></td><td>On top of the project's own <code>env_files</code>, for this session only.</td></tr>
+    <tr><td><code>sessions[].no_default_env</code></td><td>bool</td><td>inherits the project's setting</td><td>Overrides it for this session only, in either direction.</td></tr>
+    <tr><td><code>sessions[].watch</code></td><td>list of <code>{pattern, notify}</code></td><td><code>[]</code></td><td>A regex evaluated against each output line, and whether a match notifies. Toggle one on the fly with <code>v</code>.</td></tr>
+    <tr><td><code>sessions[].restart</code></td><td><code>never</code> | <code>on-failure</code> | <code>always</code></td><td><code>never</code></td><td>Restarts the shell automatically when the command exits, with a delay that doubles each consecutive attempt (1s, 2s, 4s… capped at 60s), reset once a restarted run stays up 10s. <code>R</code> (or <code>W</code> for the group) restarts right away, bypassing the wait.</td></tr>
+    <tr><td><code>sessions[].locked</code></td><td>bool</td><td><code>true</code> if <code>command:</code> is declared, else <code>false</code></td><td>An explicit value always wins over the heuristic.</td></tr>
+  </tbody>
+</table>
+</div>
 
 <h2 id="scope">What is read, what is not</h2>
 

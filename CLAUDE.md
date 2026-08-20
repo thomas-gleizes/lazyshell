@@ -111,6 +111,13 @@ site/             sources of the bilingual GitHub Pages site (site/en/, site/fr/
   nothing parses it, so keep it faithful rather than clever.
 - **`site/`** carries the same material as a bilingual site (`site/en/`, `site/fr/`) published on
   GitHub Pages. A user-facing change worth documenting usually touches all three.
+- **Project configuration** (`ProjectConfig`/`SessionSpec` in `pkg/config/project.go`, documented
+  under "## Project configuration"/"## Configuration de projet") has no `doc_test.go`-style
+  enforcement — that test only walks the top-level `Config` struct, so nothing fails the build if a
+  `SessionSpec`/`ProjectConfig` field is added, renamed, or removed without updating the "Field
+  reference"/"Référence des champs" table in all three surfaces (`README.md`, `docs/README.fr.md`,
+  `site/en/project.html` + `site/fr/projet.html`). Keep it current by hand with the same discipline
+  `doc_test.go` enforces mechanically for the global config.
 - ADRs (`docs/adr/`) and the historical reports (`docs/repports/`) are French, and stay French —
   they are records of decisions taken, not living documentation.
 - The application itself ships both languages (`pkg/i18n`, `language:` config); its CLI output

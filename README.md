@@ -818,6 +818,26 @@ read from a project file.** `theme`, `keybindings`, `prefix_key` and the rest st
 your control alone: a repository you cloned must not be able to remap your
 keyboard. Other keys are ignored, with a warning on stderr.
 
+### Field reference
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `shell` | string | `""` | Overrides the user config's `shell`, for this project only. |
+| `env_files` | []string | `[]` | `.env`-style files loaded, in order, for every session this project declares — before each session's own `env_files`, and before its inline `env`. |
+| `no_default_env` | bool | `false` | Disables the automatic `<session cwd>/.env` lookup for every declared session, unless a session's own `no_default_env` overrides it back on. |
+| `groups` | list of `{name}` | `[]` | Declares this project's groups and the order their headers appear in the sessions panel. A session may name a group not listed here; it simply sorts after the declared ones. |
+| `sessions` | list of session entries | `[]` | Started in file order; the first one is selected. |
+| `sessions[].name` | string, required | — | Must be non-empty and unique; an invalid entry is skipped and reported, the others still start. |
+| `sessions[].group` | string | `""` (ungrouped) | Need not be declared in `groups:`. |
+| `sessions[].cwd` | string | this file's own directory | Resolved relative to *this file*, not to where you launched lazyshell from. `~` is expanded. |
+| `sessions[].command` | string | `""` (bare shell) | Typed into the shell once it is up, not exec'd in its place: when it exits (or you `Ctrl-C` it), the shell is still there. |
+| `sessions[].env` | map[string]string | `{}` | Always wins, over every `.env` file layer (see below). |
+| `sessions[].env_files` | []string | `[]` | On top of the project's own `env_files`, for this session only. |
+| `sessions[].no_default_env` | bool | inherits the project's setting | Overrides it for this session only, in either direction. |
+| `sessions[].watch` | list of `{pattern, notify}` | `[]` | A regex evaluated against each output line, and whether a match notifies. Toggle one on the fly with `v`. |
+| `sessions[].restart` | `never` \| `on-failure` \| `always` | `never` | Restarts the shell automatically when the command exits, with a delay that doubles each consecutive attempt (1s, 2s, 4s… capped at 60s), reset once a restarted run stays up 10s. `R` (or `W` for the group) restarts right away, bypassing the wait. |
+| `sessions[].locked` | bool | `true` if `command:` is declared, else `false` | An explicit value always wins over the heuristic. |
+
 ### .env files
 
 Every session — declared in a project file or not — automatically loads a
