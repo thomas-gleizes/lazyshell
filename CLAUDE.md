@@ -185,7 +185,10 @@ now that the roadmap that used to hold it is gone.
   polling goroutine inside `pkg/session` (`stop_on_failure.go`) — not a `pkg/gui` tick check —
   because `pkg/session` must not depend on `pkg/gui`, and `pkg/app`'s `autostart` creates project
   sessions before `gui.Run` starts its own tick. The load-bearing rules: it only ever acts on the
-  *first* OSC 133 command-exit event a fresh incarnation's `Screen` reports (`seq == 1`) — never a
-  later command the user types by hand in the same still-alive shell — and it kills through
-  `Manager.Kill`, never `Session.Kill` directly, which is what makes `killedExplicitly` suppress a
-  pending `restart: on-failure` instead of the session resurrecting itself.
+  first OSC 133 `D` event whose cycle actually ran a command — `Screen.LastCommandOutputRange().ok`,
+  not just the first `D` event a fresh incarnation's `Screen` reports at all, because a shell's own
+  `precmd` fires once before its very first prompt too, closing an empty cycle that would otherwise
+  be mistaken for the injected command's own exit — never a later command the user types by hand in
+  the same still-alive shell — and it kills through `Manager.Kill`, never `Session.Kill` directly,
+  which is what makes `killedExplicitly` suppress a pending `restart: on-failure` instead of the
+  session resurrecting itself.

@@ -18,6 +18,17 @@ func oscCommandExit(code int) []byte {
 	return []byte("\x1b]133;A\x07$ \x1b]133;B\x07false\r\n\x1b]133;D;1\x07")
 }
 
+// oscShellStartupNoise builds the OSC 133 sequence a real shell's own
+// precmd hook prints before its very first prompt, with no command having
+// run yet: a D closing a cycle that never had a B or C in it (so it never
+// sets LastCommandOutputRange), then the A opening the real, first prompt.
+// zsh/bash's standard integration hooks fire precmd once at shell startup,
+// unconditionally, before reading any input — this is what makes "the very
+// first D event" the wrong signal for "the injected command's own exit".
+func oscShellStartupNoise() []byte {
+	return []byte("\x1b]133;D;0\x07\x1b]133;A\x07")
+}
+
 // newTestManagerWithStopOnFailure is newTestManager with
 // StopOnFailurePollInterval shrunk far enough that watchStopOnFailure's
 // reaction to a simulated OSC 133 event can be observed inside a normal test
@@ -87,10 +98,42 @@ func TestStopOnFailureDisabledByDefaultLeavesSessionRunning(t *testing.T) {
 	}
 }
 
-// watchStopOnFailure only ever acts on the very first command-exit event a
-// fresh incarnation's Screen reports — the injected command's own. A second,
-// later event (standing in for a command the user types by hand once the
-// shell is theirs again) must never trigger a kill.
+// A real shell's own precmd hook fires once at startup, before the injected
+// command ever runs, closing a cycle with no command in it — a D event with
+// no LastCommandOutputRange. watchStopOnFailure must skip this spurious
+// event and react to the injected command's own D instead, not treat this
+// boilerplate one as "the" event to observe and then stop watching.
+func TestStopOnFailureSkipsShellStartupNoiseBeforeInjectedCommand(t *testing.T) {
+	m := newTestManagerWithStopOnFailure(t)
+
+	sess, err := m.NewWithOptions(Options{Name: "api", Shell: testShell, Command: "true", StopOnFailure: true})
+	if err != nil {
+		t.Fatalf("NewWithOptions: %v", err)
+	}
+
+	if _, err := sess.Screen().Write(oscShellStartupNoise()); err != nil {
+		t.Fatalf("Screen().Write (shell startup noise): %v", err)
+	}
+
+	time.Sleep(5 * m.StopOnFailurePollInterval)
+
+	if sess.Status() != StatusRunning {
+		t.Fatalf("Status() after shell startup noise = %v, want StatusRunning: "+
+			"a D with no command output range must never be mistaken for the injected command's own",
+			sess.Status())
+	}
+
+	if _, err := sess.Screen().Write(oscCommandExit(1)); err != nil {
+		t.Fatalf("Screen().Write (injected command failure): %v", err)
+	}
+
+	waitForStatus(t, sess, StatusExited)
+}
+
+// watchStopOnFailure only ever acts on the first D event that closes a cycle
+// which actually ran a command — the injected command's own. A second, later
+// one (standing in for a command the user types by hand once the shell is
+// theirs again) must never trigger a kill.
 func TestStopOnFailureOnlyWatchesFirstCommandExit(t *testing.T) {
 	m := newTestManagerWithStopOnFailure(t)
 

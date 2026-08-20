@@ -10,15 +10,24 @@ import "time"
 // stays alive.
 const DefaultStopOnFailurePollInterval = 200 * time.Millisecond
 
-// watchStopOnFailure polls sess.Screen().LastCommandExit() until either the
-// session exits on its own, or the very first command-exit event this
-// incarnation's Screen ever reports arrives. By construction, opts.Command is
+// watchStopOnFailure polls sess.Screen() until either the session exits on
+// its own, or the first D event that closes out a cycle which actually ran a
+// command arrives. It is *not* simply the first D event this incarnation's
+// Screen ever reports: a shell with OSC 133 integration wired up (zsh/bash's
+// precmd) fires one before showing its very first prompt too, closing a
+// cycle that never had a command in it at all — that spurious D always
+// precedes the injected command's own, and reacting to it instead would mean
+// this goroutine forever watches for an event that already happened without
+// ever checking the real one. LastCommandOutputRange's ok tells the two
+// apart: it is only true when the cycle a D closes was preceded by a real B
+// or C, i.e. a command was actually submitted for execution — never true for
+// the shell's own boilerplate opening cycle. By construction, opts.Command is
 // injected as the first thing typed into a freshly created shell (see
-// newSession), and each incarnation gets a brand-new Screen — so that first
-// event is always the injected command's own exit, never a later command the
-// user types by hand in the same still-running shell. Once observed, there is
-// nothing left for this goroutine to watch for, so it returns, whether or not
-// it killed anything.
+// newSession), so the first D with a real output range is always the
+// injected command's own exit, never a later command the user types by hand
+// in the same still-running shell. Once observed, there is nothing left for
+// this goroutine to watch for, so it returns, whether or not it killed
+// anything.
 //
 // Spawned once per incarnation by newSession, alongside supervise — never
 // re-armed on the same *Session*.
@@ -36,9 +45,13 @@ func (m *Manager) watchStopOnFailure(id string, sess *Session) {
 		case <-sess.Done():
 			return
 		case <-ticker.C:
-			code, hasCode, seq, ok := sess.Screen().LastCommandExit()
-			if !ok || seq != 1 {
-				continue // not yet, or already past, the injected command's own event
+			code, hasCode, _, ok := sess.Screen().LastCommandExit()
+			if !ok {
+				continue // no command has finished yet, injected or otherwise
+			}
+
+			if _, _, ranOK := sess.Screen().LastCommandOutputRange(); !ranOK {
+				continue // the shell's own opening cycle, no command ran in it
 			}
 
 			if hasCode && code != 0 {

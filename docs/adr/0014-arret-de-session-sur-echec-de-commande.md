@@ -50,16 +50,32 @@ est donc une goroutine de sondage interne à `pkg/session`, sur le modèle de `s
 cette fonctionnalité doit agir *pendant* que le process est encore vivant, ce qui exclut d'attendre
 sur ce canal seul.
 
-## Décision 3 — Ne réagit qu'au tout premier événement de fin de commande de l'incarnation
+## Décision 3 — Ne réagit qu'au premier `D` qui clôt un cycle ayant vraiment exécuté une commande
 
-`watchStopOnFailure` s'arrête dès que `seq == 1` sur `LastCommandExit()` — pas seulement `ok`.
-`seq` part de 0 et s'incrémente à chaque `D`, et chaque incarnation reçoit un `*screen.Screen`
-neuf (`m.newScreen` dans `newSession`), donc `seq == 1` désigne sans ambiguïté le tout premier
-événement que cette incarnation ait jamais rapporté. Puisque `opts.Command` est injecté comme la
-toute première chose tapée dans le shell fraîchement créé, c'est forcément la commande déclarée,
-jamais une commande que l'utilisateur tape ensuite à la main dans ce même shell encore vivant.
-Une fois cet événement observé — qu'il ait déclenché un arrêt ou non — la goroutine n'a plus rien
-à surveiller et se termine ; elle ne se réarme jamais.
+Un premier jet de `watchStopOnFailure` s'arrêtait dès que `seq == 1` sur `LastCommandExit()` — le
+tout premier événement `D` que l'incarnation ait jamais rapporté, en partant du principe que
+`opts.Command`, injecté comme la toute première chose tapée dans le shell, ne pouvait produire que
+ce premier événement. **Ce raisonnement était faux** : un shell dont l'intégration OSC 133 est
+posée via `precmd`/`preexec` (zsh, bash) appelle son crochet `precmd` une fois avant même d'afficher
+son tout premier prompt — donc avant que la commande injectée n'ait pu être lue et exécutée — ce qui
+clôt un cycle qui n'a jamais contenu de commande du tout. Ce `D` de démarrage arrive systématiquement
+*avant* celui de la commande réellement injectée, avec `seq == 1`, ce qui faisait que
+`watchStopOnFailure` s'arrêtait sur ce bruit de démarrage sans jamais examiner le vrai résultat de
+la commande — un shell interactif nu (`/bin/sh` des tests, sans intégration) n'a pas ce bruit, ce qui
+a laissé le bug passer inaperçu en tests jusqu'à ce qu'un test manuel avec une intégration zsh réelle
+le révèle.
+
+Le signal correct est `Screen.LastCommandOutputRange()` : son `ok` (porté par `si.haveLastOutput`)
+n'est vrai que si le cycle que ce `D` referme a été précédé d'un `B` ou d'un `C` réel — c'est-à-dire
+qu'une commande a effectivement été soumise à l'exécution. Le `D` de démarrage du shell n'a jamais ni
+`B` ni `C` avant lui (rien n'a encore tourné), donc `LastCommandOutputRange().ok` reste faux pour lui,
+quel que soit son `seq`. `watchStopOnFailure` sonde donc `LastCommandExit()` *et*
+`LastCommandOutputRange()` ensemble, et ignore tout `D` pour lequel la seconde répond faux. Puisque
+`opts.Command` est injecté comme la toute première chose tapée dans le shell fraîchement créé, le
+premier `D` dont le cycle a vraiment exécuté une commande est forcément le sien, jamais une commande
+que l'utilisateur tape ensuite à la main dans ce même shell encore vivant. Une fois cet événement
+observé — qu'il ait déclenché un arrêt ou non — la goroutine n'a plus rien à surveiller et se
+termine ; elle ne se réarme jamais.
 
 Un `D` sans code de sortie explicite (`hasCode == false`) est traité comme « inconnu », pas comme
 « échec » : choix conservateur assumé, pour ne jamais tuer une session sur la foi d'une

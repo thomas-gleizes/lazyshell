@@ -167,11 +167,12 @@ type Options struct {
 	// shell's OSC 133 integration, pkg/screen.Screen.LastCommandExit) is
 	// non-zero — instead of the default of leaving the shell running
 	// underneath (see newSession's doc comment on why Command is injected
-	// rather than exec'd). It only ever looks at the very first
-	// command-exit event this incarnation's Screen ever reports: the
-	// session's shell keeps running afterwards, and a later command the
-	// user types by hand must never be mistaken for the one this option is
-	// about. The Go zero value (false) is today's existing behaviour,
+	// rather than exec'd). It only ever looks at the first command-exit
+	// event whose cycle actually ran a command (see stop_on_failure.go on
+	// why that is not simply the first event the incarnation's Screen ever
+	// reports): the session's shell keeps running afterwards, and a later
+	// command the user types by hand must never be mistaken for the one
+	// this option is about. The Go zero value (false) is today's existing behaviour,
 	// unchanged, so no existing Options{} literal needs updating. See
 	// stop_on_failure.go.
 	StopOnFailure bool
