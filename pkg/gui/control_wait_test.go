@@ -112,7 +112,7 @@ func TestWaitTimesOutWithoutATransportError(t *testing.T) {
 func TestWaitFailsWhenTheTargetedSessionExitsFirst(t *testing.T) {
 	gui, _ := newHeadlessGui(t)
 
-	sess, err := gui.sessions.NewWithOptions(session.Options{Name: "short", Shell: "/bin/true"})
+	sess, err := gui.sessions.NewWithOptions(session.Options{Name: "short", Shell: "/usr/bin/true"})
 	if err != nil {
 		t.Fatalf("NewWithOptions: %v", err)
 	}
