@@ -2,7 +2,11 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
+    MouseEventKind,
+};
+use crossterm::execute;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -16,6 +20,7 @@ use crate::daemon::{Command, SessionInfo, State, Target};
 use crate::search;
 
 const PAGE_SCROLL: usize = 10;
+const WHEEL_SCROLL: usize = 3;
 const SCROLLBACK_LINES: usize = 5000;
 /// Évents de flux traités par tour de boucle, pour que l'interface reste réactive.
 const EVENTS_PER_TICK: usize = 256;
@@ -70,7 +75,9 @@ pub fn run(socket: &Path) -> Result<()> {
         shutdown_requested: false,
     };
     let mut terminal = ratatui::init();
+    execute!(std::io::stdout(), EnableMouseCapture)?;
     let result = app.event_loop(&mut terminal);
+    let _ = execute!(std::io::stdout(), DisableMouseCapture);
     ratatui::restore();
     result
 }
@@ -108,10 +115,16 @@ impl App {
                 break;
             }
             if event::poll(Duration::from_millis(50))? {
-                if let Event::Key(key) = event::read()? {
-                    if key.kind == KeyEventKind::Press {
-                        self.on_key(key);
-                    }
+                match event::read()? {
+                    Event::Key(key) if key.kind == KeyEventKind::Press => self.on_key(key),
+                    Event::Mouse(mouse) => match mouse.kind {
+                        MouseEventKind::ScrollUp => self.scroll(|offset| offset + WHEEL_SCROLL),
+                        MouseEventKind::ScrollDown => {
+                            self.scroll(|offset| offset.saturating_sub(WHEEL_SCROLL))
+                        }
+                        _ => {}
+                    },
+                    _ => {}
                 }
             }
         }
@@ -374,6 +387,7 @@ x          arrêter (SIGTERM, puis SIGKILL après 10 s)
 r          relancer
 S / X / R  lancer / arrêter / relancer tout le groupe
 PgUp/PgDn  défiler la sortie
+molette    défiler la sortie
 g / G      début de l'historique / retour au direct
 /          chercher dans la sortie (Entrée : occurrence la plus récente)
 n / N      occurrence plus ancienne / plus récente   Échap : effacer
