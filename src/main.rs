@@ -8,12 +8,17 @@ mod protocol;
 mod search;
 
 use std::path::PathBuf;
+use std::thread;
+use std::time::{Duration, Instant};
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use clap::{Args as ClapArgs, Parser, Subcommand};
 
 use client::Client;
-use daemon::{Command, State, Target};
+use daemon::{Command, SessionInfo, State, Target};
+
+/// Le daemon laisse 10 s à une session avant le SIGKILL.
+const KILL_WAIT: Duration = Duration::from_secs(15);
 
 /// Gestionnaire de processus shell en TUI : sans sous-commande, ouvre la TUI du daemon du projet.
 #[derive(Parser)]
@@ -36,6 +41,19 @@ enum Cli {
     },
     /// Affiche l'état des sessions du daemon.
     Status { path: Option<PathBuf> },
+    /// Liste les sessions en cours de tous les daemons, avec leur config (comme `docker ps`).
+    Ps {
+        /// Inclut aussi les sessions arrêtées ou terminées.
+        #[arg(short, long)]
+        all: bool,
+    },
+    /// Arrête toutes les sessions en cours d'une config (défaut : dossier courant).
+    Kill {
+        path: Option<PathBuf>,
+        /// Vise les sessions de toutes les configs.
+        #[arg(short, long, conflicts_with = "path")]
+        all: bool,
+    },
     /// Lance une session ou un groupe.
     Start(TargetArgs),
     /// Arrête une session ou un groupe.
@@ -80,6 +98,8 @@ fn main() -> Result<()> {
             let (config, base) = config::Config::load(&path)?;
             daemon::serve(&config, &base, &file, &socket, auto_exit)
         }
+        Cli::Ps { all } => print_ps(all),
+        Cli::Kill { path, all } => kill(path, all),
         Cli::Status { path } => print_status(&mut connect(path)?),
         Cli::Start(t) => connect(t.path.clone())?.command(Command::Start(t.target())),
         Cli::Stop(t) => connect(t.path.clone())?.command(Command::Stop(t.target())),
@@ -99,14 +119,93 @@ fn connect(path: Option<PathBuf>) -> Result<Client> {
 
 fn print_status(client: &mut Client) -> Result<()> {
     for info in client.list()? {
-        let state = match info.state {
-            State::NotStarted => "arrêtée".to_string(),
-            State::Running => format!("en cours ({}s)", info.uptime.as_secs()),
-            State::Stopping => "arrêt…".to_string(),
-            State::Exited(0) => "terminée".to_string(),
-            State::Exited(code) => format!("échec ({code})"),
-        };
-        println!("{:<14} {:<20} {state}", info.group, info.name);
+        println!("{:<14} {:<20} {}", info.group, info.name, state_label(&info));
+    }
+    Ok(())
+}
+
+fn state_label(info: &SessionInfo) -> String {
+    match info.state {
+        State::NotStarted => "arrêtée".to_string(),
+        State::Running => format!("en cours ({}s)", info.uptime.as_secs()),
+        State::Stopping => "arrêt…".to_string(),
+        State::Exited(0) => "terminée".to_string(),
+        State::Exited(code) => format!("échec ({code})"),
+    }
+}
+
+fn is_active(info: &SessionInfo) -> bool {
+    matches!(info.state, State::Running | State::Stopping)
+}
+
+/// Daemons joignables : (fichier de config, client). Les sockets orphelines sont ignorées.
+fn live_daemons() -> Result<Vec<(PathBuf, Client)>> {
+    Ok(paths::known_daemons()?
+        .into_iter()
+        .filter_map(|(config, socket)| Client::connect(&socket).ok().map(|client| (config, client)))
+        .collect())
+}
+
+/// Remplace le dossier personnel par `~` pour garder les lignes courtes.
+fn display_path(path: &std::path::Path) -> String {
+    match std::env::var_os("HOME").map(PathBuf::from).and_then(|home| path.strip_prefix(home).ok().map(|p| p.to_path_buf())) {
+        Some(rest) => format!("~/{}", rest.display()),
+        None => path.display().to_string(),
+    }
+}
+
+fn print_ps(all: bool) -> Result<()> {
+    let mut rows = Vec::new();
+    for (config, mut client) in live_daemons()? {
+        let config = display_path(&config);
+        for info in client.list()? {
+            if all || is_active(&info) {
+                rows.push((config.clone(), info));
+            }
+        }
+    }
+    if rows.is_empty() {
+        println!("aucune session en cours");
+        return Ok(());
+    }
+    let width = rows.iter().map(|(config, _)| config.chars().count()).max().unwrap_or(0).max("CONFIG".len());
+    println!("{:<width$}  {:<14} {:<20} ÉTAT", "CONFIG", "GROUPE", "SESSION");
+    for (config, info) in rows {
+        println!("{config:<width$}  {:<14} {:<20} {}", info.group, info.name, state_label(&info));
+    }
+    Ok(())
+}
+
+/// Arrête les sessions en cours de la config visée (ou de toutes avec `--all`) et attend
+/// qu'elles soient réellement terminées (SIGTERM, puis SIGKILL côté daemon après un délai).
+fn kill(path: Option<PathBuf>, all: bool) -> Result<()> {
+    let mut daemons = if all {
+        live_daemons()?
+    } else {
+        let file = config::Config::resolve_file(&path.unwrap_or_else(|| ".".into()))?;
+        vec![(file.clone(), Client::connect(&paths::socket_for(&file)?)?)]
+    };
+
+    let mut killed = 0;
+    for (config, client) in &mut daemons {
+        let active: Vec<_> = client.list()?.into_iter().filter(is_active).collect();
+        for info in &active {
+            client.command(Command::Stop(Target::Session(info.name.clone())))?;
+        }
+        let deadline = Instant::now() + KILL_WAIT;
+        while client.list()?.iter().any(is_active) {
+            if Instant::now() >= deadline {
+                bail!("{} : des sessions ne se sont pas arrêtées", display_path(config));
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        for info in &active {
+            println!("{} : {} arrêtée", display_path(config), info.name);
+        }
+        killed += active.len();
+    }
+    if killed == 0 {
+        println!("aucune session en cours");
     }
     Ok(())
 }

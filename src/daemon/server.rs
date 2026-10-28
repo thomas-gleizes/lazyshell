@@ -19,12 +19,13 @@ use crate::protocol::{
     Request, Response, VERSION, read_handshake, read_message, write_handshake, write_message,
 };
 
-/// Supprime le fichier socket quand le daemon se termine, y compris sur erreur.
+/// Supprime la socket et le fichier de config associé quand le daemon se termine, y compris sur erreur.
 struct SocketGuard(PathBuf);
 
 impl Drop for SocketGuard {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.0);
+        let _ = std::fs::remove_file(paths::config_record_for(&self.0));
     }
 }
 
@@ -54,6 +55,7 @@ pub fn run(config: &Config, base: &Path, config_file: &Path, socket: &Path, auto
     let _lock = acquire_lock(socket)?;
     let listener = bind(socket)?;
     let _guard = SocketGuard(socket.to_path_buf());
+    std::fs::write(paths::config_record_for(socket), config_file.as_os_str().as_encoded_bytes())?;
     let manager = Arc::new(Mutex::new(Manager::new(config, base)?));
     let stop = Arc::new(AtomicBool::new(false));
     let config_file = Arc::new(config_file.to_path_buf());
