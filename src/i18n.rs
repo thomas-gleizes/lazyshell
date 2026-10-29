@@ -109,8 +109,8 @@ pub fn search_prompt(input: &str) -> String {
 
 pub fn footer_hints() -> &'static str {
     pick_static(
-        "j/k naviguer  s lancer  x arrêter  r relancer  / chercher  L recharger  ? aide  q quitter",
-        "j/k navigate  s start  x stop  r restart  / search  L reload  ? help  q quit",
+        "j/k naviguer  s lancer  x arrêter  r relancer  / chercher  w wrap  L recharger  ? aide  q quitter",
+        "j/k navigate  s start  x stop  r restart  / search  w wrap  L reload  ? help  q quit",
     )
 }
 
@@ -135,6 +135,8 @@ S / X / R  lancer / arrêter / relancer tout le groupe
 PgUp/PgDn  défiler la sortie
 molette    défiler la sortie
 g / G      début de l'historique / retour au direct
+w          soft-wrap on/off (off : lignes tronquées)
+←/→        défiler horizontalement (wrap off)
 /          chercher dans la sortie (Entrée : occurrence la plus récente)
 n / N      occurrence plus ancienne / plus récente   Échap : effacer
 L          recharger la config (sessions en cours inchangées)
@@ -153,6 +155,8 @@ S / X / R  start / stop / restart the whole group
 PgUp/PgDn  scroll the output
 wheel      scroll the output
 g / G      top of history / back to live
+w          soft-wrap on/off (off: lines truncated)
+←/→        scroll horizontally (wrap off)
 /          search the output (Enter: most recent match)
 n / N      older / newer match   Esc: clear
 L          reload the config (running sessions unchanged)
@@ -161,6 +165,17 @@ q          quit the TUI (sessions keep running)
 Q          stop all sessions and the daemon
 
 Press any key to close.";
+
+pub fn wrap_state(on: bool) -> &'static str {
+    match on {
+        true => pick_static("Soft-wrap activé", "Soft-wrap on"),
+        false => pick_static("Soft-wrap désactivé (←/→ pour défiler)", "Soft-wrap off (←/→ to scroll)"),
+    }
+}
+
+pub fn nowrap_tag() -> &'static str {
+    pick_static("sans wrap", "no wrap")
+}
 
 pub fn help_text() -> &'static str {
     pick_static(HELP_FR, HELP_EN)

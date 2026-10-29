@@ -13,7 +13,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
 use ratatui::{DefaultTerminal, Frame};
 use tui_term::vt100;
-use tui_term::widget::PseudoTerminal;
+use tui_term::widget::{Cell as _, PseudoTerminal};
 
 use crate::client::{Client, Stream, StreamEvent};
 use crate::daemon::{Command, SessionInfo, State, Target};
@@ -22,6 +22,10 @@ use crate::{i18n, search};
 const PAGE_SCROLL: usize = 10;
 const WHEEL_SCROLL: usize = 3;
 const SCROLLBACK_LINES: usize = 5000;
+/// Défilement horizontal (colonnes par appui) quand le soft-wrap est désactivé.
+const HSCROLL_STEP: usize = 8;
+/// Largeur du terminal émulé quand le soft-wrap est désactivé : au-delà, les lignes se replient.
+const NOWRAP_COLS: u16 = 200;
 /// Évents de flux traités par tour de boucle, pour que l'interface reste réactive.
 const EVENTS_PER_TICK: usize = 256;
 
@@ -31,6 +35,7 @@ struct View {
     run_id: u64,
     stream: Stream,
     parser: vt100::Parser,
+    /// Taille (lignes, colonnes) du terminal émulé et du PTY, plus large que le panneau sans wrap.
     size: (u16, u16),
     scroll: usize,
     /// Recherche en cours : texte et ligne (depuis la plus ancienne) du dernier résultat.
@@ -52,6 +57,10 @@ struct App {
     infos: Vec<SessionInfo>,
     selected: usize,
     view: Option<View>,
+    /// Soft-wrap de la sortie (`w`) ; désactivé, les lignes sont tronquées et défilent horizontalement.
+    wrap: bool,
+    /// Décalage horizontal (colonnes) de la sortie quand le wrap est désactivé.
+    hscroll: usize,
     /// Saisie de recherche en cours (`/`).
     input: Option<String>,
     show_help: bool,
@@ -68,6 +77,8 @@ pub fn run(socket: &Path) -> Result<()> {
         socket: socket.to_path_buf(),
         selected: 0,
         view: None,
+        wrap: true,
+        hscroll: 0,
         input: None,
         show_help: false,
         message: None,
@@ -133,7 +144,8 @@ impl App {
 
     /// Aligne la vue sur la session sélectionnée et son exécution courante, applique
     /// la taille du panneau et absorbe le flux reçu.
-    fn sync_view(&mut self, size: (u16, u16)) {
+    fn sync_view(&mut self, pane: (u16, u16)) {
+        let size = self.emulated_size(pane);
         let info = self.current().clone();
         let stale = match &self.view {
             Some(view) => view.session != info.name || Some(view.run_id) != info.run_id,
@@ -216,6 +228,9 @@ impl App {
                 }
             }
             KeyCode::Char('?') => self.show_help = true,
+            KeyCode::Char('w') => self.toggle_wrap(),
+            KeyCode::Left if !self.wrap => self.hscroll = self.hscroll.saturating_sub(HSCROLL_STEP),
+            KeyCode::Right if !self.wrap => self.hscroll += HSCROLL_STEP,
             KeyCode::Char('j') | KeyCode::Down => self.selected = (self.selected + 1).min(last),
             KeyCode::Char('k') | KeyCode::Up => self.selected = self.selected.saturating_sub(1),
             KeyCode::Char('s') => self.send(Command::Start(session())),
@@ -282,6 +297,20 @@ impl App {
         }
     }
 
+    /// Taille du terminal émulé pour un panneau donné : sa largeur avec wrap, fixe sans.
+    fn emulated_size(&self, pane: (u16, u16)) -> (u16, u16) {
+        if self.wrap { pane } else { (pane.0, NOWRAP_COLS.max(pane.1)) }
+    }
+
+    /// Bascule le soft-wrap. La vue est rouverte : le rejeu de l'historique se fait ainsi
+    /// à la nouvelle largeur plutôt que sur un écran déjà replié.
+    fn toggle_wrap(&mut self) {
+        self.wrap = !self.wrap;
+        self.hscroll = 0;
+        self.view = None;
+        self.message = Some(i18n::wrap_state(self.wrap).into());
+    }
+
     fn scroll(&mut self, update: impl FnOnce(usize) -> usize) {
         if let Some(view) = &mut self.view {
             view.scroll = update(view.scroll);
@@ -344,7 +373,9 @@ impl App {
     }
 
     fn draw_output(&mut self, frame: &mut Frame, area: Rect) {
-        let block = Block::new().borders(Borders::ALL).title(format!(" {} ", self.current().name));
+        let name = &self.current().name;
+        let title = if self.wrap { format!(" {name} ") } else { format!(" {name} · {} ", i18n::nowrap_tag()) };
+        let block = Block::new().borders(Borders::ALL).title(title);
         let Some(view) = &mut self.view else {
             frame.render_widget(
                 Paragraph::new(i18n::session_stopped_hint()).block(block),
@@ -357,16 +388,24 @@ impl App {
         // set_scrollback borne la valeur : on la relit pour ne pas dépasser l'historique.
         view.scroll = view.parser.screen().scrollback();
         let inner = block.inner(area);
-        frame.render_widget(PseudoTerminal::new(view.parser.screen()).block(block), area);
+        let (_, cols) = view.parser.screen().size();
+        let hscroll = if self.wrap { 0 } else { self.hscroll.min(cols.saturating_sub(inner.width) as usize) };
+        self.hscroll = hscroll;
+        if self.wrap {
+            frame.render_widget(PseudoTerminal::new(view.parser.screen()).block(block), area);
+        } else {
+            frame.render_widget(block, area);
+            draw_columns(frame, view.parser.screen(), inner, hscroll);
+        }
         if let Some(query) = &view.query {
             let highlight = Style::new().bg(Color::Yellow).fg(Color::Black);
-            let (_, cols) = view.parser.screen().size();
             for (row, text) in view.parser.screen().rows(0, cols).enumerate() {
                 let y = inner.y + row as u16;
                 if y >= inner.bottom() {
                     break;
                 }
                 for (start, len) in search::match_columns(&text, query) {
+                    let Some(start) = start.checked_sub(hscroll) else { continue };
                     let x = inner.x + start as u16;
                     if x < inner.right() {
                         let width = (len as u16).min(inner.right() - x);
@@ -380,12 +419,23 @@ impl App {
 
     fn draw_help(&self, frame: &mut Frame) {
         let text = i18n::help_text();
-        let area = frame.area().centered(Constraint::Length(74), Constraint::Length(19));
+        let area = frame.area().centered(Constraint::Length(74), Constraint::Length(21));
         frame.render_widget(ratatui::widgets::Clear, area);
         frame.render_widget(
             Paragraph::new(text).block(Block::new().borders(Borders::ALL).title(i18n::help_title())),
             area,
         );
+    }
+}
+
+/// Dessine la fenêtre de `area` sur l'écran émulé, à partir de la colonne `hscroll`.
+fn draw_columns(frame: &mut Frame, screen: &vt100::Screen, area: Rect, hscroll: usize) {
+    for y in 0..area.height {
+        for x in 0..area.width {
+            if let Some(cell) = screen.cell(y, hscroll as u16 + x) {
+                cell.apply(&mut frame.buffer_mut()[(area.x + x, area.y + y)]);
+            }
+        }
     }
 }
 
