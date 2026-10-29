@@ -2,10 +2,12 @@ mod app;
 mod client;
 mod config;
 mod daemon;
+mod i18n;
 mod launcher;
 mod paths;
 mod protocol;
 mod search;
+mod settings;
 
 use std::path::PathBuf;
 use std::thread;
@@ -83,6 +85,7 @@ impl TargetArgs {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    i18n::init(settings::Settings::load()?.language);
     let Some(cli) = args.command else {
         let file = config::Config::resolve_file(&args.path.unwrap_or_else(|| ".".into()))?;
         let socket = paths::socket_for(&file)?;
@@ -126,11 +129,11 @@ fn print_status(client: &mut Client) -> Result<()> {
 
 fn state_label(info: &SessionInfo) -> String {
     match info.state {
-        State::NotStarted => "arrêtée".to_string(),
-        State::Running => format!("en cours ({}s)", info.uptime.as_secs()),
-        State::Stopping => "arrêt…".to_string(),
-        State::Exited(0) => "terminée".to_string(),
-        State::Exited(code) => format!("échec ({code})"),
+        State::NotStarted => i18n::stopped().to_string(),
+        State::Running => i18n::running(info.uptime.as_secs()),
+        State::Stopping => i18n::stopping().to_string(),
+        State::Exited(0) => i18n::finished().to_string(),
+        State::Exited(code) => i18n::failed(code),
     }
 }
 
@@ -165,11 +168,11 @@ fn print_ps(all: bool) -> Result<()> {
         }
     }
     if rows.is_empty() {
-        println!("aucune session en cours");
+        println!("{}", i18n::no_session_running());
         return Ok(());
     }
     let width = rows.iter().map(|(config, _)| config.chars().count()).max().unwrap_or(0).max("CONFIG".len());
-    println!("{:<width$}  {:<14} {:<20} ÉTAT", "CONFIG", "GROUPE", "SESSION");
+    println!("{}", i18n::ps_header(width));
     for (config, info) in rows {
         println!("{config:<width$}  {:<14} {:<20} {}", info.group, info.name, state_label(&info));
     }
@@ -200,12 +203,12 @@ fn kill(path: Option<PathBuf>, all: bool) -> Result<()> {
             thread::sleep(Duration::from_millis(100));
         }
         for info in &active {
-            println!("{} : {} arrêtée", display_path(config), info.name);
+            println!("{}", i18n::session_stopped(&display_path(config), &info.name));
         }
         killed += active.len();
     }
     if killed == 0 {
-        println!("aucune session en cours");
+        println!("{}", i18n::no_session_running());
     }
     Ok(())
 }

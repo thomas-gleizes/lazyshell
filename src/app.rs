@@ -17,7 +17,7 @@ use tui_term::widget::PseudoTerminal;
 
 use crate::client::{Client, Stream, StreamEvent};
 use crate::daemon::{Command, SessionInfo, State, Target};
-use crate::search;
+use crate::{i18n, search};
 
 const PAGE_SCROLL: usize = 10;
 const WHEEL_SCROLL: usize = 3;
@@ -199,12 +199,12 @@ impl App {
             KeyCode::Char('q') => self.quit = true,
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => self.quit = true,
             KeyCode::Char('Q') => {
-                self.message = Some("Arrêt de toutes les sessions…".into());
+                self.message = Some(i18n::stopping_all().into());
                 self.shutdown_requested = true;
             }
             KeyCode::Char('L') => match self.control.reload() {
-                Ok(report) => self.message = Some(format!("Config rechargée : {}", report.summary())),
-                Err(err) => self.message = Some(format!("Rechargement refusé : {err}")),
+                Ok(report) => self.message = Some(i18n::config_reloaded(&report.summary())),
+                Err(err) => self.message = Some(i18n::reload_refused(&err)),
             },
             KeyCode::Char('/') => self.input = Some(String::new()),
             KeyCode::Char('n') => self.jump(Jump::Older),
@@ -259,7 +259,7 @@ impl App {
         let Some(view) = &mut self.view else { return };
         let Some(query) = view.query.clone() else {
             if !matches!(jump, Jump::Newest) {
-                self.message = Some("Aucune recherche en cours (/ pour chercher)".into());
+                self.message = Some(i18n::no_search().into());
             }
             return;
         };
@@ -277,8 +277,8 @@ impl App {
                 let from_bottom = lines.len() - 1 - line;
                 view.scroll = from_bottom.saturating_sub(view.size.0 as usize / 2);
             }
-            None if found.is_empty() => self.message = Some(format!("Aucune occurrence de « {query} »")),
-            None => self.message = Some("Pas d'autre occurrence dans ce sens".into()),
+            None if found.is_empty() => self.message = Some(i18n::no_match(&query)),
+            None => self.message = Some(i18n::no_other_match().into()),
         }
     }
 
@@ -301,11 +301,10 @@ impl App {
         self.draw_output(frame, right);
 
         let text = match (&self.input, &self.message) {
-            (Some(input), _) => format!("/{input}█   Entrée valider  Échap annuler"),
+            (Some(input), _) => i18n::search_prompt(input),
             (None, Some(message)) => message.clone(),
             (None, None) => {
-                "j/k naviguer  s lancer  x arrêter  r relancer  / chercher  L recharger  ? aide  q quitter"
-                    .to_string()
+                i18n::footer_hints().to_string()
             }
         };
         frame.render_widget(Paragraph::new(text).style(Style::new().fg(Color::DarkGray)), footer);
@@ -338,7 +337,7 @@ impl App {
             ])));
         }
         let list = List::new(items)
-            .block(Block::new().borders(Borders::ALL).title(" Sessions "))
+            .block(Block::new().borders(Borders::ALL).title(i18n::sessions_title()))
             .highlight_style(Style::new().add_modifier(Modifier::REVERSED));
         let mut state = ListState::default().with_selected(Some(selected_row));
         frame.render_stateful_widget(list, area, &mut state);
@@ -348,7 +347,7 @@ impl App {
         let block = Block::new().borders(Borders::ALL).title(format!(" {} ", self.current().name));
         let Some(view) = &mut self.view else {
             frame.render_widget(
-                Paragraph::new("Session arrêtée — s pour la lancer").block(block),
+                Paragraph::new(i18n::session_stopped_hint()).block(block),
                 area,
             );
             return;
@@ -380,27 +379,11 @@ impl App {
     }
 
     fn draw_help(&self, frame: &mut Frame) {
-        let text = "\
-j/k ↑/↓    session suivante / précédente
-s          lancer
-x          arrêter (SIGTERM, puis SIGKILL après 10 s)
-r          relancer
-S / X / R  lancer / arrêter / relancer tout le groupe
-PgUp/PgDn  défiler la sortie
-molette    défiler la sortie
-g / G      début de l'historique / retour au direct
-/          chercher dans la sortie (Entrée : occurrence la plus récente)
-n / N      occurrence plus ancienne / plus récente   Échap : effacer
-L          recharger la config (sessions en cours inchangées)
-~          (dans la liste) config modifiée : relancer pour l'appliquer
-q          quitter la TUI (les sessions continuent)
-Q          arrêter toutes les sessions et le daemon
-
-Touche quelconque pour fermer.";
+        let text = i18n::help_text();
         let area = frame.area().centered(Constraint::Length(74), Constraint::Length(19));
         frame.render_widget(ratatui::widgets::Clear, area);
         frame.render_widget(
-            Paragraph::new(text).block(Block::new().borders(Borders::ALL).title(" Aide ")),
+            Paragraph::new(text).block(Block::new().borders(Borders::ALL).title(i18n::help_title())),
             area,
         );
     }
@@ -408,14 +391,14 @@ Touche quelconque pour fermer.";
 
 fn status_display(session: &SessionInfo) -> (&'static str, Color, String) {
     match session.state {
-        State::NotStarted => ("○", Color::DarkGray, "arrêtée".into()),
+        State::NotStarted => ("○", Color::DarkGray, i18n::stopped().into()),
         State::Running if session.outdated => {
             ("●", Color::Green, format!("{} ~", format_duration(session.uptime.as_secs())))
         }
         State::Running => ("●", Color::Green, format_duration(session.uptime.as_secs())),
-        State::Stopping => ("◌", Color::Yellow, "arrêt…".into()),
-        State::Exited(0) => ("○", Color::DarkGray, "terminée".into()),
-        State::Exited(code) => ("●", Color::Red, format!("échec ({code})")),
+        State::Stopping => ("◌", Color::Yellow, i18n::stopping().into()),
+        State::Exited(0) => ("○", Color::DarkGray, i18n::finished().into()),
+        State::Exited(code) => ("●", Color::Red, i18n::failed(code)),
     }
 }
 

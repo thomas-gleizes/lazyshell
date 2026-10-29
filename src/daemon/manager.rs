@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::session::{Session, Status, Subscription, shutdown};
 use crate::config::Config;
+use crate::i18n;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Target {
@@ -234,14 +235,14 @@ impl Manager {
 impl ReloadReport {
     pub fn summary(&self) -> String {
         let parts: Vec<String> = [
-            ("ajoutées", &self.added),
-            ("retirées", &self.removed),
-            ("modifiées (effet au prochain démarrage)", &self.changed),
+            (i18n::reload_added(), &self.added),
+            (i18n::reload_removed(), &self.removed),
+            (i18n::reload_changed(), &self.changed),
         ]
         .into_iter()
         .filter(|(_, names)| !names.is_empty())
         .map(|(label, names)| format!("{label} : {}", names.join(", ")))
         .collect();
-        if parts.is_empty() { "aucun changement".to_string() } else { parts.join(" ; ") }
+        if parts.is_empty() { i18n::reload_no_change().to_string() } else { parts.join(" ; ") }
     }
 }
