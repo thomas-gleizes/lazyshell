@@ -64,17 +64,32 @@ impl Config {
     /// Le chemin renvoyé est absolu : il identifie le projet (socket du daemon).
     pub fn resolve_file(path: &Path) -> Result<PathBuf> {
         let file = if path.is_dir() {
-            DEFAULT_FILES
-                .iter()
-                .map(|name| path.join(name))
-                .find(|candidate| candidate.is_file())
-                .with_context(|| {
-                    format!("aucun fichier {} dans {}", DEFAULT_FILES.join(" / "), path.display())
-                })?
+            Self::find_in_ancestors(path).with_context(|| {
+                format!("aucun fichier {} dans {} ni ses parents", DEFAULT_FILES.join(" / "), path.display())
+            })?
         } else {
             path.to_path_buf()
         };
         file.canonicalize().with_context(|| format!("config introuvable : {}", file.display()))
+    }
+
+    /// Cherche la config dans `dir`, puis dans ses parents jusqu'au dossier personnel (inclus).
+    /// Si `dir` n'est pas sous le dossier personnel (ou s'il est inconnu), seul `dir` est examiné :
+    /// on ne remonte jamais jusqu'à `/`.
+    fn find_in_ancestors(dir: &Path) -> Option<PathBuf> {
+        let dir = dir.canonicalize().ok()?;
+        let home = std::env::var_os("HOME").and_then(|h| PathBuf::from(h).canonicalize().ok());
+        let in_home = home.as_ref().is_some_and(|h| dir.starts_with(h));
+
+        for current in dir.ancestors() {
+            if let Some(found) = DEFAULT_FILES.iter().map(|n| current.join(n)).find(|c| c.is_file()) {
+                return Some(found);
+            }
+            if !in_home || Some(current) == home.as_deref() {
+                break;
+            }
+        }
+        None
     }
 
     /// Charge la config. Retourne aussi le dossier de base servant à résoudre les `cwd` relatifs.
