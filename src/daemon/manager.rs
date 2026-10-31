@@ -212,6 +212,11 @@ impl Manager {
         session.subscribe().ok_or_else(|| anyhow!("{name} n'a pas encore été lancée"))
     }
 
+    /// Variables injectées dans la session (celles de l'exécution en cours, sinon de la définition).
+    pub fn env(&self, name: &str) -> Result<Vec<(String, String)>> {
+        Ok(self.find(name)?.env())
+    }
+
     pub fn resize(&mut self, name: &str, rows: u16, cols: u16) -> Result<()> {
         let session = self
             .sessions

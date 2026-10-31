@@ -192,6 +192,10 @@ fn serve(mut stream: UnixStream, manager: &Mutex<Manager>, stop: &AtomicBool, co
                     Err(err) => Response::Error(err.to_string()),
                 }
             }
+            Request::Env { session } => match manager.lock().unwrap().env(&session) {
+                Ok(vars) => Response::Env(vars),
+                Err(err) => Response::Error(err.to_string()),
+            },
             Request::Reload => {
                 let reloaded = Config::load(config_file)
                     .and_then(|(config, base)| manager.lock().unwrap().reload(&config, &base));

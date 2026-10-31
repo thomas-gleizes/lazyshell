@@ -47,6 +47,13 @@ impl Client {
         self.expect_ok(Request::Resize { session: session.to_string(), rows, cols })
     }
 
+    pub fn env(&mut self, session: &str) -> Result<Vec<(String, String)>> {
+        match self.call(Request::Env { session: session.to_string() })? {
+            Response::Env(vars) => Ok(vars),
+            other => bail!("réponse inattendue : {other:?}"),
+        }
+    }
+
     pub fn reload(&mut self) -> Result<ReloadReport> {
         match self.call(Request::Reload)? {
             Response::Reloaded(report) => Ok(report),

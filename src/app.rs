@@ -4,7 +4,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use crossterm::event::{
     self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
-    MouseEventKind,
+    MouseButton, MouseEventKind,
 };
 use crossterm::execute;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -50,6 +50,31 @@ enum Jump {
     Newer,
 }
 
+/// Onglet du panneau de droite.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tab {
+    Output,
+    Env,
+}
+
+impl Tab {
+    const ALL: [Tab; 2] = [Tab::Output, Tab::Env];
+
+    fn label(self) -> &'static str {
+        match self {
+            Tab::Output => i18n::tab_output(),
+            Tab::Env => i18n::tab_env(),
+        }
+    }
+
+    fn other(self) -> Tab {
+        match self {
+            Tab::Output => Tab::Env,
+            Tab::Env => Tab::Output,
+        }
+    }
+}
+
 struct App {
     socket: PathBuf,
     control: Client,
@@ -57,6 +82,12 @@ struct App {
     infos: Vec<SessionInfo>,
     selected: usize,
     view: Option<View>,
+    tab: Tab,
+    /// Zones cliquables des onglets, mises à jour à chaque affichage.
+    tab_areas: Vec<(Tab, Rect)>,
+    /// Variables de la session sélectionnée (onglet Env) et défilement depuis le haut.
+    env: Vec<(String, String)>,
+    env_scroll: usize,
     /// Soft-wrap de la sortie (`w`) ; désactivé, les lignes sont tronquées et défilent horizontalement.
     wrap: bool,
     /// Décalage horizontal (colonnes) de la sortie quand le wrap est désactivé.
@@ -77,6 +108,10 @@ pub fn run(socket: &Path) -> Result<()> {
         socket: socket.to_path_buf(),
         selected: 0,
         view: None,
+        tab: Tab::Output,
+        tab_areas: Vec::new(),
+        env: Vec::new(),
+        env_scroll: 0,
         wrap: true,
         hscroll: 0,
         input: None,
@@ -119,6 +154,7 @@ impl App {
             self.selected = self.selected.min(self.infos.len() - 1);
             let size = terminal.size()?;
             self.sync_view(output_size(Rect::new(0, 0, size.width, size.height)));
+            self.sync_env();
             terminal.draw(|frame| self.draw(frame))?;
 
             if self.shutdown_requested {
@@ -129,10 +165,9 @@ impl App {
                 match event::read()? {
                     Event::Key(key) if key.kind == KeyEventKind::Press => self.on_key(key),
                     Event::Mouse(mouse) => match mouse.kind {
-                        MouseEventKind::ScrollUp => self.scroll(|offset| offset + WHEEL_SCROLL),
-                        MouseEventKind::ScrollDown => {
-                            self.scroll(|offset| offset.saturating_sub(WHEEL_SCROLL))
-                        }
+                        MouseEventKind::ScrollUp => self.scroll_by(WHEEL_SCROLL as isize),
+                        MouseEventKind::ScrollDown => self.scroll_by(-(WHEEL_SCROLL as isize)),
+                        MouseEventKind::Down(MouseButton::Left) => self.click(mouse.column, mouse.row),
                         _ => {}
                     },
                     _ => {}
@@ -169,6 +204,35 @@ impl App {
                 Some(StreamEvent::Data(data)) => view.parser.process(&data),
                 Some(StreamEvent::End) | None => break,
             }
+        }
+    }
+
+    /// Rafraîchit les variables de la session sélectionnée quand l'onglet Env est affiché.
+    fn sync_env(&mut self) {
+        if self.tab != Tab::Env {
+            return;
+        }
+        let name = self.current().name.clone();
+        match self.control.env(&name) {
+            Ok(vars) => self.env = vars,
+            Err(err) => {
+                self.env.clear();
+                self.message = Some(err.to_string());
+            }
+        }
+    }
+
+    fn set_tab(&mut self, tab: Tab) {
+        if self.tab != tab {
+            self.tab = tab;
+            self.env_scroll = 0;
+        }
+    }
+
+    fn click(&mut self, column: u16, row: u16) {
+        let hit = self.tab_areas.iter().find(|(_, area)| area.contains((column, row).into()));
+        if let Some(&(tab, _)) = hit {
+            self.set_tab(tab);
         }
     }
 
@@ -218,6 +282,7 @@ impl App {
                 Ok(report) => self.message = Some(i18n::config_reloaded(&report.summary())),
                 Err(err) => self.message = Some(i18n::reload_refused(&err)),
             },
+            KeyCode::Tab | KeyCode::BackTab => self.set_tab(self.tab.other()),
             KeyCode::Char('/') => self.input = Some(String::new()),
             KeyCode::Char('n') => self.jump(Jump::Older),
             KeyCode::Char('N') => self.jump(Jump::Newer),
@@ -239,10 +304,10 @@ impl App {
             KeyCode::Char('S') => self.send(Command::Start(group())),
             KeyCode::Char('X') => self.send(Command::Stop(group())),
             KeyCode::Char('R') => self.send(Command::Restart(group())),
-            KeyCode::PageUp => self.scroll(|offset| offset + PAGE_SCROLL),
-            KeyCode::PageDown => self.scroll(|offset| offset.saturating_sub(PAGE_SCROLL)),
-            KeyCode::Char('g') => self.scroll(|_| usize::MAX / 2),
-            KeyCode::Char('G') => self.scroll(|_| 0),
+            KeyCode::PageUp => self.scroll_by(PAGE_SCROLL as isize),
+            KeyCode::PageDown => self.scroll_by(-(PAGE_SCROLL as isize)),
+            KeyCode::Char('g') => self.scroll_by(isize::MAX / 2),
+            KeyCode::Char('G') => self.scroll_by(isize::MIN / 2),
             _ => {}
         }
     }
@@ -311,9 +376,15 @@ impl App {
         self.message = Some(i18n::wrap_state(self.wrap).into());
     }
 
-    fn scroll(&mut self, update: impl FnOnce(usize) -> usize) {
-        if let Some(view) = &mut self.view {
-            view.scroll = update(view.scroll);
+    /// Défile vers le passé (`delta` > 0, sortie) ou vers le haut (onglet Env) ; négatif en sens inverse.
+    fn scroll_by(&mut self, delta: isize) {
+        match self.tab {
+            Tab::Output => {
+                if let Some(view) = &mut self.view {
+                    view.scroll = view.scroll.saturating_add_signed(delta);
+                }
+            }
+            Tab::Env => self.env_scroll = self.env_scroll.saturating_add_signed(-delta),
         }
     }
 
@@ -373,9 +444,31 @@ impl App {
     }
 
     fn draw_output(&mut self, frame: &mut Frame, area: Rect) {
-        let name = &self.current().name;
-        let title = if self.wrap { format!(" {name} ") } else { format!(" {name} · {} ", i18n::nowrap_tag()) };
-        let block = Block::new().borders(Borders::ALL).title(title);
+        let name = self.current().name.clone();
+        let mut spans = vec![Span::raw(format!(" {name} "))];
+        // Le titre démarre une colonne après le coin du cadre.
+        let mut x = area.x + 1 + spans[0].width() as u16;
+        self.tab_areas.clear();
+        for tab in Tab::ALL {
+            let label = format!(" {} ", tab.label());
+            let width = label.chars().count() as u16;
+            let style = if tab == self.tab {
+                Style::new().add_modifier(Modifier::REVERSED | Modifier::BOLD)
+            } else {
+                Style::new().fg(Color::DarkGray)
+            };
+            self.tab_areas.push((tab, Rect::new(x, area.y, width, 1)));
+            spans.push(Span::styled(label, style));
+            x += width;
+        }
+        if self.tab == Tab::Output && !self.wrap {
+            spans.push(Span::raw(format!(" · {} ", i18n::nowrap_tag())));
+        }
+        let block = Block::new().borders(Borders::ALL).title(Line::from(spans));
+        if self.tab == Tab::Env {
+            self.draw_env(frame, area, block);
+            return;
+        }
         let Some(view) = &mut self.view else {
             frame.render_widget(
                 Paragraph::new(i18n::session_stopped_hint()).block(block),
@@ -417,9 +510,32 @@ impl App {
         view.parser.screen_mut().set_scrollback(0);
     }
 
+    fn draw_env(&mut self, frame: &mut Frame, area: Rect, block: Block) {
+        let inner = block.inner(area);
+        let max_scroll = self.env.len().saturating_sub(inner.height as usize);
+        self.env_scroll = self.env_scroll.min(max_scroll);
+        let lines: Vec<Line> = if self.env.is_empty() {
+            vec![Line::styled(i18n::env_empty(), Style::new().fg(Color::DarkGray))]
+        } else {
+            self.env
+                .iter()
+                .skip(self.env_scroll)
+                .map(|(key, value)| {
+                    Line::from(vec![
+                        Span::styled(key.clone(), Style::new().fg(Color::Cyan)),
+                        Span::styled("=", Style::new().fg(Color::DarkGray)),
+                        // Une valeur multiligne reste sur une seule ligne d'affichage.
+                        Span::raw(value.replace('\n', "\\n")),
+                    ])
+                })
+                .collect()
+        };
+        frame.render_widget(Paragraph::new(lines).block(block), area);
+    }
+
     fn draw_help(&self, frame: &mut Frame) {
         let text = i18n::help_text();
-        let area = frame.area().centered(Constraint::Length(74), Constraint::Length(21));
+        let area = frame.area().centered(Constraint::Length(74), Constraint::Length(22));
         frame.render_widget(ratatui::widgets::Clear, area);
         frame.render_widget(
             Paragraph::new(text).block(Block::new().borders(Borders::ALL).title(i18n::help_title())),

@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::daemon::{Command, ReloadReport, SessionInfo};
 
-pub const VERSION: u32 = 3;
+pub const VERSION: u32 = 4;
 /// Début de toute connexion, avant le moindre message : sert à reconnaître un client
 /// lazyshell et à comparer les versions, quel que soit le codage des messages.
 const MAGIC: &[u8; 4] = b"LZSH";
@@ -27,6 +27,8 @@ pub enum Request {
     Resize { session: String, rows: u16, cols: u16 },
     /// Transforme la connexion en flux de sortie de la session.
     Subscribe { session: String },
+    /// Variables d'environnement injectées dans la session.
+    Env { session: String },
     /// Relit le fichier de config et l'applique.
     Reload,
     /// Arrête toutes les sessions puis le daemon.
@@ -37,6 +39,7 @@ pub enum Request {
 pub enum Response {
     Infos(Vec<SessionInfo>),
     Reloaded(ReloadReport),
+    Env(Vec<(String, String)>),
     Ok,
     Error(String),
     /// Réponse à `Subscribe` ; le premier `Output` qui suit est l'historique.

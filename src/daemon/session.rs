@@ -63,6 +63,8 @@ pub struct Run {
     pub status: Mutex<Status>,
     pub started_at: Instant,
     pid: u32,
+    /// Variables avec lesquelles ce processus a été lancé.
+    env: BTreeMap<String, String>,
     master: Mutex<Box<dyn MasterPty + Send>>,
 }
 
@@ -176,6 +178,7 @@ impl Session {
             status: Mutex::new(Status::Running),
             started_at: Instant::now(),
             pid: child.process_id().unwrap_or(0),
+            env: self.spec.env.clone(),
             master: Mutex::new(pair.master),
         });
 
@@ -255,6 +258,12 @@ impl Session {
         if let Some(run) = &self.run {
             let _ = run.master.lock().unwrap().resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 });
         }
+    }
+
+    /// Variables de l'exécution en cours (ou dernière), à défaut de la définition courante.
+    pub fn env(&self) -> Vec<(String, String)> {
+        let env = self.run.as_ref().map_or(&self.spec.env, |run| &run.env);
+        env.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 
     pub fn subscribe(&self) -> Option<Subscription> {

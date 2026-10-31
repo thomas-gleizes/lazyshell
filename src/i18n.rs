@@ -118,6 +118,18 @@ pub fn sessions_title() -> &'static str {
     pick_static(" Sessions ", " Sessions ")
 }
 
+pub fn tab_output() -> &'static str {
+    pick_static("Sortie", "Output")
+}
+
+pub fn tab_env() -> &'static str {
+    pick_static("Env", "Env")
+}
+
+pub fn env_empty() -> &'static str {
+    pick_static("Aucune variable définie pour cette session", "No variables set for this session")
+}
+
 pub fn help_title() -> &'static str {
     pick_static(" Aide ", " Help ")
 }
@@ -135,6 +147,7 @@ S / X / R  lancer / arrêter / relancer tout le groupe
 PgUp/PgDn  défiler la sortie
 molette    défiler la sortie
 g / G      début de l'historique / retour au direct
+Tab / clic basculer entre les onglets Sortie et Env
 w          soft-wrap on/off (off : lignes tronquées)
 ←/→        défiler horizontalement (wrap off)
 /          chercher dans la sortie (Entrée : occurrence la plus récente)
@@ -155,6 +168,7 @@ S / X / R  start / stop / restart the whole group
 PgUp/PgDn  scroll the output
 wheel      scroll the output
 g / G      top of history / back to live
+Tab / click switch between the Output and Env tabs
 w          soft-wrap on/off (off: lines truncated)
 ←/→        scroll horizontally (wrap off)
 /          search the output (Enter: most recent match)
