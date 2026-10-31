@@ -121,6 +121,11 @@ pub struct Stream {
 }
 
 impl Stream {
+    /// Attend le prochain événement ; `None` si le flux est rompu (équivaut à une fin).
+    pub fn recv(&self) -> Option<StreamEvent> {
+        self.rx.recv().ok()
+    }
+
     pub fn try_recv(&self) -> Option<StreamEvent> {
         self.rx.try_recv().ok()
     }

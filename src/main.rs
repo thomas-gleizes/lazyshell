@@ -6,10 +6,12 @@ mod envfile;
 mod i18n;
 mod launcher;
 mod paths;
+mod plain;
 mod protocol;
 mod search;
 mod settings;
 
+use std::io::{ErrorKind, Write};
 use std::path::PathBuf;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -17,7 +19,7 @@ use std::time::{Duration, Instant};
 use anyhow::{Result, bail};
 use clap::{Args as ClapArgs, Parser, Subcommand};
 
-use client::Client;
+use client::{Client, StreamEvent};
 use daemon::{Command, SessionInfo, State, Target};
 
 /// Le daemon laisse 10 s à une session avant le SIGKILL.
@@ -63,6 +65,27 @@ enum Cli {
     Stop(TargetArgs),
     /// Relance une session ou un groupe.
     Restart(TargetArgs),
+    /// Affiche la sortie d'une session sur stdout (texte brut), pour un script ou un agent.
+    Logs {
+        /// Nom de la session.
+        name: String,
+        path: Option<PathBuf>,
+        /// Reste à l'écoute de la suite, comme `tail -f` (s'arrête quand l'exécution se termine).
+        #[arg(short, long)]
+        follow: bool,
+        /// Se limite aux N dernières lignes de l'historique (défaut : tout l'historique conservé).
+        #[arg(short = 'n', long, value_name = "N")]
+        lines: Option<usize>,
+        /// Conserve les séquences d'échappement ANSI (couleurs, curseur) telles que émises.
+        #[arg(long)]
+        raw: bool,
+    },
+    /// Affiche les variables d'environnement injectées dans une session (`CLÉ=valeur`).
+    Env {
+        /// Nom de la session.
+        name: String,
+        path: Option<PathBuf>,
+    },
     /// Relit le fichier de config et l'applique au daemon en cours.
     Reload { path: Option<PathBuf> },
     /// Arrête toutes les sessions puis le daemon.
@@ -113,7 +136,48 @@ fn main() -> Result<()> {
             Ok(())
         }
         Cli::Shutdown { path } => connect(path)?.shutdown(),
+        Cli::Logs { name, path, follow, lines, raw } => logs(&name, path, follow, lines, raw),
+        Cli::Env { name, path } => {
+            let mut out = std::io::stdout().lock();
+            for (key, value) in connect(path)?.env(&name)? {
+                if writeln!(out, "{key}={value}").is_err() {
+                    break;
+                }
+            }
+            Ok(())
+        }
     }
+}
+
+/// Écrit la sortie d'une session sur stdout : l'historique (ou ses `lines` dernières lignes),
+/// puis, avec `follow`, la suite en direct jusqu'à la fin de l'exécution.
+fn logs(name: &str, path: Option<PathBuf>, follow: bool, lines: Option<usize>, raw: bool) -> Result<()> {
+    let file = config::Config::resolve_file(&path.unwrap_or_else(|| ".".into()))?;
+    let stream = Client::subscribe(&paths::socket_for(&file)?, name)?;
+    let mut stripper = plain::Stripper::new();
+    let mut out = std::io::stdout().lock();
+    let mut first = true;
+    // Le premier événement est l'historique ; les suivants sont le direct.
+    while let Some(StreamEvent::Data(data)) = stream.recv() {
+        let text = if raw { data } else { stripper.feed(&data) };
+        let text = match (first, lines) {
+            (true, Some(n)) => plain::last_lines(&text, n),
+            _ => &text,
+        };
+        let written = out.write_all(text).and_then(|()| out.flush());
+        match written {
+            Ok(()) => {}
+            // `lazyshell logs … | head` : le lecteur est parti, ce n'est pas une erreur.
+            Err(err) if err.kind() == ErrorKind::BrokenPipe => return Ok(()),
+            Err(err) => return Err(err.into()),
+        }
+        first = false;
+        // Sans -f, on s'arrête après l'historique.
+        if !follow {
+            break;
+        }
+    }
+    Ok(())
 }
 
 fn connect(path: Option<PathBuf>) -> Result<Client> {
