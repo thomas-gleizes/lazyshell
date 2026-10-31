@@ -2,6 +2,7 @@ mod app;
 mod client;
 mod config;
 mod daemon;
+mod envfile;
 mod i18n;
 mod launcher;
 mod paths;

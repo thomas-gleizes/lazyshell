@@ -11,7 +11,31 @@ pub struct Config {
     #[serde(default)]
     pub groups: Vec<GroupConfig>,
     pub shell: Option<String>,
+    /// Fichiers d'env (`.env`) appliqués à toutes les sessions.
+    #[serde(default)]
+    pub env_file: EnvFiles,
     pub sessions: Vec<SessionConfig>,
+}
+
+/// Un chemin ou une liste de chemins ; les suivants surchargent les précédents.
+/// Un fichier absent est ignoré.
+#[derive(Debug, Default, Deserialize)]
+#[serde(untagged)]
+pub enum EnvFiles {
+    #[default]
+    None,
+    One(String),
+    Many(Vec<String>),
+}
+
+impl EnvFiles {
+    fn paths(&self) -> &[String] {
+        match self {
+            EnvFiles::None => &[],
+            EnvFiles::One(path) => std::slice::from_ref(path),
+            EnvFiles::Many(paths) => paths,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -25,6 +49,10 @@ pub struct SessionConfig {
     pub group: Option<String>,
     pub cwd: Option<String>,
     pub command: String,
+    /// Fichiers d'env propres à la session ; surchargent ceux de la racine.
+    #[serde(default)]
+    pub env_file: EnvFiles,
+    /// Variables en ligne : surchargent tous les fichiers d'env.
     #[serde(default)]
     pub env: HashMap<String, String>,
     #[serde(default)]
@@ -54,12 +82,31 @@ impl Config {
         let file = Self::resolve_file(path)?;
         let text = std::fs::read_to_string(&file)
             .with_context(|| format!("lecture de {}", file.display()))?;
-        let config: Config = serde_yaml::from_str(&text)
+        let mut config: Config = serde_yaml::from_str(&text)
             .with_context(|| format!("config invalide dans {}", file.display()))?;
         config.validate()?;
 
         let base = file.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("."));
+        config.resolve_env(&base)?;
         Ok((config, base))
+    }
+
+    /// Fusionne dans `env` de chaque session : fichiers racine < fichiers de la session < `env` en ligne.
+    /// Les chemins relatifs partent du dossier de la config.
+    fn resolve_env(&mut self, base: &Path) -> Result<()> {
+        let mut global = HashMap::new();
+        for path in self.env_file.paths() {
+            global.extend(crate::envfile::load(&base.join(path))?);
+        }
+        for session in &mut self.sessions {
+            let mut env = global.clone();
+            for path in session.env_file.paths() {
+                env.extend(crate::envfile::load(&base.join(path))?);
+            }
+            env.extend(std::mem::take(&mut session.env));
+            session.env = env;
+        }
+        Ok(())
     }
 
     fn validate(&self) -> Result<()> {
