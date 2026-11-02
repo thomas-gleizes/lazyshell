@@ -85,6 +85,10 @@ struct App {
     tab: Tab,
     /// Zones cliquables des onglets, mises à jour à chaque affichage.
     tab_areas: Vec<(Tab, Rect)>,
+    /// Zone de la liste des sessions, état de défilement et session de chaque ligne (None = titre de groupe).
+    list_area: Rect,
+    list_state: ListState,
+    list_rows: Vec<Option<usize>>,
     /// Variables de la session sélectionnée (onglet Env) et défilement depuis le haut.
     env: Vec<(String, String)>,
     env_scroll: usize,
@@ -110,6 +114,9 @@ pub fn run(socket: &Path) -> Result<()> {
         view: None,
         tab: Tab::Output,
         tab_areas: Vec::new(),
+        list_area: Rect::default(),
+        list_state: ListState::default(),
+        list_rows: Vec::new(),
         env: Vec::new(),
         env_scroll: 0,
         wrap: true,
@@ -165,8 +172,8 @@ impl App {
                 match event::read()? {
                     Event::Key(key) if key.kind == KeyEventKind::Press => self.on_key(key),
                     Event::Mouse(mouse) => match mouse.kind {
-                        MouseEventKind::ScrollUp => self.scroll_by(WHEEL_SCROLL as isize),
-                        MouseEventKind::ScrollDown => self.scroll_by(-(WHEEL_SCROLL as isize)),
+                        MouseEventKind::ScrollUp => self.wheel(mouse.column, mouse.row, true),
+                        MouseEventKind::ScrollDown => self.wheel(mouse.column, mouse.row, false),
                         MouseEventKind::Down(MouseButton::Left) => self.click(mouse.column, mouse.row),
                         _ => {}
                     },
@@ -229,7 +236,33 @@ impl App {
         }
     }
 
+    /// Molette : sur la liste elle déplace la sélection, ailleurs elle défile la sortie.
+    fn wheel(&mut self, column: u16, row: u16, up: bool) {
+        if self.list_area.contains((column, row).into()) {
+            let last = self.infos.len() - 1;
+            self.selected = if up {
+                self.selected.saturating_sub(1)
+            } else {
+                (self.selected + 1).min(last)
+            };
+        } else {
+            let step = WHEEL_SCROLL as isize;
+            self.scroll_by(if up { step } else { -step });
+        }
+    }
+
     fn click(&mut self, column: u16, row: u16) {
+        let pos = (column, row).into();
+        if self.list_area.contains(pos) {
+            let inner = Block::new().borders(Borders::ALL).inner(self.list_area);
+            if inner.contains(pos) {
+                let index = self.list_state.offset() + (row - inner.y) as usize;
+                if let Some(&Some(session)) = self.list_rows.get(index) {
+                    self.selected = session;
+                }
+            }
+            return;
+        }
         let hit = self.tab_areas.iter().find(|(_, area)| area.contains((column, row).into()));
         if let Some(&(tab, _)) = hit {
             self.set_tab(tab);
@@ -414,8 +447,9 @@ impl App {
         }
     }
 
-    fn draw_list(&self, frame: &mut Frame, area: Rect) {
+    fn draw_list(&mut self, frame: &mut Frame, area: Rect) {
         let mut items = Vec::new();
+        self.list_rows.clear();
         let mut selected_row = 0;
         let mut last_group: Option<&str> = None;
         for (pos, session) in self.infos.iter().enumerate() {
@@ -424,8 +458,10 @@ impl App {
                     session.group.to_uppercase(),
                     Style::new().add_modifier(Modifier::BOLD).fg(Color::Cyan),
                 )));
+                self.list_rows.push(None);
                 last_group = Some(session.group.as_str());
             }
+            self.list_rows.push(Some(pos));
             if pos == self.selected {
                 selected_row = items.len();
             }
@@ -439,8 +475,9 @@ impl App {
         let list = List::new(items)
             .block(Block::new().borders(Borders::ALL).title(i18n::sessions_title()))
             .highlight_style(Style::new().add_modifier(Modifier::REVERSED));
-        let mut state = ListState::default().with_selected(Some(selected_row));
-        frame.render_stateful_widget(list, area, &mut state);
+        self.list_area = area;
+        self.list_state.select(Some(selected_row));
+        frame.render_stateful_widget(list, area, &mut self.list_state);
     }
 
     fn draw_output(&mut self, frame: &mut Frame, area: Rect) {
