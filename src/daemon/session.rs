@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 
+use super::usage::{Sampler, Usage};
 use crate::config::SessionConfig;
 
 /// Taille d'historique rejouée à un nouveau client ; le tampon peut monter à 2× avant d'être rogné.
@@ -63,6 +64,7 @@ pub struct Run {
     pub status: Mutex<Status>,
     pub started_at: Instant,
     pid: u32,
+    sampler: Mutex<Sampler>,
     /// Variables avec lesquelles ce processus a été lancé.
     env: BTreeMap<String, String>,
     master: Mutex<Box<dyn MasterPty + Send>>,
@@ -172,12 +174,15 @@ impl Session {
         drop(pair.slave);
         let mut reader = pair.master.try_clone_reader()?;
 
+        let started_at = Instant::now();
+        let pid = child.process_id().unwrap_or(0);
         let run = Arc::new(Run {
             id: NEXT_RUN_ID.fetch_add(1, Ordering::Relaxed),
             output: Mutex::new(Output { ring: Vec::new(), subscribers: Vec::new(), closed: false }),
             status: Mutex::new(Status::Running),
-            started_at: Instant::now(),
-            pid: child.process_id().unwrap_or(0),
+            started_at,
+            pid,
+            sampler: Mutex::new(Sampler::new(pid, started_at)),
             env: self.spec.env.clone(),
             master: Mutex::new(pair.master),
         });
@@ -244,9 +249,24 @@ impl Session {
 
     /// À appeler régulièrement : finalise un redémarrage en attente.
     pub fn tick(&mut self) {
+        // Mesure le CPU à intervalle régulier : le pourcentage est un écart entre deux relevés.
+        if self.is_active() {
+            let _ = self.usage();
+        }
         if self.restart_pending.load(Ordering::SeqCst) && !self.is_active() {
             let _ = self.start();
         }
+    }
+
+    /// PID du shell qui exécute la commande ; `None` si la session ne tourne pas.
+    pub fn pid(&self) -> Option<u32> {
+        self.run.as_ref().filter(|run| run.pid != 0 && self.is_active()).map(|run| run.pid)
+    }
+
+    /// CPU, mémoire et ports de la session ; `None` si elle ne tourne pas.
+    pub fn usage(&self) -> Option<Usage> {
+        let run = self.run.as_ref().filter(|_| self.is_active())?;
+        run.sampler.lock().unwrap().sample()
     }
 
     /// Ajuste la taille du PTY ; mémorisée pour les prochains démarrages.

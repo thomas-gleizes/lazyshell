@@ -186,10 +186,36 @@ fn connect(path: Option<PathBuf>) -> Result<Client> {
 }
 
 fn print_status(client: &mut Client) -> Result<()> {
+    println!("{}", i18n::status_header());
     for info in client.list()? {
-        println!("{:<14} {:<20} {}", info.group, info.name, state_label(&info));
+        let (cpu, memory, ports) = match &info.usage {
+            Some(usage) => (format!("{:.1}%", usage.cpu_percent), format_bytes(usage.memory_bytes), format_ports(&usage.ports)),
+            None => ("-".to_string(), "-".to_string(), "-".to_string()),
+        };
+        let pid = info.pid.map_or("-".to_string(), |pid| pid.to_string());
+        println!("{:<14} {:<20} {:<16} {pid:>7} {cpu:>6} {memory:>9}  {ports}", info.group, info.name, state_label(&info));
     }
     Ok(())
+}
+
+/// `3000,5173`, ou `-` si la session n'écoute sur aucun port.
+fn format_ports(ports: &[u16]) -> String {
+    if ports.is_empty() {
+        return "-".to_string();
+    }
+    ports.iter().map(u16::to_string).collect::<Vec<_>>().join(",")
+}
+
+/// Taille lisible : `512 KiB`, `38.4 MiB`, `1.2 GiB`.
+fn format_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 4] = ["B", "KiB", "MiB", "GiB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 { format!("{bytes} B") } else { format!("{value:.1} {}", UNITS[unit]) }
 }
 
 fn state_label(info: &SessionInfo) -> String {

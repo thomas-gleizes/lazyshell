@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::daemon::{Command, ReloadReport, SessionInfo};
 
-pub const VERSION: u32 = 4;
+pub const VERSION: u32 = 7;
 /// Début de toute connexion, avant le moindre message : sert à reconnaître un client
 /// lazyshell et à comparer les versions, quel que soit le codage des messages.
 const MAGIC: &[u8; 4] = b"LZSH";

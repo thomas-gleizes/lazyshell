@@ -5,6 +5,7 @@
 mod manager;
 mod server;
 mod session;
+mod usage;
 
 pub use server::run as serve;
 pub use session::Subscription;

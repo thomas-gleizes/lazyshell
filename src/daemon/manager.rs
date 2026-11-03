@@ -4,6 +4,7 @@ use std::time::Duration;
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
+use super::usage::Usage;
 use super::session::{Session, Status, Subscription, shutdown};
 use crate::config::Config;
 use crate::i18n;
@@ -40,6 +41,10 @@ pub struct SessionInfo {
     pub run_id: Option<u64>,
     /// La config a changé depuis le lancement : un redémarrage appliquera la nouvelle.
     pub outdated: bool,
+    /// PID du shell de la session ; `None` tant qu'elle ne tourne pas.
+    pub pid: Option<u32>,
+    /// CPU et mémoire ; `None` tant que la session ne tourne pas.
+    pub usage: Option<Usage>,
 }
 
 /// Bilan d'un rechargement de la config.
@@ -156,6 +161,8 @@ impl Manager {
                     uptime: session.run.as_ref().map_or(Duration::ZERO, |r| r.started_at.elapsed()),
                     run_id: session.run.as_ref().map(|r| r.id),
                     outdated: session.outdated,
+                    pid: session.pid(),
+                    usage: session.usage(),
                 }
             })
             .collect()

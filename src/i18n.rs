@@ -70,6 +70,13 @@ pub fn ps_header(config_width: usize) -> String {
     )
 }
 
+pub fn status_header() -> String {
+    pick(
+        format!("{:<14} {:<20} {:<16} {:>7} {:>6} {:>9}  PORTS", "GROUPE", "SESSION", "ÉTAT", "PID", "CPU", "MÉMOIRE"),
+        format!("{:<14} {:<20} {:<16} {:>7} {:>6} {:>9}  PORTS", "GROUP", "SESSION", "STATE", "PID", "CPU", "MEMORY"),
+    )
+}
+
 pub fn session_stopped(config: &str, name: &str) -> String {
     pick(format!("{config} : {name} arrêtée"), format!("{config}: {name} stopped"))
 }
