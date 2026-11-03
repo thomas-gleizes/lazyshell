@@ -116,8 +116,8 @@ pub fn search_prompt(input: &str) -> String {
 
 pub fn footer_hints() -> &'static str {
     pick_static(
-        "j/k naviguer  s lancer  x arrêter  r relancer  / chercher  w wrap  L recharger  ? aide  q quitter",
-        "j/k navigate  s start  x stop  r restart  / search  w wrap  L reload  ? help  q quit",
+        "j/k naviguer  s lancer  x arrêter  r relancer  / chercher  w wrap  f plein écran  L recharger  ? aide  q quitter",
+        "j/k navigate  s start  x stop  r restart  / search  w wrap  f fullscreen  L reload  ? help  q quit",
     )
 }
 
@@ -156,6 +156,7 @@ molette    défiler la sortie
 g / G      début de l'historique / retour au direct
 Tab / clic basculer entre les onglets Sortie et Env
 w          soft-wrap on/off (off : lignes tronquées)
+f          plein écran on/off (Échap : quitter)
 ←/→        défiler horizontalement (wrap off)
 /          chercher dans la sortie (Entrée : occurrence la plus récente)
 n / N      occurrence plus ancienne / plus récente   Échap : effacer
@@ -177,6 +178,7 @@ wheel      scroll the output
 g / G      top of history / back to live
 Tab / click switch between the Output and Env tabs
 w          soft-wrap on/off (off: lines truncated)
+f          fullscreen on/off (Esc: leave)
 ←/→        scroll horizontally (wrap off)
 /          search the output (Enter: most recent match)
 n / N      older / newer match   Esc: clear
@@ -191,6 +193,13 @@ pub fn wrap_state(on: bool) -> &'static str {
     match on {
         true => pick_static("Soft-wrap activé", "Soft-wrap on"),
         false => pick_static("Soft-wrap désactivé (←/→ pour défiler)", "Soft-wrap off (←/→ to scroll)"),
+    }
+}
+
+pub fn fullscreen_state(on: bool) -> &'static str {
+    match on {
+        true => pick_static("Plein écran (f ou Échap pour quitter)", "Fullscreen (f or Esc to leave)"),
+        false => pick_static("Plein écran désactivé", "Fullscreen off"),
     }
 }
 

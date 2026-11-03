@@ -102,6 +102,8 @@ struct App {
     message: Option<String>,
     quit: bool,
     shutdown_requested: bool,
+    /// Plein écran (`f`) : la sortie occupe tout le terminal, la liste est masquée.
+    fullscreen: bool,
 }
 
 pub fn run(socket: &Path) -> Result<()> {
@@ -126,6 +128,7 @@ pub fn run(socket: &Path) -> Result<()> {
         message: None,
         quit: false,
         shutdown_requested: false,
+        fullscreen: false,
     };
     let mut terminal = ratatui::init();
     execute!(std::io::stdout(), EnableMouseCapture)?;
@@ -135,17 +138,21 @@ pub fn run(socket: &Path) -> Result<()> {
     result
 }
 
-fn layout(area: Rect) -> (Rect, Rect, Rect) {
+/// En plein écran, la liste n'a plus de place (zone vide) et la sortie prend tout.
+fn layout(area: Rect, fullscreen: bool) -> (Rect, Rect, Rect) {
     let [main, footer] =
         Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(area);
+    if fullscreen {
+        return (Rect::default(), main, footer);
+    }
     let [left, right] =
         Layout::horizontal([Constraint::Length(32), Constraint::Min(20)]).areas(main);
     (left, right, footer)
 }
 
 /// Taille (lignes, colonnes) utile du panneau de sortie pour un terminal donné.
-fn output_size(area: Rect) -> (u16, u16) {
-    let (_, right, _) = layout(area);
+fn output_size(area: Rect, fullscreen: bool) -> (u16, u16) {
+    let (_, right, _) = layout(area, fullscreen);
     let inner = Block::new().borders(Borders::ALL).inner(right);
     (inner.height.max(1), inner.width.max(1))
 }
@@ -160,7 +167,7 @@ impl App {
             self.infos = self.control.list().context("connexion au daemon perdue")?;
             self.selected = self.selected.min(self.infos.len() - 1);
             let size = terminal.size()?;
-            self.sync_view(output_size(Rect::new(0, 0, size.width, size.height)));
+            self.sync_view(output_size(Rect::new(0, 0, size.width, size.height), self.fullscreen));
             self.sync_env();
             terminal.draw(|frame| self.draw(frame))?;
 
@@ -320,13 +327,19 @@ impl App {
             KeyCode::Char('n') => self.jump(Jump::Older),
             KeyCode::Char('N') => self.jump(Jump::Newer),
             KeyCode::Esc => {
+                let searching = self.view.as_ref().is_some_and(|view| view.query.is_some());
                 if let Some(view) = &mut self.view {
                     view.query = None;
                     view.found_at = None;
                 }
+                // Sans recherche à effacer, Échap quitte le plein écran.
+                if self.fullscreen && !searching {
+                    self.toggle_fullscreen();
+                }
             }
             KeyCode::Char('?') => self.show_help = true,
             KeyCode::Char('w') => self.toggle_wrap(),
+            KeyCode::Char('f') => self.toggle_fullscreen(),
             KeyCode::Left if !self.wrap => self.hscroll = self.hscroll.saturating_sub(HSCROLL_STEP),
             KeyCode::Right if !self.wrap => self.hscroll += HSCROLL_STEP,
             KeyCode::Char('j') | KeyCode::Down => self.selected = (self.selected + 1).min(last),
@@ -409,6 +422,14 @@ impl App {
         self.message = Some(i18n::wrap_state(self.wrap).into());
     }
 
+    /// Bascule le plein écran. Comme pour le wrap, la vue est rouverte pour rejouer
+    /// l'historique à la nouvelle largeur.
+    fn toggle_fullscreen(&mut self) {
+        self.fullscreen = !self.fullscreen;
+        self.view = None;
+        self.message = Some(i18n::fullscreen_state(self.fullscreen).into());
+    }
+
     /// Défile vers le passé (`delta` > 0, sortie) ou vers le haut (onglet Env) ; négatif en sens inverse.
     fn scroll_by(&mut self, delta: isize) {
         match self.tab {
@@ -428,9 +449,13 @@ impl App {
     }
 
     fn draw(&mut self, frame: &mut Frame) {
-        let (left, right, footer) = layout(frame.area());
+        let (left, right, footer) = layout(frame.area(), self.fullscreen);
 
-        self.draw_list(frame, left);
+        if self.fullscreen {
+            self.list_area = Rect::default();
+        } else {
+            self.draw_list(frame, left);
+        }
         self.draw_output(frame, right);
 
         let text = match (&self.input, &self.message) {
