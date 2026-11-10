@@ -17,6 +17,20 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  check:
+    name: Format et lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+
   build:
     # lazyshell s'appuie sur des sockets Unix et des PTY : Linux et macOS seulement.
     name: Build et tests (${{ matrix.os }})
