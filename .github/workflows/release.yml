@@ -1,0 +1,230 @@
+name: Release
+
+# Publie une release GitHub avec les binaires de lazyshell, téléchargeables
+# directement (`releases/latest/download/lazyshell_<os>_<arch>.tar.gz`).
+#
+# Trois chemins d'entrée :
+#
+#  1. Automatique — la CI passe au vert sur `main`. Le job `tag` calcule la
+#     version suivante à partir des commits (Conventional Commits), pose le
+#     tag, puis `build` et `publish` publient. On se branche sur `workflow_run`
+#     plutôt que sur `push` pour ne jamais publier une version dont les tests
+#     n'ont pas fini de tourner.
+#  2. Manuel — un `git push origin vX.Y.Z` posé à la main. Le job `tag` est
+#     alors sauté et le tag est publié tel quel.
+#  3. À la main sans release (Actions > Release > Run workflow) : les archives
+#     sont seulement gardées comme artefacts du run.
+#
+# Le tag et la release vivent dans le *même* workflow à dessein : un tag poussé
+# avec le GITHUB_TOKEN ne déclenche pas d'autre workflow (garde-fou GitHub
+# contre les boucles), donc un workflow de tag séparé exigerait un PAT.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Deux merges rapprochés sur main ne doivent pas calculer leur version en
+# parallèle : le second lirait un `git describe` d'avant le tag du premier et
+# proposerait le même numéro. On sérialise, sans annuler.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_RELEASE_STRIP: "true"
+
+jobs:
+  tag:
+    # `workflow_run.event == 'push'` écarte les CI de pull request : seule une
+    # intégration effective sur main donne lieu à une version.
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.compute.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Le SHA que la CI a validé, pas la pointe de main.
+          ref: ${{ github.event.workflow_run.head_sha }}
+          # Historique et tags complets pour `next-version.sh`.
+          fetch-depth: 0
+
+      - name: Calculer la version suivante
+        id: compute
+        run: |
+          tag=$(.github/scripts/next-version.sh)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ -z "$tag" ]; then
+            echo "Aucun commit ne justifie une release (ni feat, ni fix, ni rupture)." \
+              >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Nouvelle version : \`$tag\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Poser et pousser le tag
+        if: steps.compute.outputs.tag != ''
+        env:
+          TAG: ${{ steps.compute.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+  build:
+    needs: [tag]
+    # `always()` est indispensable : sur un push de tag ou un lancement manuel,
+    # `tag` est sauté et sans lui `build` le serait aussi par propagation.
+    if: >-
+      always() &&
+      (github.event_name != 'workflow_run' ||
+       (needs.tag.result == 'success' && needs.tag.outputs.tag != ''))
+    name: ${{ matrix.os }}_${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # Linux : binaires statiques (musl), pour tourner sur n'importe
+          # quelle distribution sans dépendre de la version de la glibc.
+          - { os: linux, arch: amd64, runner: ubuntu-latest, target: x86_64-unknown-linux-musl }
+          - { os: linux, arch: arm64, runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl }
+          - { os: darwin, arch: arm64, runner: macos-latest, target: aarch64-apple-darwin }
+          # Compilé de manière croisée sur un Mac arm64 : ne peut pas y être lancé.
+          - { os: darwin, arch: amd64, runner: macos-latest, target: x86_64-apple-darwin, cross: true }
+    env:
+      TARGET: ${{ matrix.target }}
+      ARCHIVE: lazyshell_${{ matrix.os }}_${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Chemin auto : le tag qu'on vient de pousser. Sinon : le tag poussé
+          # à la main, ou la branche d'un lancement manuel.
+          ref: ${{ needs.tag.outputs.tag || github.ref }}
+
+      - name: Version
+        id: version
+        env:
+          TAG: ${{ needs.tag.outputs.tag || (github.ref_type == 'tag' && github.ref_name || '') }}
+        run: |
+          if [ -n "$TAG" ]; then
+            version="${TAG#v}"
+          else
+            version="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)-dev.$(git rev-parse --short HEAD)"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: musl-tools
+        if: matrix.os == 'linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # La version vient du tag, pas du Cargo.toml (les tags sont calculés à
+      # partir des commits) : on la reporte dans le Cargo.toml du runner pour
+      # que le binaire et l'archive la portent. `cargo update --workspace` ne
+      # touche que le crate lazyshell dans le Cargo.lock, ce qui garde
+      # `--locked` valable pour toutes les dépendances.
+      - name: Report de la version dans le Cargo.toml
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          perl -0pi -e 's/^version = "[^"]*"/version = "$ENV{VERSION}"/m' Cargo.toml
+          cargo update --workspace
+
+      - name: Tests
+        if: ${{ !matrix.cross }}
+        run: cargo test --locked
+
+      - name: Compilation (release)
+        run: cargo build --release --locked --target "$TARGET"
+
+      - name: Vérifie le binaire
+        if: ${{ !matrix.cross }}
+        run: |
+          bin="target/${TARGET}/release/lazyshell"
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            # `ldd` dit « not a dynamic executable » ou « statically linked » selon sa version.
+            if ! ldd "$bin" 2>&1 | grep -Eq "not a dynamic executable|statically linked"; then
+              echo "::error::le binaire n'est pas statique"; ldd "$bin"; exit 1
+            fi
+          fi
+          "$bin" --help >/dev/null
+
+      - name: Archive
+        run: |
+          mkdir -p "dist/${ARCHIVE}"
+          cp "target/${TARGET}/release/lazyshell" README.md LICENSE "dist/${ARCHIVE}/"
+          # Le binaire à la racine de l'archive : `tar xzf … lazyshell` suffit.
+          tar -C "dist/${ARCHIVE}" -czf "dist/${ARCHIVE}.tar.gz" lazyshell README.md LICENSE
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVE }}
+          path: dist/${{ env.ARCHIVE }}.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: [tag, build]
+    if: >-
+      always() && needs.build.result == 'success' &&
+      (needs.tag.outputs.tag != '' || github.ref_type == 'tag')
+    runs-on: ubuntu-latest
+    # `id-token` : cosign signe sans clé, avec l'identité OIDC du workflow. Une
+    # section `permissions` de job remplace celle du workflow : on répète
+    # `contents`.
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      TAG: ${{ needs.tag.outputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: lazyshell_*
+          merge-multiple: true
+
+      - name: Sommes de contrôle
+        working-directory: dist
+        run: |
+          sha256sum lazyshell_*.tar.gz > checksums.txt
+          cat checksums.txt
+
+      # On signe `checksums.txt` (qui couvre toutes les archives), pas chaque
+      # fichier : une seule signature à vérifier. Le bundle contient la
+      # signature, le certificat éphémère et la preuve d'inscription au
+      # journal de transparence Rekor.
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Signature de checksums.txt (cosign, sans clé)
+        working-directory: dist
+        run: cosign sign-blob --yes --bundle checksums.txt.sigstore.json checksums.txt
+
+      - name: Publication de la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          files=(dist/lazyshell_*.tar.gz dist/checksums.txt dist/checksums.txt.sigstore.json)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --clobber
+          else
+            gh release create "$TAG" "${files[@]}" --verify-tag --title "$TAG" --generate-notes
+          fi
