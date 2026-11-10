@@ -55,22 +55,33 @@ enum Jump {
 enum Tab {
     Output,
     Env,
+    Usage,
 }
 
 impl Tab {
-    const ALL: [Tab; 2] = [Tab::Output, Tab::Env];
+    const ALL: [Tab; 3] = [Tab::Output, Tab::Env, Tab::Usage];
 
     fn label(self) -> &'static str {
         match self {
             Tab::Output => i18n::tab_output(),
             Tab::Env => i18n::tab_env(),
+            Tab::Usage => i18n::tab_usage(),
         }
     }
 
-    fn other(self) -> Tab {
+    fn next(self) -> Tab {
         match self {
             Tab::Output => Tab::Env,
+            Tab::Env => Tab::Usage,
+            Tab::Usage => Tab::Output,
+        }
+    }
+
+    fn previous(self) -> Tab {
+        match self {
+            Tab::Output => Tab::Usage,
             Tab::Env => Tab::Output,
+            Tab::Usage => Tab::Env,
         }
     }
 }
@@ -407,7 +418,8 @@ impl App {
                 Ok(report) => self.message = Some(i18n::config_reloaded(&report.summary())),
                 Err(err) => self.message = Some(i18n::reload_refused(&err)),
             },
-            KeyCode::Tab | KeyCode::BackTab => self.set_tab(self.tab.other()),
+            KeyCode::Tab => self.set_tab(self.tab.next()),
+            KeyCode::BackTab => self.set_tab(self.tab.previous()),
             KeyCode::Char('/') => self.input = Some(String::new()),
             KeyCode::Char('n') => self.jump(Jump::Older),
             KeyCode::Char('N') => self.jump(Jump::Newer),
@@ -524,6 +536,7 @@ impl App {
                 }
             }
             Tab::Env => self.env_scroll = self.env_scroll.saturating_add_signed(-delta),
+            Tab::Usage => {}
         }
     }
 
@@ -614,9 +627,10 @@ impl App {
             spans.push(Span::raw(format!(" · {} ", i18n::nowrap_tag())));
         }
         let block = Block::new().borders(Borders::ALL).title(Line::from(spans));
-        if self.tab == Tab::Env {
-            self.draw_env(frame, area, block);
-            return;
+        match self.tab {
+            Tab::Env => return self.draw_env(frame, area, block),
+            Tab::Usage => return self.draw_usage(frame, area, block),
+            Tab::Output => {}
         }
         let Some(view) = &mut self.view else {
             frame.render_widget(
@@ -678,6 +692,23 @@ impl App {
                     ])
                 })
                 .collect()
+        };
+        frame.render_widget(Paragraph::new(lines).block(block), area);
+    }
+
+    /// Consommation actuelle de la session sélectionnée, relue dans `infos` (rafraîchie à chaque tour).
+    fn draw_usage(&self, frame: &mut Frame, area: Rect, block: Block) {
+        let info = self.current();
+        let label = |text: &str| Span::styled(format!("{:<12}", text), Style::new().fg(Color::Cyan));
+        let lines = match &info.usage {
+            Some(usage) => vec![
+                Line::from(vec![label(i18n::usage_pid()), Span::raw(info.pid.map_or("-".to_string(), |p| p.to_string()))]),
+                Line::from(vec![label(i18n::usage_cpu()), Span::raw(format!("{:.1} %", usage.cpu_percent))]),
+                Line::from(vec![label(i18n::usage_memory()), Span::raw(crate::format_bytes(usage.memory_bytes))]),
+                Line::from(vec![label(i18n::usage_ports()), Span::raw(crate::format_ports(&usage.ports))]),
+                Line::from(vec![label(i18n::usage_uptime()), Span::raw(i18n::running(info.uptime.as_secs()))]),
+            ],
+            None => vec![Line::styled(i18n::usage_empty(), Style::new().fg(Color::DarkGray))],
         };
         frame.render_widget(Paragraph::new(lines).block(block), area);
     }

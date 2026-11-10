@@ -133,6 +133,34 @@ pub fn tab_env() -> &'static str {
     pick_static("Env", "Env")
 }
 
+pub fn tab_usage() -> &'static str {
+    pick_static("Conso", "Usage")
+}
+
+pub fn usage_pid() -> &'static str {
+    "PID"
+}
+
+pub fn usage_cpu() -> &'static str {
+    "CPU"
+}
+
+pub fn usage_memory() -> &'static str {
+    pick_static("Mémoire", "Memory")
+}
+
+pub fn usage_ports() -> &'static str {
+    "Ports"
+}
+
+pub fn usage_uptime() -> &'static str {
+    pick_static("En marche", "Uptime")
+}
+
+pub fn usage_empty() -> &'static str {
+    pick_static("Session arrêtée : aucune consommation à afficher", "Session stopped: no usage to show")
+}
+
 pub fn env_empty() -> &'static str {
     pick_static("Aucune variable définie pour cette session", "No variables set for this session")
 }
@@ -155,7 +183,7 @@ PgUp/PgDn  défiler la sortie
 molette    défiler la sortie
 glisser    sélectionner et copier le texte du panneau
 g / G      début de l'historique / retour au direct
-Tab / clic basculer entre les onglets Sortie et Env
+Tab / clic basculer entre les onglets Sortie, Env et Conso
 w          soft-wrap on/off (off : lignes tronquées)
 f          plein écran on/off (Échap : quitter)
 ←/→        défiler horizontalement (wrap off)
@@ -178,7 +206,7 @@ PgUp/PgDn  scroll the output
 wheel      scroll the output
 drag       select and copy the panel text
 g / G      top of history / back to live
-Tab / click switch between the Output and Env tabs
+Tab / click switch between the Output, Env and Usage tabs
 w          soft-wrap on/off (off: lines truncated)
 f          fullscreen on/off (Esc: leave)
 ←/→        scroll horizontally (wrap off)
