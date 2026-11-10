@@ -27,7 +27,7 @@ const KILL_WAIT: Duration = Duration::from_secs(15);
 
 /// Gestionnaire de processus shell en TUI : sans sous-commande, ouvre la TUI du daemon du projet.
 #[derive(Parser)]
-#[command(args_conflicts_with_subcommands = true)]
+#[command(version, args_conflicts_with_subcommands = true)]
 struct Args {
     /// Fichier de config, ou dossier contenant lazyshell.yml (défaut : dossier courant).
     path: Option<PathBuf>,

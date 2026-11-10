@@ -156,6 +156,8 @@ jobs:
 
       - name: Vérifie le binaire
         if: ${{ !matrix.cross }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           bin="target/${TARGET}/release/lazyshell"
           if [ "$RUNNER_OS" = "Linux" ]; then
@@ -164,6 +166,7 @@ jobs:
               echo "::error::le binaire n'est pas statique"; ldd "$bin"; exit 1
             fi
           fi
+          test "$("$bin" --version)" = "lazyshell ${VERSION}"
           "$bin" --help >/dev/null
 
       - name: Archive
