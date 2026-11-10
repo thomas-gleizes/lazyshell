@@ -188,7 +188,9 @@ mod tests {
         assert_eq!(parse_stat(line), Some((1234, 12, 250)));
     }
 
+    // Les deux tests suivants lisent `/proc` : ils n'ont de sens que sous Linux.
     #[test]
+    #[cfg(target_os = "linux")]
     fn current_process_has_memory() {
         let sid = unsafe { libc::getsid(0) } as u32;
         let totals = session_totals(sid).unwrap();
@@ -205,6 +207,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn finds_a_port_opened_by_this_process() {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
