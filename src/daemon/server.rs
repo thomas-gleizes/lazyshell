@@ -1,11 +1,11 @@
 use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Write};
-use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -51,17 +51,30 @@ const IDLE_EXIT: Duration = Duration::from_secs(10);
 
 /// Fait tourner le daemon jusqu'à la commande `Shutdown` (ou, avec `auto_exit`,
 /// jusqu'à `IDLE_EXIT` d'inactivité).
-pub fn run(config: &Config, base: &Path, config_file: &Path, socket: &Path, auto_exit: bool) -> Result<()> {
+pub fn run(
+    config: &Config,
+    base: &Path,
+    config_file: &Path,
+    socket: &Path,
+    auto_exit: bool,
+) -> Result<()> {
     let _lock = acquire_lock(socket)?;
     let listener = bind(socket)?;
     let _guard = SocketGuard(socket.to_path_buf());
-    std::fs::write(paths::config_record_for(socket), config_file.as_os_str().as_encoded_bytes())?;
+    std::fs::write(
+        paths::config_record_for(socket),
+        config_file.as_os_str().as_encoded_bytes(),
+    )?;
     let manager = Arc::new(Mutex::new(Manager::new(config, base)?));
     let stop = Arc::new(AtomicBool::new(false));
     let config_file = Arc::new(config_file.to_path_buf());
     install_signal_handlers();
     let clients = Arc::new(AtomicUsize::new(0));
-    log(&format!("démarré (pid {}, socket {})", std::process::id(), socket.display()));
+    log(&format!(
+        "démarré (pid {}, socket {})",
+        std::process::id(),
+        socket.display()
+    ));
 
     listener.set_nonblocking(true)?;
     let mut idle_since: Option<Instant> = None;
@@ -73,8 +86,11 @@ pub fn run(config: &Config, base: &Path, config_file: &Path, socket: &Path, auto
         }
         match listener.accept() {
             Ok((stream, _)) => {
-                let (manager, stop, config_file) =
-                    (Arc::clone(&manager), Arc::clone(&stop), Arc::clone(&config_file));
+                let (manager, stop, config_file) = (
+                    Arc::clone(&manager),
+                    Arc::clone(&stop),
+                    Arc::clone(&config_file),
+                );
                 let client = ClientGuard::new(&clients);
                 thread::spawn(move || {
                     let _client = client;
@@ -121,14 +137,22 @@ extern "C" fn on_terminate(_: libc::c_int) {
 
 fn install_signal_handlers() {
     unsafe {
-        libc::signal(libc::SIGTERM, on_terminate as *const () as libc::sighandler_t);
-        libc::signal(libc::SIGINT, on_terminate as *const () as libc::sighandler_t);
+        libc::signal(
+            libc::SIGTERM,
+            on_terminate as *const () as libc::sighandler_t,
+        );
+        libc::signal(
+            libc::SIGINT,
+            on_terminate as *const () as libc::sighandler_t,
+        );
     }
 }
 
 /// Ligne de journal horodatée (secondes depuis l'epoch) sur la sortie d'erreur.
 fn log(message: &str) {
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
     eprintln!("[{now}] {message}");
 }
 
@@ -136,10 +160,17 @@ fn log(message: &str) {
 /// fichier socket trouvé ensuite est forcément orphelin.
 fn acquire_lock(socket: &Path) -> Result<File> {
     let path = paths::lock_for(socket);
-    let file = OpenOptions::new().create(true).truncate(false).write(true).open(&path)
+    let file = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&path)
         .with_context(|| format!("verrou {}", path.display()))?;
     if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
-        bail!("un daemon tourne déjà pour ce projet ({})", socket.display());
+        bail!(
+            "un daemon tourne déjà pour ce projet ({})",
+            socket.display()
+        );
     }
     // Le pid sert à désigner un daemon d'une autre version qu'on ne peut plus piloter.
     file.set_len(0)?;
@@ -156,12 +187,21 @@ fn bind(socket: &Path) -> Result<UnixListener> {
     Ok(listener)
 }
 
-fn serve(mut stream: UnixStream, manager: &Mutex<Manager>, stop: &AtomicBool, config_file: &Path) -> Result<()> {
+fn serve(
+    mut stream: UnixStream,
+    manager: &Mutex<Manager>,
+    stop: &AtomicBool,
+    config_file: &Path,
+) -> Result<()> {
     stream.set_nonblocking(false)?;
     // Une connexion ouverte puis fermée sans rien dire (test de présence) n'est pas une erreur.
     let client_version = match read_handshake(&mut stream) {
         Ok(version) => version,
-        Err(err) if err.downcast_ref::<std::io::Error>().is_some_and(|e| e.kind() == ErrorKind::UnexpectedEof) => {
+        Err(err)
+            if err
+                .downcast_ref::<std::io::Error>()
+                .is_some_and(|e| e.kind() == ErrorKind::UnexpectedEof) =>
+        {
             return Ok(());
         }
         Err(err) => return Err(err),
@@ -178,12 +218,14 @@ fn serve(mut stream: UnixStream, manager: &Mutex<Manager>, stop: &AtomicBool, co
                 Ok(()) => Response::Ok,
                 Err(err) => Response::Error(err.to_string()),
             },
-            Request::Resize { session, rows, cols } => {
-                match manager.lock().unwrap().resize(&session, rows, cols) {
-                    Ok(()) => Response::Ok,
-                    Err(err) => Response::Error(err.to_string()),
-                }
-            }
+            Request::Resize {
+                session,
+                rows,
+                cols,
+            } => match manager.lock().unwrap().resize(&session, rows, cols) {
+                Ok(()) => Response::Ok,
+                Err(err) => Response::Error(err.to_string()),
+            },
             Request::Subscribe { session } => {
                 let subscription = manager.lock().unwrap().subscribe(&session);
                 match subscription {
@@ -218,7 +260,12 @@ fn serve(mut stream: UnixStream, manager: &Mutex<Manager>, stop: &AtomicBool, co
 
 /// Pousse l'historique puis la sortie en direct jusqu'à la fin de l'exécution.
 fn push_stream(mut stream: UnixStream, subscription: Subscription) -> Result<()> {
-    write_message(&mut stream, &Response::Subscribed { run_id: subscription.run_id })?;
+    write_message(
+        &mut stream,
+        &Response::Subscribed {
+            run_id: subscription.run_id,
+        },
+    )?;
     write_message(&mut stream, &Response::Output(subscription.replay))?;
     forward(&mut stream, &subscription.live)
 }

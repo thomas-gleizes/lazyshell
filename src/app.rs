@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
-    MouseButton, MouseEventKind,
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
+    KeyModifiers, MouseButton, MouseEventKind,
 };
 use crossterm::execute;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -135,7 +135,11 @@ impl Selection {
     /// Bornes dans l'ordre de lecture (début, fin).
     fn ordered(&self) -> ((u16, u16), (u16, u16)) {
         let (a, c) = (self.anchor, self.cursor);
-        if (a.1, a.0) <= (c.1, c.0) { (a, c) } else { (c, a) }
+        if (a.1, a.0) <= (c.1, c.0) {
+            (a, c)
+        } else {
+            (c, a)
+        }
     }
 }
 
@@ -176,8 +180,7 @@ pub fn run(socket: &Path) -> Result<()> {
 
 /// En plein écran, la liste n'a plus de place (zone vide) et la sortie prend tout.
 fn layout(area: Rect, fullscreen: bool) -> (Rect, Rect, Rect) {
-    let [main, footer] =
-        Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(area);
+    let [main, footer] = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(area);
     if fullscreen {
         return (Rect::default(), main, footer);
     }
@@ -203,7 +206,10 @@ impl App {
             self.infos = self.control.list().context("connexion au daemon perdue")?;
             self.selected = self.selected.min(self.infos.len() - 1);
             let size = terminal.size()?;
-            self.sync_view(output_size(Rect::new(0, 0, size.width, size.height), self.fullscreen));
+            self.sync_view(output_size(
+                Rect::new(0, 0, size.width, size.height),
+                self.fullscreen,
+            ));
             self.sync_env();
             terminal.draw(|frame| self.draw(frame))?;
 
@@ -217,8 +223,12 @@ impl App {
                     Event::Mouse(mouse) => match mouse.kind {
                         MouseEventKind::ScrollUp => self.wheel(mouse.column, mouse.row, true),
                         MouseEventKind::ScrollDown => self.wheel(mouse.column, mouse.row, false),
-                        MouseEventKind::Down(MouseButton::Left) => self.click(mouse.column, mouse.row),
-                        MouseEventKind::Drag(MouseButton::Left) => self.drag(mouse.column, mouse.row),
+                        MouseEventKind::Down(MouseButton::Left) => {
+                            self.click(mouse.column, mouse.row)
+                        }
+                        MouseEventKind::Drag(MouseButton::Left) => {
+                            self.drag(mouse.column, mouse.row)
+                        }
                         MouseEventKind::Up(MouseButton::Left) => self.release(),
                         _ => {}
                     },
@@ -301,7 +311,11 @@ impl App {
         let pos = (column, row).into();
         self.selection = None;
         if self.out_inner.contains(pos) {
-            self.selection = Some(Selection { anchor: (column, row), cursor: (column, row), dragging: true });
+            self.selection = Some(Selection {
+                anchor: (column, row),
+                cursor: (column, row),
+                dragging: true,
+            });
             return;
         }
         if self.list_area.contains(pos) {
@@ -314,7 +328,10 @@ impl App {
             }
             return;
         }
-        let hit = self.tab_areas.iter().find(|(_, area)| area.contains((column, row).into()));
+        let hit = self
+            .tab_areas
+            .iter()
+            .find(|(_, area)| area.contains((column, row).into()));
         if let Some(&(tab, _)) = hit {
             self.set_tab(tab);
         }
@@ -335,7 +352,9 @@ impl App {
 
     /// Relâchement : un simple clic n'a rien sélectionné, un glisser copie le texte.
     fn release(&mut self) {
-        let Some(sel) = &mut self.selection else { return };
+        let Some(sel) = &mut self.selection else {
+            return;
+        };
         sel.dragging = false;
         if sel.anchor == sel.cursor {
             self.selection = None;
@@ -507,7 +526,11 @@ impl App {
 
     /// Taille du terminal émulé pour un panneau donné : sa largeur avec wrap, fixe sans.
     fn emulated_size(&self, pane: (u16, u16)) -> (u16, u16) {
-        if self.wrap { pane } else { (pane.0, NOWRAP_COLS.max(pane.1)) }
+        if self.wrap {
+            pane
+        } else {
+            (pane.0, NOWRAP_COLS.max(pane.1))
+        }
     }
 
     /// Bascule le soft-wrap. La vue est rouverte : le rejeu de l'historique se fait ainsi
@@ -561,11 +584,12 @@ impl App {
         let text = match (&self.input, &self.message) {
             (Some(input), _) => i18n::search_prompt(input),
             (None, Some(message)) => message.clone(),
-            (None, None) => {
-                i18n::footer_hints().to_string()
-            }
+            (None, None) => i18n::footer_hints().to_string(),
         };
-        frame.render_widget(Paragraph::new(text).style(Style::new().fg(Color::DarkGray)), footer);
+        frame.render_widget(
+            Paragraph::new(text).style(Style::new().fg(Color::DarkGray)),
+            footer,
+        );
 
         if self.show_help {
             self.draw_help(frame);
@@ -598,7 +622,11 @@ impl App {
             ])));
         }
         let list = List::new(items)
-            .block(Block::new().borders(Borders::ALL).title(i18n::sessions_title()))
+            .block(
+                Block::new()
+                    .borders(Borders::ALL)
+                    .title(i18n::sessions_title()),
+            )
             .highlight_style(Style::new().add_modifier(Modifier::REVERSED));
         self.list_area = area;
         self.list_state.select(Some(selected_row));
@@ -645,7 +673,11 @@ impl App {
         view.scroll = view.parser.screen().scrollback();
         let inner = block.inner(area);
         let (_, cols) = view.parser.screen().size();
-        let hscroll = if self.wrap { 0 } else { self.hscroll.min(cols.saturating_sub(inner.width) as usize) };
+        let hscroll = if self.wrap {
+            0
+        } else {
+            self.hscroll.min(cols.saturating_sub(inner.width) as usize)
+        };
         self.hscroll = hscroll;
         if self.wrap {
             frame.render_widget(PseudoTerminal::new(view.parser.screen()).block(block), area);
@@ -661,11 +693,15 @@ impl App {
                     break;
                 }
                 for (start, len) in search::match_columns(&text, query) {
-                    let Some(start) = start.checked_sub(hscroll) else { continue };
+                    let Some(start) = start.checked_sub(hscroll) else {
+                        continue;
+                    };
                     let x = inner.x + start as u16;
                     if x < inner.right() {
                         let width = (len as u16).min(inner.right() - x);
-                        frame.buffer_mut().set_style(Rect::new(x, y, width, 1), highlight);
+                        frame
+                            .buffer_mut()
+                            .set_style(Rect::new(x, y, width, 1), highlight);
                     }
                 }
             }
@@ -678,7 +714,10 @@ impl App {
         let max_scroll = self.env.len().saturating_sub(inner.height as usize);
         self.env_scroll = self.env_scroll.min(max_scroll);
         let lines: Vec<Line> = if self.env.is_empty() {
-            vec![Line::styled(i18n::env_empty(), Style::new().fg(Color::DarkGray))]
+            vec![Line::styled(
+                i18n::env_empty(),
+                Style::new().fg(Color::DarkGray),
+            )]
         } else {
             self.env
                 .iter()
@@ -699,26 +738,48 @@ impl App {
     /// Consommation actuelle de la session sélectionnée, relue dans `infos` (rafraîchie à chaque tour).
     fn draw_usage(&self, frame: &mut Frame, area: Rect, block: Block) {
         let info = self.current();
-        let label = |text: &str| Span::styled(format!("{:<12}", text), Style::new().fg(Color::Cyan));
+        let label =
+            |text: &str| Span::styled(format!("{:<12}", text), Style::new().fg(Color::Cyan));
         let lines = match &info.usage {
             Some(usage) => vec![
-                Line::from(vec![label(i18n::usage_pid()), Span::raw(info.pid.map_or("-".to_string(), |p| p.to_string()))]),
-                Line::from(vec![label(i18n::usage_cpu()), Span::raw(format!("{:.1} %", usage.cpu_percent))]),
-                Line::from(vec![label(i18n::usage_memory()), Span::raw(crate::format_bytes(usage.memory_bytes))]),
-                Line::from(vec![label(i18n::usage_ports()), Span::raw(crate::format_ports(&usage.ports))]),
-                Line::from(vec![label(i18n::usage_uptime()), Span::raw(i18n::running(info.uptime.as_secs()))]),
+                Line::from(vec![
+                    label(i18n::usage_pid()),
+                    Span::raw(info.pid.map_or("-".to_string(), |p| p.to_string())),
+                ]),
+                Line::from(vec![
+                    label(i18n::usage_cpu()),
+                    Span::raw(format!("{:.1} %", usage.cpu_percent)),
+                ]),
+                Line::from(vec![
+                    label(i18n::usage_memory()),
+                    Span::raw(crate::format_bytes(usage.memory_bytes)),
+                ]),
+                Line::from(vec![
+                    label(i18n::usage_ports()),
+                    Span::raw(crate::format_ports(&usage.ports)),
+                ]),
+                Line::from(vec![
+                    label(i18n::usage_uptime()),
+                    Span::raw(i18n::running(info.uptime.as_secs())),
+                ]),
             ],
-            None => vec![Line::styled(i18n::usage_empty(), Style::new().fg(Color::DarkGray))],
+            None => vec![Line::styled(
+                i18n::usage_empty(),
+                Style::new().fg(Color::DarkGray),
+            )],
         };
         frame.render_widget(Paragraph::new(lines).block(block), area);
     }
 
     fn draw_help(&self, frame: &mut Frame) {
         let text = i18n::help_text();
-        let area = frame.area().centered(Constraint::Length(74), Constraint::Length(23));
+        let area = frame
+            .area()
+            .centered(Constraint::Length(74), Constraint::Length(23));
         frame.render_widget(ratatui::widgets::Clear, area);
         frame.render_widget(
-            Paragraph::new(text).block(Block::new().borders(Borders::ALL).title(i18n::help_title())),
+            Paragraph::new(text)
+                .block(Block::new().borders(Borders::ALL).title(i18n::help_title())),
             area,
         );
     }
@@ -738,9 +799,11 @@ fn draw_columns(frame: &mut Frame, screen: &vt100::Screen, area: Rect, hscroll: 
 fn status_display(session: &SessionInfo) -> (&'static str, Color, String) {
     match session.state {
         State::NotStarted => ("○", Color::DarkGray, i18n::stopped().into()),
-        State::Running if session.outdated => {
-            ("●", Color::Green, format!("{} ~", format_duration(session.uptime.as_secs())))
-        }
+        State::Running if session.outdated => (
+            "●",
+            Color::Green,
+            format!("{} ~", format_duration(session.uptime.as_secs())),
+        ),
         State::Running => ("●", Color::Green, format_duration(session.uptime.as_secs())),
         State::Stopping => ("◌", Color::Yellow, i18n::stopping().into()),
         State::Exited(0) => ("○", Color::DarkGray, i18n::finished().into()),
@@ -784,7 +847,11 @@ fn copy_to_clipboard(text: &str) {
             return;
         }
     }
-    for (program, args) in [("wl-copy", &[][..]), ("xclip", &["-selection", "clipboard"][..]), ("xsel", &["-ib"][..])] {
+    for (program, args) in [
+        ("wl-copy", &[][..]),
+        ("xclip", &["-selection", "clipboard"][..]),
+        ("xsel", &["-ib"][..]),
+    ] {
         let child = std::process::Command::new(program)
             .args(args)
             .stdin(std::process::Stdio::piped())
@@ -805,7 +872,10 @@ fn base64(data: &[u8]) -> String {
     const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
     for chunk in data.chunks(3) {
-        let n = chunk.iter().enumerate().fold(0u32, |acc, (i, &b)| acc | (b as u32) << (16 - 8 * i));
+        let n = chunk
+            .iter()
+            .enumerate()
+            .fold(0u32, |acc, (i, &b)| acc | (b as u32) << (16 - 8 * i));
         for i in 0..4 {
             if i <= chunk.len() {
                 out.push(TABLE[(n >> (18 - 6 * i) & 63) as usize] as char);

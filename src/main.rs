@@ -103,7 +103,11 @@ struct TargetArgs {
 
 impl TargetArgs {
     fn target(&self) -> Target {
-        if self.group { Target::Group(self.name.clone()) } else { Target::Session(self.name.clone()) }
+        if self.group {
+            Target::Group(self.name.clone())
+        } else {
+            Target::Session(self.name.clone())
+        }
     }
 }
 
@@ -136,7 +140,13 @@ fn main() -> Result<()> {
             Ok(())
         }
         Cli::Shutdown { path } => connect(path)?.shutdown(),
-        Cli::Logs { name, path, follow, lines, raw } => logs(&name, path, follow, lines, raw),
+        Cli::Logs {
+            name,
+            path,
+            follow,
+            lines,
+            raw,
+        } => logs(&name, path, follow, lines, raw),
         Cli::Env { name, path } => {
             let mut out = std::io::stdout().lock();
             for (key, value) in connect(path)?.env(&name)? {
@@ -151,7 +161,13 @@ fn main() -> Result<()> {
 
 /// Écrit la sortie d'une session sur stdout : l'historique (ou ses `lines` dernières lignes),
 /// puis, avec `follow`, la suite en direct jusqu'à la fin de l'exécution.
-fn logs(name: &str, path: Option<PathBuf>, follow: bool, lines: Option<usize>, raw: bool) -> Result<()> {
+fn logs(
+    name: &str,
+    path: Option<PathBuf>,
+    follow: bool,
+    lines: Option<usize>,
+    raw: bool,
+) -> Result<()> {
     let file = config::Config::resolve_file(&path.unwrap_or_else(|| ".".into()))?;
     let stream = Client::subscribe(&paths::socket_for(&file)?, name)?;
     let mut stripper = plain::Stripper::new();
@@ -189,11 +205,20 @@ fn print_status(client: &mut Client) -> Result<()> {
     println!("{}", i18n::status_header());
     for info in client.list()? {
         let (cpu, memory, ports) = match &info.usage {
-            Some(usage) => (format!("{:.1}%", usage.cpu_percent), format_bytes(usage.memory_bytes), format_ports(&usage.ports)),
+            Some(usage) => (
+                format!("{:.1}%", usage.cpu_percent),
+                format_bytes(usage.memory_bytes),
+                format_ports(&usage.ports),
+            ),
             None => ("-".to_string(), "-".to_string(), "-".to_string()),
         };
         let pid = info.pid.map_or("-".to_string(), |pid| pid.to_string());
-        println!("{:<14} {:<20} {:<16} {pid:>7} {cpu:>6} {memory:>9}  {ports}", info.group, info.name, state_label(&info));
+        println!(
+            "{:<14} {:<20} {:<16} {pid:>7} {cpu:>6} {memory:>9}  {ports}",
+            info.group,
+            info.name,
+            state_label(&info)
+        );
     }
     Ok(())
 }
@@ -203,7 +228,11 @@ fn format_ports(ports: &[u16]) -> String {
     if ports.is_empty() {
         return "-".to_string();
     }
-    ports.iter().map(u16::to_string).collect::<Vec<_>>().join(",")
+    ports
+        .iter()
+        .map(u16::to_string)
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 /// Taille lisible : `512 KiB`, `38.4 MiB`, `1.2 GiB`.
@@ -215,7 +244,11 @@ fn format_bytes(bytes: u64) -> String {
         value /= 1024.0;
         unit += 1;
     }
-    if unit == 0 { format!("{bytes} B") } else { format!("{value:.1} {}", UNITS[unit]) }
+    if unit == 0 {
+        format!("{bytes} B")
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
+    }
 }
 
 fn state_label(info: &SessionInfo) -> String {
@@ -242,7 +275,10 @@ fn live_daemons() -> Result<Vec<(PathBuf, Client)>> {
 
 /// Remplace le dossier personnel par `~` pour garder les lignes courtes.
 fn display_path(path: &std::path::Path) -> String {
-    match std::env::var_os("HOME").map(PathBuf::from).and_then(|home| path.strip_prefix(home).ok().map(|p| p.to_path_buf())) {
+    match std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .and_then(|home| path.strip_prefix(home).ok().map(|p| p.to_path_buf()))
+    {
         Some(rest) => format!("~/{}", rest.display()),
         None => path.display().to_string(),
     }
@@ -262,10 +298,20 @@ fn print_ps(all: bool) -> Result<()> {
         println!("{}", i18n::no_session_running());
         return Ok(());
     }
-    let width = rows.iter().map(|(config, _)| config.chars().count()).max().unwrap_or(0).max("CONFIG".len());
+    let width = rows
+        .iter()
+        .map(|(config, _)| config.chars().count())
+        .max()
+        .unwrap_or(0)
+        .max("CONFIG".len());
     println!("{}", i18n::ps_header(width));
     for (config, info) in rows {
-        println!("{config:<width$}  {:<14} {:<20} {}", info.group, info.name, state_label(&info));
+        println!(
+            "{config:<width$}  {:<14} {:<20} {}",
+            info.group,
+            info.name,
+            state_label(&info)
+        );
     }
     Ok(())
 }
@@ -289,12 +335,18 @@ fn kill(path: Option<PathBuf>, all: bool) -> Result<()> {
         let deadline = Instant::now() + KILL_WAIT;
         while client.list()?.iter().any(is_active) {
             if Instant::now() >= deadline {
-                bail!("{} : des sessions ne se sont pas arrêtées", display_path(config));
+                bail!(
+                    "{} : des sessions ne se sont pas arrêtées",
+                    display_path(config)
+                );
             }
             thread::sleep(Duration::from_millis(100));
         }
         for info in &active {
-            println!("{}", i18n::session_stopped(&display_path(config), &info.name));
+            println!(
+                "{}",
+                i18n::session_stopped(&display_path(config), &info.name)
+            );
         }
         killed += active.len();
     }

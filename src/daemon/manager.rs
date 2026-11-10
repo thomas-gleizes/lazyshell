@@ -4,8 +4,8 @@ use std::time::Duration;
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
-use super::usage::Usage;
 use super::session::{Session, Status, Subscription, shutdown};
+use super::usage::Usage;
 use crate::config::Config;
 use crate::i18n;
 
@@ -75,7 +75,11 @@ fn arrange(declared: &[String], sessions: &[Session]) -> Vec<usize> {
     groups
         .iter()
         .flat_map(|group| {
-            sessions.iter().enumerate().filter(move |(_, s)| &s.group == group).map(|(i, _)| i)
+            sessions
+                .iter()
+                .enumerate()
+                .filter(move |(_, s)| &s.group == group)
+                .map(|(i, _)| i)
         })
         .collect()
 }
@@ -83,8 +87,11 @@ fn arrange(declared: &[String], sessions: &[Session]) -> Vec<usize> {
 impl Manager {
     pub fn new(config: &Config, base: &Path) -> Result<Self> {
         let shell = config.shell();
-        let mut sessions: Vec<Session> =
-            config.sessions.iter().map(|cfg| Session::new(cfg, base, &shell)).collect();
+        let mut sessions: Vec<Session> = config
+            .sessions
+            .iter()
+            .map(|cfg| Session::new(cfg, base, &shell))
+            .collect();
         let declared_groups: Vec<String> = config.groups.iter().map(|g| g.name.clone()).collect();
         let order = arrange(&declared_groups, &sessions);
 
@@ -93,7 +100,11 @@ impl Manager {
                 session.start()?;
             }
         }
-        Ok(Manager { sessions, declared_groups, order })
+        Ok(Manager {
+            sessions,
+            declared_groups,
+            order,
+        })
     }
 
     /// Applique une config relue. Les sessions inchangées ne sont pas touchées ; une
@@ -115,9 +126,15 @@ impl Manager {
         }
 
         let shell = config.shell();
-        let mut report = ReloadReport::default();
-        report.removed =
-            self.sessions.iter().filter(|s| !names.contains(&s.name.as_str())).map(|s| s.name.clone()).collect();
+        let mut report = ReloadReport {
+            removed: self
+                .sessions
+                .iter()
+                .filter(|s| !names.contains(&s.name.as_str()))
+                .map(|s| s.name.clone())
+                .collect(),
+            ..Default::default()
+        };
         self.sessions.retain(|s| names.contains(&s.name.as_str()));
 
         for cfg in &config.sessions {
@@ -158,7 +175,10 @@ impl Manager {
                     name: session.name.clone(),
                     group: session.group.clone(),
                     state,
-                    uptime: session.run.as_ref().map_or(Duration::ZERO, |r| r.started_at.elapsed()),
+                    uptime: session
+                        .run
+                        .as_ref()
+                        .map_or(Duration::ZERO, |r| r.started_at.elapsed()),
                     run_id: session.run.as_ref().map(|r| r.id),
                     outdated: session.outdated,
                     pid: session.pid(),
@@ -216,7 +236,9 @@ impl Manager {
     /// Historique puis flux en direct de la sortie de la session.
     pub fn subscribe(&self, name: &str) -> Result<Subscription> {
         let session = self.find(name)?;
-        session.subscribe().ok_or_else(|| anyhow!("{name} n'a pas encore été lancée"))
+        session
+            .subscribe()
+            .ok_or_else(|| anyhow!("{name} n'a pas encore été lancée"))
     }
 
     /// Variables injectées dans la session (celles de l'exécution en cours, sinon de la définition).
@@ -235,7 +257,10 @@ impl Manager {
     }
 
     fn find(&self, name: &str) -> Result<&Session> {
-        self.sessions.iter().find(|s| s.name == name).ok_or_else(|| anyhow!("session inconnue : {name}"))
+        self.sessions
+            .iter()
+            .find(|s| s.name == name)
+            .ok_or_else(|| anyhow!("session inconnue : {name}"))
     }
 
     /// Arrête toutes les sessions actives et attend leur fin.
@@ -255,6 +280,10 @@ impl ReloadReport {
         .filter(|(_, names)| !names.is_empty())
         .map(|(label, names)| format!("{label} : {}", names.join(", ")))
         .collect();
-        if parts.is_empty() { i18n::reload_no_change().to_string() } else { parts.join(" ; ") }
+        if parts.is_empty() {
+            i18n::reload_no_change().to_string()
+        } else {
+            parts.join(" ; ")
+        }
     }
 }

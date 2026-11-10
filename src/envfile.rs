@@ -22,7 +22,10 @@ pub fn parse(text: &str) -> Result<HashMap<String, String>> {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        let line = line.strip_prefix("export ").map(str::trim_start).unwrap_or(line);
+        let line = line
+            .strip_prefix("export ")
+            .map(str::trim_start)
+            .unwrap_or(line);
         let Some((key, value)) = line.split_once('=') else {
             bail!("ligne {} : « KEY=valeur » attendu", index + 1);
         };

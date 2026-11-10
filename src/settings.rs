@@ -20,14 +20,17 @@ impl Settings {
         let file = config_file()?;
         let text = match std::fs::read_to_string(&file) {
             Ok(text) => text,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Settings::default()),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Settings::default());
+            }
             Err(err) => return Err(err).with_context(|| format!("lecture de {}", file.display())),
         };
         // Un fichier vide (ou que des commentaires) est valide : serde_yaml le lit comme `null`.
         if text.trim().is_empty() {
             return Ok(Settings::default());
         }
-        serde_yaml::from_str(&text).with_context(|| format!("réglages invalides dans {}", file.display()))
+        serde_yaml::from_str(&text)
+            .with_context(|| format!("réglages invalides dans {}", file.display()))
     }
 }
 
@@ -39,7 +42,9 @@ pub fn config_file() -> Result<PathBuf> {
         Some(dir) => PathBuf::from(dir),
         None => match std::env::var_os("HOME").filter(|dir| !dir.is_empty()) {
             Some(home) => PathBuf::from(home).join(".config"),
-            None => bail!("$HOME non défini : impossible de trouver ~/.config/lazyshell/config.yaml"),
+            None => {
+                bail!("$HOME non défini : impossible de trouver ~/.config/lazyshell/config.yaml")
+            }
         },
     };
     Ok(base.join("lazyshell").join("config.yaml"))
@@ -51,13 +56,26 @@ mod tests {
 
     #[test]
     fn language_defaults_to_french() {
-        assert_eq!(serde_yaml::from_str::<Settings>("{}").unwrap().language, Lang::Fr);
+        assert_eq!(
+            serde_yaml::from_str::<Settings>("{}").unwrap().language,
+            Lang::Fr
+        );
     }
 
     #[test]
     fn language_is_read() {
-        assert_eq!(serde_yaml::from_str::<Settings>("language: en").unwrap().language, Lang::En);
-        assert_eq!(serde_yaml::from_str::<Settings>("language: fr").unwrap().language, Lang::Fr);
+        assert_eq!(
+            serde_yaml::from_str::<Settings>("language: en")
+                .unwrap()
+                .language,
+            Lang::En
+        );
+        assert_eq!(
+            serde_yaml::from_str::<Settings>("language: fr")
+                .unwrap()
+                .language,
+            Lang::Fr
+        );
     }
 
     #[test]

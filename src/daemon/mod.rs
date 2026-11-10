@@ -7,6 +7,6 @@ mod server;
 mod session;
 mod usage;
 
+pub use manager::{Command, Manager, ReloadReport, SessionInfo, State, Target};
 pub use server::run as serve;
 pub use session::Subscription;
-pub use manager::{Command, Manager, ReloadReport, SessionInfo, State, Target};

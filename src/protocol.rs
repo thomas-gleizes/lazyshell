@@ -24,11 +24,19 @@ pub enum Request {
     List,
     Command(Command),
     /// Taille du panneau d'affichage ; le PTY de la session la suit.
-    Resize { session: String, rows: u16, cols: u16 },
+    Resize {
+        session: String,
+        rows: u16,
+        cols: u16,
+    },
     /// Transforme la connexion en flux de sortie de la session.
-    Subscribe { session: String },
+    Subscribe {
+        session: String,
+    },
     /// Variables d'environnement injectées dans la session.
-    Env { session: String },
+    Env {
+        session: String,
+    },
     /// Relit le fichier de config et l'applique.
     Reload,
     /// Arrête toutes les sessions puis le daemon.
@@ -43,7 +51,9 @@ pub enum Response {
     Ok,
     Error(String),
     /// Réponse à `Subscribe` ; le premier `Output` qui suit est l'historique.
-    Subscribed { run_id: u64 },
+    Subscribed {
+        run_id: u64,
+    },
     Output(Vec<u8>),
     /// L'exécution est terminée, plus aucune sortie ne viendra.
     StreamEnd,

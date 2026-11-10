@@ -33,7 +33,12 @@ pub struct Sampler {
 
 impl Sampler {
     pub fn new(session_id: u32, started_at: Instant) -> Self {
-        Sampler { session_id, last_at: started_at, last_ticks: 0, latest: None }
+        Sampler {
+            session_id,
+            last_at: started_at,
+            last_ticks: 0,
+            latest: None,
+        }
     }
 
     /// Dernière mesure ; la rafraîchit si la précédente a plus d'une seconde.
@@ -53,7 +58,11 @@ impl Sampler {
         self.last_at = Instant::now();
         self.last_ticks = ticks;
         let ports = listening_ports(&totals.pids);
-        self.latest = Some(Usage { cpu_percent: used / seconds * 100.0, memory_bytes: rss_pages * page_size(), ports });
+        self.latest = Some(Usage {
+            cpu_percent: used / seconds * 100.0,
+            memory_bytes: rss_pages * page_size(),
+            ports,
+        });
         self.latest.clone()
     }
 }
@@ -78,20 +87,31 @@ struct Totals {
 /// Cumule tous les processus de la session. `None` si `/proc` est illisible
 /// (autre système que Linux).
 fn session_totals(session_id: u32) -> Option<Totals> {
-    let mut totals = Totals { ticks: 0, rss_pages: 0, pids: Vec::new() };
+    let mut totals = Totals {
+        ticks: 0,
+        rss_pages: 0,
+        pids: Vec::new(),
+    };
     for entry in fs::read_dir("/proc").ok()?.flatten() {
         let name = entry.file_name();
-        if !name.to_str().is_some_and(|n| n.bytes().all(|b| b.is_ascii_digit())) {
+        if !name
+            .to_str()
+            .is_some_and(|n| n.bytes().all(|b| b.is_ascii_digit()))
+        {
             continue;
         }
         // Le processus peut disparaître entre la liste et la lecture : on l'ignore.
-        let Ok(stat) = fs::read_to_string(entry.path().join("stat")) else { continue };
+        let Ok(stat) = fs::read_to_string(entry.path().join("stat")) else {
+            continue;
+        };
         if let Some((sid, cpu, pages)) = parse_stat(&stat)
             && sid == session_id
         {
             totals.ticks += cpu;
             totals.rss_pages += pages;
-            totals.pids.extend(name.to_str().and_then(|n| n.parse::<u32>().ok()));
+            totals
+                .pids
+                .extend(name.to_str().and_then(|n| n.parse::<u32>().ok()));
         }
     }
     Some(totals)
@@ -112,11 +132,21 @@ fn listening_ports(pids: &[u32]) -> Vec<u16> {
     }
     let mut ports = Vec::new();
     for pid in pids {
-        let Ok(fds) = fs::read_dir(format!("/proc/{pid}/fd")) else { continue };
+        let Ok(fds) = fs::read_dir(format!("/proc/{pid}/fd")) else {
+            continue;
+        };
         for fd in fds.flatten() {
-            let Ok(target) = fs::read_link(fd.path()) else { continue };
-            let inode = target.to_str().and_then(|t| t.strip_prefix("socket:[")).and_then(|t| t.strip_suffix(']'));
-            if let Some(port) = inode.and_then(|i| i.parse::<u64>().ok()).and_then(|i| by_inode.get(&i)) {
+            let Ok(target) = fs::read_link(fd.path()) else {
+                continue;
+            };
+            let inode = target
+                .to_str()
+                .and_then(|t| t.strip_prefix("socket:["))
+                .and_then(|t| t.strip_suffix(']'));
+            if let Some(port) = inode
+                .and_then(|i| i.parse::<u64>().ok())
+                .and_then(|i| by_inode.get(&i))
+            {
                 ports.push(*port);
             }
         }

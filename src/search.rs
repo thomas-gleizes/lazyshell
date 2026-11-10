@@ -31,7 +31,12 @@ pub fn history_lines(parser: &mut vt100::Parser) -> Vec<String> {
 
 /// Indices des lignes contenant `query` (sans tenir compte de la casse ASCII), croissants.
 pub fn matching_lines(lines: &[String], query: &str) -> Vec<usize> {
-    lines.iter().enumerate().filter(|(_, line)| !match_columns(line, query).is_empty()).map(|(i, _)| i).collect()
+    lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| !match_columns(line, query).is_empty())
+        .map(|(i, _)| i)
+        .collect()
 }
 
 /// Positions (colonne de départ, longueur) des occurrences de `query` dans une ligne.
@@ -72,7 +77,14 @@ mod tests {
         }
         let lines = history_lines(&mut parser);
         for i in 0..23 {
-            assert_eq!(lines.iter().filter(|l| l.trim_end() == format!("ligne {i}")).count(), 1, "ligne {i}");
+            assert_eq!(
+                lines
+                    .iter()
+                    .filter(|l| l.trim_end() == format!("ligne {i}"))
+                    .count(),
+                1,
+                "ligne {i}"
+            );
         }
         assert_eq!(matching_lines(&lines, "ligne 22").len(), 1);
     }

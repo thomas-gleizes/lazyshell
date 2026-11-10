@@ -65,20 +65,35 @@ pub fn no_session_running() -> &'static str {
 
 pub fn ps_header(config_width: usize) -> String {
     pick(
-        format!("{:<config_width$}  {:<14} {:<20} ÉTAT", "CONFIG", "GROUPE", "SESSION"),
-        format!("{:<config_width$}  {:<14} {:<20} STATE", "CONFIG", "GROUP", "SESSION"),
+        format!(
+            "{:<config_width$}  {:<14} {:<20} ÉTAT",
+            "CONFIG", "GROUPE", "SESSION"
+        ),
+        format!(
+            "{:<config_width$}  {:<14} {:<20} STATE",
+            "CONFIG", "GROUP", "SESSION"
+        ),
     )
 }
 
 pub fn status_header() -> String {
     pick(
-        format!("{:<14} {:<20} {:<16} {:>7} {:>6} {:>9}  PORTS", "GROUPE", "SESSION", "ÉTAT", "PID", "CPU", "MÉMOIRE"),
-        format!("{:<14} {:<20} {:<16} {:>7} {:>6} {:>9}  PORTS", "GROUP", "SESSION", "STATE", "PID", "CPU", "MEMORY"),
+        format!(
+            "{:<14} {:<20} {:<16} {:>7} {:>6} {:>9}  PORTS",
+            "GROUPE", "SESSION", "ÉTAT", "PID", "CPU", "MÉMOIRE"
+        ),
+        format!(
+            "{:<14} {:<20} {:<16} {:>7} {:>6} {:>9}  PORTS",
+            "GROUP", "SESSION", "STATE", "PID", "CPU", "MEMORY"
+        ),
     )
 }
 
 pub fn session_stopped(config: &str, name: &str) -> String {
-    pick(format!("{config} : {name} arrêtée"), format!("{config}: {name} stopped"))
+    pick(
+        format!("{config} : {name} arrêtée"),
+        format!("{config}: {name} stopped"),
+    )
 }
 
 // --- TUI ---
@@ -88,23 +103,38 @@ pub fn stopping_all() -> &'static str {
 }
 
 pub fn config_reloaded(summary: &str) -> String {
-    pick(format!("Config rechargée : {summary}"), format!("Config reloaded: {summary}"))
+    pick(
+        format!("Config rechargée : {summary}"),
+        format!("Config reloaded: {summary}"),
+    )
 }
 
 pub fn reload_refused(err: &dyn std::fmt::Display) -> String {
-    pick(format!("Rechargement refusé : {err}"), format!("Reload refused: {err}"))
+    pick(
+        format!("Rechargement refusé : {err}"),
+        format!("Reload refused: {err}"),
+    )
 }
 
 pub fn no_search() -> &'static str {
-    pick_static("Aucune recherche en cours (/ pour chercher)", "No search in progress (/ to search)")
+    pick_static(
+        "Aucune recherche en cours (/ pour chercher)",
+        "No search in progress (/ to search)",
+    )
 }
 
 pub fn no_match(query: &str) -> String {
-    pick(format!("Aucune occurrence de « {query} »"), format!("No match for \"{query}\""))
+    pick(
+        format!("Aucune occurrence de « {query} »"),
+        format!("No match for \"{query}\""),
+    )
 }
 
 pub fn no_other_match() -> &'static str {
-    pick_static("Pas d'autre occurrence dans ce sens", "No other match in this direction")
+    pick_static(
+        "Pas d'autre occurrence dans ce sens",
+        "No other match in this direction",
+    )
 }
 
 pub fn search_prompt(input: &str) -> String {
@@ -158,11 +188,17 @@ pub fn usage_uptime() -> &'static str {
 }
 
 pub fn usage_empty() -> &'static str {
-    pick_static("Session arrêtée : aucune consommation à afficher", "Session stopped: no usage to show")
+    pick_static(
+        "Session arrêtée : aucune consommation à afficher",
+        "Session stopped: no usage to show",
+    )
 }
 
 pub fn env_empty() -> &'static str {
-    pick_static("Aucune variable définie pour cette session", "No variables set for this session")
+    pick_static(
+        "Aucune variable définie pour cette session",
+        "No variables set for this session",
+    )
 }
 
 pub fn help_title() -> &'static str {
@@ -170,7 +206,10 @@ pub fn help_title() -> &'static str {
 }
 
 pub fn session_stopped_hint() -> &'static str {
-    pick_static("Session arrêtée — s pour la lancer", "Session stopped — press s to start it")
+    pick_static(
+        "Session arrêtée — s pour la lancer",
+        "Session stopped — press s to start it",
+    )
 }
 
 const HELP_FR: &str = "\
@@ -222,19 +261,28 @@ Press any key to close.";
 pub fn wrap_state(on: bool) -> &'static str {
     match on {
         true => pick_static("Soft-wrap activé", "Soft-wrap on"),
-        false => pick_static("Soft-wrap désactivé (←/→ pour défiler)", "Soft-wrap off (←/→ to scroll)"),
+        false => pick_static(
+            "Soft-wrap désactivé (←/→ pour défiler)",
+            "Soft-wrap off (←/→ to scroll)",
+        ),
     }
 }
 
 pub fn fullscreen_state(on: bool) -> &'static str {
     match on {
-        true => pick_static("Plein écran (f ou Échap pour quitter)", "Fullscreen (f or Esc to leave)"),
+        true => pick_static(
+            "Plein écran (f ou Échap pour quitter)",
+            "Fullscreen (f or Esc to leave)",
+        ),
         false => pick_static("Plein écran désactivé", "Fullscreen off"),
     }
 }
 
 pub fn copied(chars: usize) -> String {
-    pick(format!("{chars} caractères copiés"), format!("{chars} characters copied"))
+    pick(
+        format!("{chars} caractères copiés"),
+        format!("{chars} characters copied"),
+    )
 }
 
 pub fn nowrap_tag() -> &'static str {
@@ -256,7 +304,10 @@ pub fn reload_removed() -> &'static str {
 }
 
 pub fn reload_changed() -> &'static str {
-    pick_static("modifiées (effet au prochain démarrage)", "changed (applied on next start)")
+    pick_static(
+        "modifiées (effet au prochain démarrage)",
+        "changed (applied on next start)",
+    )
 }
 
 pub fn reload_no_change() -> &'static str {

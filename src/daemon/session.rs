@@ -41,10 +41,14 @@ impl Output {
         if self.ring.len() > 2 * RING_CAP {
             // On rogne sur une fin de ligne pour ne pas rejouer une ligne coupée en deux.
             let cut = self.ring.len() - RING_CAP;
-            let start = self.ring[cut..].iter().position(|&b| b == b'\n').map_or(cut, |p| cut + p + 1);
+            let start = self.ring[cut..]
+                .iter()
+                .position(|&b| b == b'\n')
+                .map_or(cut, |p| cut + p + 1);
             self.ring.drain(..start);
         }
-        self.subscribers.retain(|tx| tx.send(chunk.to_vec()).is_ok());
+        self.subscribers
+            .retain(|tx| tx.send(chunk.to_vec()).is_ok());
     }
 }
 
@@ -79,7 +83,11 @@ impl Run {
         if !output.closed {
             output.subscribers.push(tx);
         }
-        Subscription { run_id: self.id, replay: output.ring.clone(), live }
+        Subscription {
+            run_id: self.id,
+            replay: output.ring.clone(),
+            live,
+        }
     }
 }
 
@@ -102,7 +110,11 @@ impl Spec {
             },
             command: config.command.clone(),
             shell: shell.to_string(),
-            env: config.env.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            env: config
+                .env
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
         }
     }
 }
@@ -161,7 +173,12 @@ impl Session {
         self.outdated = false;
 
         let (rows, cols) = self.size;
-        let pair = native_pty_system().openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })?;
+        let pair = native_pty_system().openpty(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })?;
         let mut cmd = CommandBuilder::new(&self.spec.shell);
         cmd.args(["-c", &self.spec.command]);
         cmd.cwd(&self.spec.cwd);
@@ -178,7 +195,11 @@ impl Session {
         let pid = child.process_id().unwrap_or(0);
         let run = Arc::new(Run {
             id: NEXT_RUN_ID.fetch_add(1, Ordering::Relaxed),
-            output: Mutex::new(Output { ring: Vec::new(), subscribers: Vec::new(), closed: false }),
+            output: Mutex::new(Output {
+                ring: Vec::new(),
+                subscribers: Vec::new(),
+                closed: false,
+            }),
             status: Mutex::new(Status::Running),
             started_at,
             pid,
@@ -260,7 +281,10 @@ impl Session {
 
     /// PID du shell qui exécute la commande ; `None` si la session ne tourne pas.
     pub fn pid(&self) -> Option<u32> {
-        self.run.as_ref().filter(|run| run.pid != 0 && self.is_active()).map(|run| run.pid)
+        self.run
+            .as_ref()
+            .filter(|run| run.pid != 0 && self.is_active())
+            .map(|run| run.pid)
     }
 
     /// CPU, mémoire et ports de la session ; `None` si elle ne tourne pas.
@@ -276,7 +300,12 @@ impl Session {
         }
         self.size = (rows, cols);
         if let Some(run) = &self.run {
-            let _ = run.master.lock().unwrap().resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 });
+            let _ = run.master.lock().unwrap().resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            });
         }
     }
 

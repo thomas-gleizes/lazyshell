@@ -17,8 +17,9 @@ pub struct Client {
 
 impl Client {
     pub fn connect(socket: &Path) -> Result<Self> {
-        let mut stream = UnixStream::connect(socket)
-            .with_context(|| "aucun daemon actif pour ce projet (la TUI en lance un automatiquement)")?;
+        let mut stream = UnixStream::connect(socket).with_context(
+            || "aucun daemon actif pour ce projet (la TUI en lance un automatiquement)",
+        )?;
         write_handshake(&mut stream)?;
         let daemon_version = read_handshake(&mut stream).context("handshake avec le daemon")?;
         if daemon_version != VERSION {
@@ -44,11 +45,17 @@ impl Client {
     }
 
     pub fn resize(&mut self, session: &str, rows: u16, cols: u16) -> Result<()> {
-        self.expect_ok(Request::Resize { session: session.to_string(), rows, cols })
+        self.expect_ok(Request::Resize {
+            session: session.to_string(),
+            rows,
+            cols,
+        })
     }
 
     pub fn env(&mut self, session: &str) -> Result<Vec<(String, String)>> {
-        match self.call(Request::Env { session: session.to_string() })? {
+        match self.call(Request::Env {
+            session: session.to_string(),
+        })? {
             Response::Env(vars) => Ok(vars),
             other => bail!("réponse inattendue : {other:?}"),
         }
@@ -68,7 +75,9 @@ impl Client {
     /// Ouvre une connexion dédiée au flux de sortie d'une session.
     pub fn subscribe(socket: &Path, session: &str) -> Result<Stream> {
         let mut client = Client::connect(socket)?;
-        let run_id = match client.call(Request::Subscribe { session: session.to_string() })? {
+        let run_id = match client.call(Request::Subscribe {
+            session: session.to_string(),
+        })? {
             Response::Subscribed { run_id } => run_id,
             other => bail!("réponse inattendue : {other:?}"),
         };
@@ -88,7 +97,11 @@ impl Client {
                 }
             }
         });
-        Ok(Stream { run_id, rx, socket: client.stream })
+        Ok(Stream {
+            run_id,
+            rx,
+            socket: client.stream,
+        })
     }
 
     fn expect_ok(&mut self, request: Request) -> Result<()> {

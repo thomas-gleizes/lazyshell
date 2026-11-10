@@ -25,7 +25,10 @@ pub fn ensure_daemon(config_file: &Path, socket: &Path) -> Result<()> {
     Config::load(config_file)?;
 
     let log_path = paths::log_for(config_file)?;
-    let log = OpenOptions::new().create(true).append(true).open(&log_path)
+    let log = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
         .with_context(|| format!("journal {}", log_path.display()))?;
     let mut command = Command::new(std::env::current_exe()?);
     command

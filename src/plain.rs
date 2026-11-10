@@ -25,7 +25,10 @@ pub struct Stripper {
 
 impl Stripper {
     pub fn new() -> Self {
-        Stripper { state: State::Text, pending_cr: false }
+        Stripper {
+            state: State::Text,
+            pending_cr: false,
+        }
     }
 
     pub fn feed(&mut self, input: &[u8]) -> Vec<u8> {
@@ -51,7 +54,13 @@ impl Stripper {
                     0x1b => self.state = State::OscEscape,
                     _ => {}
                 },
-                State::OscEscape => self.state = if byte == b'\\' { State::Text } else { State::Osc },
+                State::OscEscape => {
+                    self.state = if byte == b'\\' {
+                        State::Text
+                    } else {
+                        State::Osc
+                    }
+                }
                 State::Skip => self.state = State::Text,
             }
         }

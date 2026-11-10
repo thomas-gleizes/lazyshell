@@ -14,7 +14,10 @@ pub fn socket_for(config_file: &Path) -> Result<PathBuf> {
     let dir = runtime_dir()?;
     let socket = dir.join(format!("{}.sock", project_id(config_file)));
     if socket.as_os_str().len() > MAX_SOCKET_PATH {
-        bail!("chemin de socket trop long ({}) : raccourcir $XDG_RUNTIME_DIR", socket.display());
+        bail!(
+            "chemin de socket trop long ({}) : raccourcir $XDG_RUNTIME_DIR",
+            socket.display()
+        );
     }
     Ok(socket)
 }
@@ -24,7 +27,10 @@ fn runtime_dir() -> Result<PathBuf> {
         Some(runtime) => PathBuf::from(runtime).join("lazyshell"),
         None => PathBuf::from(format!("/tmp/lazyshell-{}", unsafe { libc::getuid() })),
     };
-    DirBuilder::new().recursive(true).mode(0o700).create(&dir)
+    DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(&dir)
         .with_context(|| format!("création de {}", dir.display()))?;
     std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))?;
     Ok(dir)
@@ -32,7 +38,9 @@ fn runtime_dir() -> Result<PathBuf> {
 
 /// FNV-1a : stable d'une version de Rust à l'autre, contrairement à `DefaultHasher`.
 fn fnv1a(bytes: &[u8]) -> u64 {
-    bytes.iter().fold(0xcbf29ce484222325, |hash, &b| (hash ^ b as u64).wrapping_mul(0x100000001b3))
+    bytes.iter().fold(0xcbf29ce484222325, |hash, &b| {
+        (hash ^ b as u64).wrapping_mul(0x100000001b3)
+    })
 }
 
 fn project_id(config_file: &Path) -> String {
@@ -60,7 +68,9 @@ pub fn known_daemons() -> Result<Vec<(PathBuf, PathBuf)>> {
             continue;
         }
         // Sans fichier de config lisible (daemon d'une ancienne version), on l'ignore.
-        let Ok(config) = std::fs::read(config_record_for(&socket)) else { continue };
+        let Ok(config) = std::fs::read(config_record_for(&socket)) else {
+            continue;
+        };
         let config = PathBuf::from(std::ffi::OsStr::from_bytes(&config));
         daemons.push((config, socket));
     }
@@ -72,10 +82,14 @@ pub fn known_daemons() -> Result<Vec<(PathBuf, PathBuf)>> {
 pub fn log_for(config_file: &Path) -> Result<PathBuf> {
     let state = match std::env::var_os("XDG_STATE_HOME") {
         Some(dir) => PathBuf::from(dir),
-        None => PathBuf::from(std::env::var_os("HOME").context("$HOME non défini")?).join(".local/state"),
+        None => PathBuf::from(std::env::var_os("HOME").context("$HOME non défini")?)
+            .join(".local/state"),
     };
     let dir = state.join("lazyshell");
-    DirBuilder::new().recursive(true).mode(0o700).create(&dir)
+    DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(&dir)
         .with_context(|| format!("création de {}", dir.display()))?;
     Ok(dir.join(format!("{}.log", project_id(config_file))))
 }

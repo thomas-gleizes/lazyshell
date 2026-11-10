@@ -65,12 +65,17 @@ impl Config {
     pub fn resolve_file(path: &Path) -> Result<PathBuf> {
         let file = if path.is_dir() {
             Self::find_in_ancestors(path).with_context(|| {
-                format!("aucun fichier {} dans {} ni ses parents", DEFAULT_FILES.join(" / "), path.display())
+                format!(
+                    "aucun fichier {} dans {} ni ses parents",
+                    DEFAULT_FILES.join(" / "),
+                    path.display()
+                )
             })?
         } else {
             path.to_path_buf()
         };
-        file.canonicalize().with_context(|| format!("config introuvable : {}", file.display()))
+        file.canonicalize()
+            .with_context(|| format!("config introuvable : {}", file.display()))
     }
 
     /// Cherche la config dans `dir`, puis dans ses parents jusqu'au dossier personnel (inclus).
@@ -82,7 +87,11 @@ impl Config {
         let in_home = home.as_ref().is_some_and(|h| dir.starts_with(h));
 
         for current in dir.ancestors() {
-            if let Some(found) = DEFAULT_FILES.iter().map(|n| current.join(n)).find(|c| c.is_file()) {
+            if let Some(found) = DEFAULT_FILES
+                .iter()
+                .map(|n| current.join(n))
+                .find(|c| c.is_file())
+            {
                 return Some(found);
             }
             if !in_home || Some(current) == home.as_deref() {
@@ -101,7 +110,10 @@ impl Config {
             .with_context(|| format!("config invalide dans {}", file.display()))?;
         config.validate()?;
 
-        let base = file.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("."));
+        let base = file
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
         config.resolve_env(&base)?;
         Ok((config, base))
     }
