@@ -104,6 +104,28 @@ struct App {
     shutdown_requested: bool,
     /// Plein écran (`f`) : la sortie occupe tout le terminal, la liste est masquée.
     fullscreen: bool,
+    /// Intérieur du panneau de droite (sortie ou Env), mis à jour à chaque affichage.
+    out_inner: Rect,
+    /// Sélection à la souris dans le panneau, en coordonnées d'écran.
+    selection: Option<Selection>,
+    /// Texte actuellement sélectionné, relu dans le tampon à chaque affichage.
+    selected_text: String,
+}
+
+/// Sélection au glisser : `anchor` là où le bouton a été pressé, `cursor` la position courante.
+#[derive(Clone, Copy)]
+struct Selection {
+    anchor: (u16, u16),
+    cursor: (u16, u16),
+    dragging: bool,
+}
+
+impl Selection {
+    /// Bornes dans l'ordre de lecture (début, fin).
+    fn ordered(&self) -> ((u16, u16), (u16, u16)) {
+        let (a, c) = (self.anchor, self.cursor);
+        if (a.1, a.0) <= (c.1, c.0) { (a, c) } else { (c, a) }
+    }
 }
 
 pub fn run(socket: &Path) -> Result<()> {
@@ -129,6 +151,9 @@ pub fn run(socket: &Path) -> Result<()> {
         quit: false,
         shutdown_requested: false,
         fullscreen: false,
+        out_inner: Rect::default(),
+        selection: None,
+        selected_text: String::new(),
     };
     let mut terminal = ratatui::init();
     execute!(std::io::stdout(), EnableMouseCapture)?;
@@ -182,6 +207,8 @@ impl App {
                         MouseEventKind::ScrollUp => self.wheel(mouse.column, mouse.row, true),
                         MouseEventKind::ScrollDown => self.wheel(mouse.column, mouse.row, false),
                         MouseEventKind::Down(MouseButton::Left) => self.click(mouse.column, mouse.row),
+                        MouseEventKind::Drag(MouseButton::Left) => self.drag(mouse.column, mouse.row),
+                        MouseEventKind::Up(MouseButton::Left) => self.release(),
                         _ => {}
                     },
                     _ => {}
@@ -245,6 +272,7 @@ impl App {
 
     /// Molette : sur la liste elle déplace la sélection, ailleurs elle défile la sortie.
     fn wheel(&mut self, column: u16, row: u16, up: bool) {
+        self.selection = None;
         if self.list_area.contains((column, row).into()) {
             let last = self.infos.len() - 1;
             self.selected = if up {
@@ -260,6 +288,11 @@ impl App {
 
     fn click(&mut self, column: u16, row: u16) {
         let pos = (column, row).into();
+        self.selection = None;
+        if self.out_inner.contains(pos) {
+            self.selection = Some(Selection { anchor: (column, row), cursor: (column, row), dragging: true });
+            return;
+        }
         if self.list_area.contains(pos) {
             let inner = Block::new().borders(Borders::ALL).inner(self.list_area);
             if inner.contains(pos) {
@@ -274,6 +307,58 @@ impl App {
         if let Some(&(tab, _)) = hit {
             self.set_tab(tab);
         }
+    }
+
+    /// Étend la sélection en cours, la position est ramenée dans le panneau.
+    fn drag(&mut self, column: u16, row: u16) {
+        let inner = self.out_inner;
+        if inner.width == 0 || inner.height == 0 {
+            return;
+        }
+        let x = column.clamp(inner.x, inner.right() - 1);
+        let y = row.clamp(inner.y, inner.bottom() - 1);
+        if let Some(sel) = self.selection.as_mut().filter(|sel| sel.dragging) {
+            sel.cursor = (x, y);
+        }
+    }
+
+    /// Relâchement : un simple clic n'a rien sélectionné, un glisser copie le texte.
+    fn release(&mut self) {
+        let Some(sel) = &mut self.selection else { return };
+        sel.dragging = false;
+        if sel.anchor == sel.cursor {
+            self.selection = None;
+            return;
+        }
+        if !self.selected_text.is_empty() {
+            copy_to_clipboard(&self.selected_text);
+            self.message = Some(i18n::copied(self.selected_text.chars().count()));
+        }
+    }
+
+    /// Surligne la sélection et en relit le texte dans le tampon déjà dessiné.
+    fn apply_selection(&mut self, frame: &mut Frame) {
+        self.selected_text.clear();
+        let Some(sel) = self.selection else { return };
+        let inner = self.out_inner.intersection(frame.area());
+        if inner.width == 0 || inner.height == 0 {
+            return;
+        }
+        let ((sx, sy), (ex, ey)) = sel.ordered();
+        let buf = frame.buffer_mut();
+        let mut lines = Vec::new();
+        for y in sy.max(inner.y)..=ey.min(inner.bottom() - 1) {
+            let from = if y == sy { sx } else { inner.x };
+            let to = if y == ey { ex } else { inner.right() - 1 };
+            let mut line = String::new();
+            for x in from.max(inner.x)..=to.min(inner.right() - 1) {
+                let cell = &mut buf[(x, y)];
+                line.push_str(cell.symbol());
+                cell.set_style(Style::new().add_modifier(Modifier::REVERSED));
+            }
+            lines.push(line.trim_end().to_string());
+        }
+        self.selected_text = lines.join("\n").trim_end().to_string();
     }
 
     fn open_view(&mut self, session: &str, size: (u16, u16)) {
@@ -457,6 +542,8 @@ impl App {
             self.draw_list(frame, left);
         }
         self.draw_output(frame, right);
+        self.out_inner = Block::new().borders(Borders::ALL).inner(right);
+        self.apply_selection(frame);
 
         let text = match (&self.input, &self.message) {
             (Some(input), _) => i18n::search_prompt(input),
@@ -597,7 +684,7 @@ impl App {
 
     fn draw_help(&self, frame: &mut Frame) {
         let text = i18n::help_text();
-        let area = frame.area().centered(Constraint::Length(74), Constraint::Length(22));
+        let area = frame.area().centered(Constraint::Length(74), Constraint::Length(23));
         frame.render_widget(ratatui::widgets::Clear, area);
         frame.render_widget(
             Paragraph::new(text).block(Block::new().borders(Borders::ALL).title(i18n::help_title())),
@@ -635,5 +722,80 @@ fn format_duration(secs: u64) -> String {
         0..60 => format!("{secs}s"),
         60..3600 => format!("{}m{:02}s", secs / 60, secs % 60),
         _ => format!("{}h{:02}m", secs / 3600, secs % 3600 / 60),
+    }
+}
+
+/// Copie `text` dans le presse-papiers : séquence OSC 52 (comprise par la plupart des
+/// terminaux, dont Windows Terminal sous WSL) et, en renfort, un utilitaire système s'il existe.
+fn copy_to_clipboard(text: &str) {
+    use std::io::Write;
+    let mut out = std::io::stdout();
+    let _ = write!(out, "\x1b]52;c;{}\x07", base64(text.as_bytes()));
+    let _ = out.flush();
+    // Sous WSL, le presse-papiers Windows : le texte passe en base64 pour garder UTF-8 et les
+    // retours à la ligne. La ligne de commande Windows est limitée à ~32 000 caractères.
+    let encoded = base64(text.as_bytes());
+    if encoded.len() < 24_000 {
+        let script = format!(
+            "Set-Clipboard -Value ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{encoded}')))"
+        );
+        let child = std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+        if let Ok(mut child) = child {
+            // Attendu dans un thread pour ne pas bloquer la TUI ni laisser de processus zombie.
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+            return;
+        }
+    }
+    for (program, args) in [("wl-copy", &[][..]), ("xclip", &["-selection", "clipboard"][..]), ("xsel", &["-ib"][..])] {
+        let child = std::process::Command::new(program)
+            .args(args)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+        if let Ok(mut child) = child {
+            if let Some(mut stdin) = child.stdin.take() {
+                let _ = stdin.write_all(text.as_bytes());
+            }
+            // Ces outils restent parfois en arrière-plan pour servir la sélection : on ne les attend pas.
+            return;
+        }
+    }
+}
+
+fn base64(data: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    for chunk in data.chunks(3) {
+        let n = chunk.iter().enumerate().fold(0u32, |acc, (i, &b)| acc | (b as u32) << (16 - 8 * i));
+        for i in 0..4 {
+            if i <= chunk.len() {
+                out.push(TABLE[(n >> (18 - 6 * i) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::base64;
+
+    #[test]
+    fn base64_matches_rfc4648() {
+        assert_eq!(base64(b""), "");
+        assert_eq!(base64(b"f"), "Zg==");
+        assert_eq!(base64(b"fo"), "Zm8=");
+        assert_eq!(base64(b"foo"), "Zm9v");
+        assert_eq!(base64(b"foobar"), "Zm9vYmFy");
     }
 }

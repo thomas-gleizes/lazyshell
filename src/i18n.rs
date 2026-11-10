@@ -153,6 +153,7 @@ r          relancer
 S / X / R  lancer / arrêter / relancer tout le groupe
 PgUp/PgDn  défiler la sortie
 molette    défiler la sortie
+glisser    sélectionner et copier le texte du panneau
 g / G      début de l'historique / retour au direct
 Tab / clic basculer entre les onglets Sortie et Env
 w          soft-wrap on/off (off : lignes tronquées)
@@ -175,6 +176,7 @@ r          restart
 S / X / R  start / stop / restart the whole group
 PgUp/PgDn  scroll the output
 wheel      scroll the output
+drag       select and copy the panel text
 g / G      top of history / back to live
 Tab / click switch between the Output and Env tabs
 w          soft-wrap on/off (off: lines truncated)
@@ -201,6 +203,10 @@ pub fn fullscreen_state(on: bool) -> &'static str {
         true => pick_static("Plein écran (f ou Échap pour quitter)", "Fullscreen (f or Esc to leave)"),
         false => pick_static("Plein écran désactivé", "Fullscreen off"),
     }
+}
+
+pub fn copied(chars: usize) -> String {
+    pick(format!("{chars} caractères copiés"), format!("{chars} characters copied"))
 }
 
 pub fn nowrap_tag() -> &'static str {
