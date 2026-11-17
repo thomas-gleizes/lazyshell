@@ -89,7 +89,7 @@ enum Cli {
     /// Relit le fichier de config et l'applique au daemon en cours.
     Reload { path: Option<PathBuf> },
     /// Arrête toutes les sessions puis le daemon.
-    Shutdown { path: Option<PathBuf> },
+    Down { path: Option<PathBuf> },
 }
 
 #[derive(ClapArgs)]
@@ -139,7 +139,7 @@ fn main() -> Result<()> {
             println!("{}", connect(path)?.reload()?.summary());
             Ok(())
         }
-        Cli::Shutdown { path } => connect(path)?.shutdown(),
+        Cli::Down { path } => connect(path)?.shutdown(),
         Cli::Logs {
             name,
             path,

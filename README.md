@@ -122,7 +122,7 @@ the current directory.
 | `lazyshell logs <name> [-f] [-n N] [--raw]` | Print the output as plain text; `-f` follows, `-n` limits to the last N lines, `--raw` keeps ANSI sequences. |
 | `lazyshell env <name>` | Print the environment injected into a session (`KEY=value`). |
 | `lazyshell reload` | Re-read the config and apply it to the running daemon. |
-| `lazyshell shutdown` | Stop all sessions, then the daemon. |
+| `lazyshell down` | Stop all sessions, then the daemon. |
 | `lazyshell daemon [--auto-exit]` | Run the daemon in the foreground (the TUI normally spawns it). |
 
 `logs` and `env` give scripts and AI agents a way to read a session without a terminal.
