@@ -13,8 +13,16 @@ drive them from scripts and AI agents with plain CLI subcommands.
 
 ## Install
 
-There are no prebuilt binaries yet. Build from source (Rust, edition 2024; Unix only — Linux and
-macOS, because the daemon talks over a Unix socket):
+Prebuilt binaries (Linux and macOS, amd64/arm64) are published on each GitHub release. The install
+script downloads the latest one, verifies its SHA-256 checksum and installs it in `~/.local/bin`
+(override with `LAZYSHELL_INSTALL_DIR`, pin a version with `LAZYSHELL_VERSION=vX.Y.Z`):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/thomas-gleizes/lazyshell/main/install.sh | sh
+```
+
+Or build from source (Rust, edition 2024; Unix only — Linux and macOS, because the daemon talks
+over a Unix socket):
 
 ```sh
 git clone https://github.com/thomas-gleizes/lazyshell.git
