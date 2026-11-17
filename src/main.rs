@@ -88,6 +88,8 @@ enum Cli {
     },
     /// Relit le fichier de config et l'applique au daemon en cours.
     Reload { path: Option<PathBuf> },
+    /// Lance le daemon du projet en arrière-plan, sans la TUI (il tourne jusqu'à `down`).
+    Up { path: Option<PathBuf> },
     /// Arrête toutes les sessions puis le daemon.
     Down { path: Option<PathBuf> },
 }
@@ -117,7 +119,7 @@ fn main() -> Result<()> {
     let Some(cli) = args.command else {
         let file = config::Config::resolve_file(&args.path.unwrap_or_else(|| ".".into()))?;
         let socket = paths::socket_for(&file)?;
-        launcher::ensure_daemon(&file, &socket)?;
+        launcher::ensure_daemon(&file, &socket, true)?;
         return app::run(&socket);
     };
 
@@ -137,6 +139,16 @@ fn main() -> Result<()> {
         Cli::Restart(t) => connect(t.path.clone())?.command(Command::Restart(t.target())),
         Cli::Reload { path } => {
             println!("{}", connect(path)?.reload()?.summary());
+            Ok(())
+        }
+        Cli::Up { path } => {
+            let file = config::Config::resolve_file(&path.unwrap_or_else(|| ".".into()))?;
+            let socket = paths::socket_for(&file)?;
+            if launcher::ensure_daemon(&file, &socket, false)? {
+                println!("{}", display_path(&file));
+            } else {
+                println!("déjà lancé : {}", display_path(&file));
+            }
             Ok(())
         }
         Cli::Down { path } => connect(path)?.shutdown(),

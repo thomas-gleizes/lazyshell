@@ -16,10 +16,12 @@ const START_TIMEOUT: Duration = Duration::from_secs(5);
 const EXITED_GRACE: Duration = Duration::from_secs(1);
 
 /// S'assure qu'un daemon répond pour ce projet, en lançant au besoin un daemon détaché
-/// du terminal (nouvelle session) qui s'arrêtera seul quand il n'aura plus rien à faire.
-pub fn ensure_daemon(config_file: &Path, socket: &Path) -> Result<()> {
+/// du terminal (nouvelle session). Avec `auto_exit`, il s'arrêtera seul quand il n'aura plus
+/// rien à faire ; sinon il tourne jusqu'à `lazyshell down`.
+/// Renvoie `true` si un daemon a été lancé, `false` s'il tournait déjà.
+pub fn ensure_daemon(config_file: &Path, socket: &Path, auto_exit: bool) -> Result<bool> {
     if is_up(socket) {
-        return Ok(());
+        return Ok(false);
     }
     // Une config invalide est signalée ici, dans le terminal, et non dans le journal.
     Config::load(config_file)?;
@@ -31,8 +33,11 @@ pub fn ensure_daemon(config_file: &Path, socket: &Path) -> Result<()> {
         .open(&log_path)
         .with_context(|| format!("journal {}", log_path.display()))?;
     let mut command = Command::new(std::env::current_exe()?);
+    command.arg("daemon");
+    if auto_exit {
+        command.arg("--auto-exit");
+    }
     command
-        .args(["daemon", "--auto-exit"])
         .arg(config_file)
         .stdin(Stdio::null())
         .stdout(log.try_clone()?)
@@ -50,7 +55,7 @@ pub fn ensure_daemon(config_file: &Path, socket: &Path) -> Result<()> {
     let mut exited: Option<ExitStatus> = None;
     loop {
         if is_up(socket) {
-            return Ok(());
+            return Ok(true);
         }
         if exited.is_none() {
             exited = child.try_wait()?;
