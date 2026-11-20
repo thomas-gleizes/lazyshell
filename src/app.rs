@@ -19,6 +19,8 @@ use crate::client::{Client, Stream, StreamEvent};
 use crate::daemon::{Command, SessionInfo, State, Target};
 use crate::{i18n, search};
 
+/// Hauteur du panneau de la commande (cadre compris).
+const COMMAND_HEIGHT: u16 = 3;
 const PAGE_SCROLL: usize = 10;
 const WHEEL_SCROLL: usize = 3;
 const SCROLLBACK_LINES: usize = 5000;
@@ -179,19 +181,25 @@ pub fn run(socket: &Path) -> Result<()> {
 }
 
 /// En plein écran, la liste n'a plus de place (zone vide) et la sortie prend tout.
-fn layout(area: Rect, fullscreen: bool) -> (Rect, Rect, Rect) {
-    let [main, footer] = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(area);
+/// Retourne (liste, sortie, commande, pied) ; la commande occupe toute la largeur en bas.
+fn layout(area: Rect, fullscreen: bool) -> (Rect, Rect, Rect, Rect) {
+    let [main, command, footer] = Layout::vertical([
+        Constraint::Min(1),
+        Constraint::Length(COMMAND_HEIGHT),
+        Constraint::Length(1),
+    ])
+    .areas(area);
     if fullscreen {
-        return (Rect::default(), main, footer);
+        return (Rect::default(), main, command, footer);
     }
     let [left, right] =
         Layout::horizontal([Constraint::Length(32), Constraint::Min(20)]).areas(main);
-    (left, right, footer)
+    (left, right, command, footer)
 }
 
 /// Taille (lignes, colonnes) utile du panneau de sortie pour un terminal donné.
 fn output_size(area: Rect, fullscreen: bool) -> (u16, u16) {
-    let (_, right, _) = layout(area, fullscreen);
+    let (_, right, _, _) = layout(area, fullscreen);
     let inner = Block::new().borders(Borders::ALL).inner(right);
     (inner.height.max(1), inner.width.max(1))
 }
@@ -570,7 +578,7 @@ impl App {
     }
 
     fn draw(&mut self, frame: &mut Frame) {
-        let (left, right, footer) = layout(frame.area(), self.fullscreen);
+        let (left, right, command, footer) = layout(frame.area(), self.fullscreen);
 
         if self.fullscreen {
             self.list_area = Rect::default();
@@ -580,6 +588,7 @@ impl App {
         self.draw_output(frame, right);
         self.out_inner = Block::new().borders(Borders::ALL).inner(right);
         self.apply_selection(frame);
+        self.draw_command(frame, command);
 
         let text = match (&self.input, &self.message) {
             (Some(input), _) => i18n::search_prompt(input),
@@ -594,6 +603,24 @@ impl App {
         if self.show_help {
             self.draw_help(frame);
         }
+    }
+
+    /// Commande de la session sélectionnée, qu'elle tourne ou non.
+    fn draw_command(&self, frame: &mut Frame, area: Rect) {
+        // Une commande multiligne tient sur une seule ligne d'affichage.
+        let command = self.current().command.trim().replace('\n', " ↵ ");
+        let line = Line::from(vec![
+            Span::styled("$ ", Style::new().fg(Color::Cyan)),
+            Span::raw(command),
+        ]);
+        frame.render_widget(
+            Paragraph::new(line).block(
+                Block::new()
+                    .borders(Borders::ALL)
+                    .title(i18n::command_title()),
+            ),
+            area,
+        );
     }
 
     fn draw_list(&mut self, frame: &mut Frame, area: Rect) {

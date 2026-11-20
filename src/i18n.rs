@@ -155,6 +155,10 @@ pub fn sessions_title() -> &'static str {
     pick_static(" Sessions ", " Sessions ")
 }
 
+pub fn command_title() -> &'static str {
+    pick_static(" Commande ", " Command ")
+}
+
 pub fn tab_output() -> &'static str {
     pick_static("Sortie", "Output")
 }

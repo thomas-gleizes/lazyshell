@@ -45,6 +45,8 @@ pub struct SessionInfo {
     pub pid: Option<u32>,
     /// CPU et mémoire ; `None` tant que la session ne tourne pas.
     pub usage: Option<Usage>,
+    /// Commande lancée par la session (celle de l'exécution en cours ou dernière).
+    pub command: String,
 }
 
 /// Bilan d'un rechargement de la config.
@@ -183,6 +185,7 @@ impl Manager {
                     outdated: session.outdated,
                     pid: session.pid(),
                     usage: session.usage(),
+                    command: session.command(),
                 }
             })
             .collect()

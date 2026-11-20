@@ -71,6 +71,8 @@ pub struct Run {
     sampler: Mutex<Sampler>,
     /// Variables avec lesquelles ce processus a été lancé.
     env: BTreeMap<String, String>,
+    /// Commande avec laquelle ce processus a été lancé.
+    command: String,
     master: Mutex<Box<dyn MasterPty + Send>>,
 }
 
@@ -205,6 +207,7 @@ impl Session {
             pid,
             sampler: Mutex::new(Sampler::new(pid, started_at)),
             env: self.spec.env.clone(),
+            command: self.spec.command.clone(),
             master: Mutex::new(pair.master),
         });
 
@@ -313,6 +316,14 @@ impl Session {
     pub fn env(&self) -> Vec<(String, String)> {
         let env = self.run.as_ref().map_or(&self.spec.env, |run| &run.env);
         env.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+    }
+
+    /// Commande de l'exécution en cours (ou dernière), à défaut de la définition courante.
+    pub fn command(&self) -> String {
+        self.run
+            .as_ref()
+            .map_or(&self.spec.command, |run| &run.command)
+            .clone()
     }
 
     pub fn subscribe(&self) -> Option<Subscription> {
