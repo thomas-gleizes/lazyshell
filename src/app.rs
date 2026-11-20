@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use crossterm::event::{
@@ -17,7 +17,7 @@ use tui_term::widget::{Cell as _, PseudoTerminal};
 
 use crate::client::{Client, Stream, StreamEvent};
 use crate::daemon::{Command, SessionInfo, State, Target};
-use crate::{i18n, search};
+use crate::{i18n, paths, search};
 
 /// Hauteur du panneau de la commande (cadre compris).
 const COMMAND_HEIGHT: u16 = 3;
@@ -30,6 +30,10 @@ const HSCROLL_STEP: usize = 8;
 const NOWRAP_COLS: u16 = 200;
 /// Évents de flux traités par tour de boucle, pour que l'interface reste réactive.
 const EVENTS_PER_TICK: usize = 256;
+/// Intervalle entre deux relevés des autres daemons (connexion + liste de leurs sessions).
+const DAEMON_REFRESH: Duration = Duration::from_secs(2);
+/// Nombre maximal de lignes du panneau des daemons avant qu'il ne défile.
+const DAEMON_ROWS: usize = 5;
 
 /// Sortie de la session affichée : flux du daemon, écran émulé et défilement local.
 struct View {
@@ -88,7 +92,26 @@ impl Tab {
     }
 }
 
+/// Daemon lazyshell joignable : un par fichier de config.
+struct DaemonEntry {
+    config: PathBuf,
+    socket: PathBuf,
+    /// Libellé court (dossier de la config), allongé si deux daemons portent le même.
+    label: String,
+    /// Sessions en cours d'exécution dans ce daemon.
+    running: usize,
+}
+
+/// Panneau de gauche qui reçoit les touches de navigation.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Focus {
+    Daemons,
+    Sessions,
+}
+
 struct App {
+    /// Fichier de config et socket du daemon affiché.
+    config_file: PathBuf,
     socket: PathBuf,
     control: Client,
     /// Copie de l'état des sessions, rafraîchie à chaque tour de boucle.
@@ -96,6 +119,14 @@ struct App {
     selected: usize,
     view: Option<View>,
     tab: Tab,
+    /// Daemons connus (dont l'affiché), rafraîchis toutes les `DAEMON_REFRESH`.
+    daemons: Vec<DaemonEntry>,
+    daemons_checked: Instant,
+    /// Daemon surligné dans le panneau (Entrée pour basculer dessus).
+    daemon_sel: usize,
+    focus: Focus,
+    daemons_area: Rect,
+    daemons_state: ListState,
     /// Zones cliquables des onglets, mises à jour à chaque affichage.
     tab_areas: Vec<(Tab, Rect)>,
     /// Zone de la liste des sessions, état de défilement et session de chaque ligne (None = titre de groupe).
@@ -145,12 +176,19 @@ impl Selection {
     }
 }
 
-pub fn run(socket: &Path) -> Result<()> {
+pub fn run(config_file: &Path, socket: &Path) -> Result<()> {
     let mut control = Client::connect(socket)?;
     let mut app = App {
         infos: control.list()?,
         control,
+        config_file: config_file.to_path_buf(),
         socket: socket.to_path_buf(),
+        daemons: Vec::new(),
+        daemons_checked: Instant::now(),
+        daemon_sel: 0,
+        focus: Focus::Sessions,
+        daemons_area: Rect::default(),
+        daemons_state: ListState::default(),
         selected: 0,
         view: None,
         tab: Tab::Output,
@@ -213,6 +251,7 @@ impl App {
         while !self.quit {
             self.infos = self.control.list().context("connexion au daemon perdue")?;
             self.selected = self.selected.min(self.infos.len() - 1);
+            self.refresh_daemons();
             let size = terminal.size()?;
             self.sync_view(output_size(
                 Rect::new(0, 0, size.width, size.height),
@@ -245,6 +284,105 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    /// Relève les daemons joignables : celui affiché (état déjà connu) et les autres, auxquels
+    /// on se connecte brièvement. Les sockets orphelines et les protocoles incompatibles sont ignorés.
+    fn refresh_daemons(&mut self) {
+        if !self.daemons.is_empty() && self.daemons_checked.elapsed() < DAEMON_REFRESH {
+            return;
+        }
+        self.daemons_checked = Instant::now();
+        let highlighted = self.daemons.get(self.daemon_sel).map(|d| d.socket.clone());
+        let active = |infos: &[SessionInfo]| {
+            infos
+                .iter()
+                .filter(|info| matches!(info.state, State::Running | State::Stopping))
+                .count()
+        };
+        let mut entries = Vec::new();
+        for (config, socket) in paths::known_daemons().unwrap_or_default() {
+            let running = if socket == self.socket {
+                active(&self.infos)
+            } else {
+                match Client::connect(&socket).and_then(|mut client| client.list()) {
+                    Ok(infos) => active(&infos),
+                    Err(_) => continue,
+                }
+            };
+            entries.push(DaemonEntry {
+                config,
+                socket,
+                label: String::new(),
+                running,
+            });
+        }
+        // Daemon sans fichier de config enregistré : il reste affiché, c'est celui où l'on est.
+        if !entries.iter().any(|entry| entry.socket == self.socket) {
+            entries.push(DaemonEntry {
+                config: self.config_file.clone(),
+                socket: self.socket.clone(),
+                label: String::new(),
+                running: active(&self.infos),
+            });
+            entries.sort_by(|a, b| a.config.cmp(&b.config));
+        }
+        let labels: Vec<String> = entries
+            .iter()
+            .map(|entry| daemon_label(&entry.config, 1))
+            .collect();
+        for (entry, label) in entries.iter_mut().zip(&labels) {
+            entry.label = if labels.iter().filter(|other| *other == label).count() > 1 {
+                daemon_label(&entry.config, 2)
+            } else {
+                label.clone()
+            };
+        }
+        let keep = highlighted.unwrap_or_else(|| self.socket.clone());
+        self.daemon_sel = entries
+            .iter()
+            .position(|entry| entry.socket == keep)
+            .unwrap_or(0);
+        self.daemons = entries;
+    }
+
+    /// Bascule la TUI sur un autre daemon : nouvelle connexion de contrôle, sélection et
+    /// vue remises à zéro. Sans effet (et message d'erreur) si le daemon ne répond plus.
+    fn switch_daemon(&mut self, index: usize) {
+        let Some(entry) = self.daemons.get(index) else {
+            return;
+        };
+        if entry.socket == self.socket {
+            return;
+        }
+        let (config, socket, label) = (
+            entry.config.clone(),
+            entry.socket.clone(),
+            entry.label.clone(),
+        );
+        let connected = Client::connect(&socket).and_then(|mut client| {
+            let infos = client.list()?;
+            Ok((client, infos))
+        });
+        match connected {
+            Ok((client, infos)) if !infos.is_empty() => {
+                self.control = client;
+                self.infos = infos;
+                self.config_file = config;
+                self.socket = socket;
+                self.selected = 0;
+                self.view = None;
+                self.env.clear();
+                self.env_scroll = 0;
+                self.hscroll = 0;
+                self.selection = None;
+                self.focus = Focus::Sessions;
+                self.message = Some(i18n::daemon_switched(&label));
+                self.daemons_checked = Instant::now() - DAEMON_REFRESH;
+            }
+            Ok(_) => self.message = Some(i18n::daemon_empty(&label)),
+            Err(err) => self.message = Some(format!("{label} : {err}")),
+        }
     }
 
     /// Aligne la vue sur la session sélectionnée et son exécution courante, applique
@@ -302,7 +440,15 @@ impl App {
     /// Molette : sur la liste elle déplace la sélection, ailleurs elle défile la sortie.
     fn wheel(&mut self, column: u16, row: u16, up: bool) {
         self.selection = None;
-        if self.list_area.contains((column, row).into()) {
+        if self.daemons_area.contains((column, row).into()) {
+            let last = self.daemons.len().saturating_sub(1);
+            self.daemon_sel = if up {
+                self.daemon_sel.saturating_sub(1)
+            } else {
+                (self.daemon_sel + 1).min(last)
+            };
+            self.focus = Focus::Daemons;
+        } else if self.list_area.contains((column, row).into()) {
             let last = self.infos.len() - 1;
             self.selected = if up {
                 self.selected.saturating_sub(1)
@@ -326,8 +472,21 @@ impl App {
             });
             return;
         }
+        if self.daemons_area.contains(pos) {
+            let inner = Block::new().borders(Borders::ALL).inner(self.daemons_area);
+            self.focus = Focus::Daemons;
+            if inner.contains(pos) {
+                let index = self.daemons_state.offset() + (row - inner.y) as usize;
+                if index < self.daemons.len() {
+                    self.daemon_sel = index;
+                    self.switch_daemon(index);
+                }
+            }
+            return;
+        }
         if self.list_area.contains(pos) {
             let inner = Block::new().borders(Borders::ALL).inner(self.list_area);
+            self.focus = Focus::Sessions;
             if inner.contains(pos) {
                 let index = self.list_state.offset() + (row - inner.y) as usize;
                 if let Some(&Some(session)) = self.list_rows.get(index) {
@@ -466,6 +625,15 @@ impl App {
             KeyCode::Char('f') => self.toggle_fullscreen(),
             KeyCode::Left if !self.wrap => self.hscroll = self.hscroll.saturating_sub(HSCROLL_STEP),
             KeyCode::Right if !self.wrap => self.hscroll += HSCROLL_STEP,
+            KeyCode::Char('1') => self.focus = Focus::Daemons,
+            KeyCode::Char('2') => self.focus = Focus::Sessions,
+            KeyCode::Enter if self.focus == Focus::Daemons => self.switch_daemon(self.daemon_sel),
+            KeyCode::Char('j') | KeyCode::Down if self.focus == Focus::Daemons => {
+                self.daemon_sel = (self.daemon_sel + 1).min(self.daemons.len().saturating_sub(1))
+            }
+            KeyCode::Char('k') | KeyCode::Up if self.focus == Focus::Daemons => {
+                self.daemon_sel = self.daemon_sel.saturating_sub(1)
+            }
             KeyCode::Char('j') | KeyCode::Down => self.selected = (self.selected + 1).min(last),
             KeyCode::Char('k') | KeyCode::Up => self.selected = self.selected.saturating_sub(1),
             KeyCode::Char('s') => self.send(Command::Start(session())),
@@ -582,8 +750,13 @@ impl App {
 
         if self.fullscreen {
             self.list_area = Rect::default();
+            self.daemons_area = Rect::default();
         } else {
-            self.draw_list(frame, left);
+            let rows = self.daemons.len().clamp(1, DAEMON_ROWS) as u16;
+            let [daemons, sessions] =
+                Layout::vertical([Constraint::Length(rows + 2), Constraint::Min(3)]).areas(left);
+            self.draw_daemons(frame, daemons);
+            self.draw_list(frame, sessions);
         }
         self.draw_output(frame, right);
         self.out_inner = Block::new().borders(Borders::ALL).inner(right);
@@ -623,6 +796,50 @@ impl App {
         );
     }
 
+    fn draw_daemons(&mut self, frame: &mut Frame, area: Rect) {
+        let items: Vec<ListItem> = self
+            .daemons
+            .iter()
+            .map(|entry| {
+                let current = entry.socket == self.socket;
+                let (symbol, color) = if entry.running > 0 {
+                    ("●", Color::Green)
+                } else {
+                    ("○", Color::DarkGray)
+                };
+                let name_style = if current {
+                    Style::new().add_modifier(Modifier::BOLD)
+                } else {
+                    Style::new()
+                };
+                Line::from(vec![
+                    Span::raw(if current { "▸ " } else { "  " }),
+                    Span::styled(format!("{symbol} "), Style::new().fg(color)),
+                    Span::styled(entry.label.clone(), name_style),
+                    Span::styled(
+                        format!("  {}", i18n::daemon_running(entry.running)),
+                        Style::new().fg(Color::DarkGray),
+                    ),
+                ])
+                .into()
+            })
+            .collect();
+        let focused = self.focus == Focus::Daemons;
+        let list = List::new(items)
+            .block(
+                Block::new()
+                    .borders(Borders::ALL)
+                    .border_style(focus_style(focused))
+                    .title(i18n::daemons_title()),
+            )
+            .highlight_style(Style::new().add_modifier(Modifier::REVERSED));
+        self.daemons_area = area;
+        // Hors focus, seul le repère ▸ marque le daemon courant.
+        self.daemons_state
+            .select(focused.then_some(self.daemon_sel));
+        frame.render_stateful_widget(list, area, &mut self.daemons_state);
+    }
+
     fn draw_list(&mut self, frame: &mut Frame, area: Rect) {
         let mut items = Vec::new();
         self.list_rows.clear();
@@ -652,6 +869,7 @@ impl App {
             .block(
                 Block::new()
                     .borders(Borders::ALL)
+                    .border_style(focus_style(self.focus == Focus::Sessions))
                     .title(i18n::sessions_title()),
             )
             .highlight_style(Style::new().add_modifier(Modifier::REVERSED));
@@ -802,7 +1020,7 @@ impl App {
         let text = i18n::help_text();
         let area = frame
             .area()
-            .centered(Constraint::Length(74), Constraint::Length(23));
+            .centered(Constraint::Length(74), Constraint::Length(25));
         frame.render_widget(ratatui::widgets::Clear, area);
         frame.render_widget(
             Paragraph::new(text)
@@ -820,6 +1038,34 @@ fn draw_columns(frame: &mut Frame, screen: &vt100::Screen, area: Rect, hscroll: 
                 cell.apply(&mut frame.buffer_mut()[(area.x + x, area.y + y)]);
             }
         }
+    }
+}
+
+/// Cadre du panneau qui a le focus : cyan, les autres gardent le style par défaut.
+fn focus_style(focused: bool) -> Style {
+    if focused {
+        Style::new().fg(Color::Cyan)
+    } else {
+        Style::new()
+    }
+}
+
+/// Libellé d'un daemon : les `depth` derniers dossiers du chemin de sa config.
+fn daemon_label(config: &Path, depth: usize) -> String {
+    let parts: Vec<&str> = config
+        .parent()
+        .map(|dir| {
+            dir.components()
+                .filter_map(|c| c.as_os_str().to_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    let start = parts.len().saturating_sub(depth);
+    let label = parts[start..].join("/");
+    if label.is_empty() || label == "/" {
+        config.display().to_string()
+    } else {
+        label
     }
 }
 

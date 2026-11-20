@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use clap::{Args as ClapArgs, Parser, Subcommand};
 
 use client::{Client, StreamEvent};
@@ -129,7 +129,7 @@ fn main() -> Result<()> {
         let file = config::Config::resolve_file(&args.path.unwrap_or_else(|| ".".into()))?;
         let socket = paths::socket_for(&file)?;
         launcher::ensure_daemon(&file, &socket, true)?;
-        return app::run(&socket);
+        return app::run(&file, &socket);
     };
 
     match cli {

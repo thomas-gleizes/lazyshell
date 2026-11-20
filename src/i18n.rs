@@ -146,13 +146,35 @@ pub fn search_prompt(input: &str) -> String {
 
 pub fn footer_hints() -> &'static str {
     pick_static(
-        "j/k naviguer  s lancer  x arrêter  r relancer  / chercher  w wrap  f plein écran  L recharger  ? aide  q quitter",
-        "j/k navigate  s start  x stop  r restart  / search  w wrap  f fullscreen  L reload  ? help  q quit",
+        "1/2 panneau  j/k naviguer  s lancer  x arrêter  r relancer  / chercher  w wrap  f plein écran  L recharger  ? aide  q quitter",
+        "1/2 panel  j/k navigate  s start  x stop  r restart  / search  w wrap  f fullscreen  L reload  ? help  q quit",
     )
 }
 
 pub fn sessions_title() -> &'static str {
     pick_static(" Sessions ", " Sessions ")
+}
+
+pub fn daemons_title() -> &'static str {
+    pick_static(" Daemons ", " Daemons ")
+}
+
+pub fn daemon_running(count: usize) -> String {
+    match count {
+        0 => "—".to_string(),
+        n => pick(format!("{n} en cours"), format!("{n} running")),
+    }
+}
+
+pub fn daemon_switched(label: &str) -> String {
+    pick(format!("daemon : {label}"), format!("daemon: {label}"))
+}
+
+pub fn daemon_empty(label: &str) -> String {
+    pick(
+        format!("{label} : aucune session dans ce daemon"),
+        format!("{label}: no session in this daemon"),
+    )
 }
 
 pub fn command_title() -> &'static str {
@@ -217,7 +239,8 @@ pub fn session_stopped_hint() -> &'static str {
 }
 
 const HELP_FR: &str = "\
-j/k ↑/↓    session suivante / précédente
+1 / 2      panneau Daemons / Sessions (Entrée ou clic : basculer de daemon)
+j/k ↑/↓    session (ou daemon) suivant / précédent
 s          lancer
 x          arrêter (SIGTERM, puis SIGKILL après 10 s)
 r          relancer
@@ -240,7 +263,8 @@ Q          arrêter toutes les sessions et le daemon
 Touche quelconque pour fermer.";
 
 const HELP_EN: &str = "\
-j/k ↑/↓    next / previous session
+1 / 2      Daemons / Sessions panel (Enter or click: switch daemon)
+j/k ↑/↓    next / previous session (or daemon)
 s          start
 x          stop (SIGTERM, then SIGKILL after 10 s)
 r          restart
