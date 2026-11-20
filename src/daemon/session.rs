@@ -8,7 +8,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
+use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 
 use super::usage::{Sampler, Usage};
 use crate::config::SessionConfig;

@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use clap::{Args as ClapArgs, Parser, Subcommand};
 
 use client::{Client, StreamEvent};
@@ -24,6 +24,9 @@ use daemon::{Command, SessionInfo, State, Target};
 
 /// Le daemon laisse 10 s à une session avant le SIGKILL.
 const KILL_WAIT: Duration = Duration::from_secs(15);
+
+const INSTALL_SCRIPT_URL: &str =
+    "https://raw.githubusercontent.com/thomas-gleizes/lazyshell/main/install.sh";
 
 /// Gestionnaire de processus shell en TUI : sans sous-commande, ouvre la TUI du daemon du projet.
 #[derive(Parser)]
@@ -92,6 +95,12 @@ enum Cli {
     Up { path: Option<PathBuf> },
     /// Arrête toutes les sessions puis le daemon.
     Down { path: Option<PathBuf> },
+    /// Met à jour lazyshell vers la dernière release (relance le script d'installation).
+    Update {
+        /// Tag à installer (ex. v0.2.0) ; défaut : la dernière release.
+        #[arg(long, value_name = "TAG")]
+        version: Option<String>,
+    },
 }
 
 #[derive(ClapArgs)]
@@ -152,6 +161,7 @@ fn main() -> Result<()> {
             Ok(())
         }
         Cli::Down { path } => connect(path)?.shutdown(),
+        Cli::Update { version } => update(version),
         Cli::Logs {
             name,
             path,
@@ -204,6 +214,29 @@ fn logs(
         if !follow {
             break;
         }
+    }
+    Ok(())
+}
+
+/// Réinstalle le binaire courant depuis la release GitHub via `install.sh`.
+/// Les daemons déjà lancés gardent l'ancienne version jusqu'à `down` puis `up`.
+fn update(version: Option<String>) -> Result<()> {
+    let exe = std::env::current_exe()?.canonicalize()?;
+    let dir = exe
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("dossier du binaire introuvable"))?;
+    let mut cmd = std::process::Command::new("sh");
+    cmd.arg("-c")
+        .arg(format!("curl -fsSL {INSTALL_SCRIPT_URL} | sh"))
+        .env("LAZYSHELL_INSTALL_DIR", dir);
+    if let Some(version) = version {
+        cmd.env("LAZYSHELL_VERSION", version);
+    }
+    let status = cmd
+        .status()
+        .map_err(|err| anyhow::anyhow!("« sh » introuvable : {err}"))?;
+    if !status.success() {
+        bail!("la mise à jour a échoué");
     }
     Ok(())
 }

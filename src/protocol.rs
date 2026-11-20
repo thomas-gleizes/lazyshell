@@ -7,7 +7,7 @@
 
 use std::io::{ErrorKind, Read, Write};
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 

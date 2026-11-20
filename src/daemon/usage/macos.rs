@@ -9,10 +9,10 @@
 use std::collections::{HashMap, HashSet};
 
 use libproc::bsd_info::BSDInfo;
-use libproc::file_info::{ListFDs, ProcFDType, pidfdinfo};
+use libproc::file_info::{pidfdinfo, ListFDs, ProcFDType};
 use libproc::net_info::{SocketFDInfo, SocketInfoKind, TcpSIState};
 use libproc::proc_pid::{listpidinfo, pidinfo};
-use libproc::processes::{ProcFilter, pids_by_type};
+use libproc::processes::{pids_by_type, ProcFilter};
 use libproc::task_info::TaskInfo;
 
 use super::Totals;

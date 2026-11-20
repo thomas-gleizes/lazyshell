@@ -132,6 +132,7 @@ the current directory.
 | `lazyshell reload` | Re-read the config and apply it to the running daemon. |
 | `lazyshell up` | Start the daemon in the background, without the TUI (runs until `down`). |
 | `lazyshell down` | Stop all sessions, then the daemon. |
+| `lazyshell update [--version TAG]` | Update to the latest release (re-runs the install script in place). Running daemons keep the old version until `down` then `up`. |
 | `lazyshell daemon [--auto-exit]` | Run the daemon in the foreground (the TUI normally spawns it). |
 
 `logs` and `env` give scripts and AI agents a way to read a session without a terminal.

@@ -10,13 +10,13 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 
 use super::{Manager, Subscription};
 use crate::config::Config;
 use crate::paths;
 use crate::protocol::{
-    Request, Response, VERSION, read_handshake, read_message, write_handshake, write_message,
+    read_handshake, read_message, write_handshake, write_message, Request, Response, VERSION,
 };
 
 /// Supprime la socket et le fichier de config associé quand le daemon se termine, y compris sur erreur.

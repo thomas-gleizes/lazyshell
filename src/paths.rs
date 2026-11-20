@@ -3,7 +3,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 
 /// Limite de `sun_path` sous Linux (108 octets, terminateur compris), avec une marge.
 const MAX_SOCKET_PATH: usize = 100;

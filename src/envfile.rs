@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 
 /// Lit un fichier d'env au format `.env`. Un fichier absent est ignoré (résultat vide).
 pub fn load(path: &Path) -> Result<HashMap<String, String>> {
