@@ -63,6 +63,13 @@ pub fn no_session_running() -> &'static str {
     pick_static("aucune session en cours", "no session running")
 }
 
+pub fn no_daemon_running() -> &'static str {
+    pick_static(
+        "aucun processus lazyshell en cours (aucun daemon lancé, et pas de lazyshell.yml ici)",
+        "no lazyshell process running (no daemon started, and no lazyshell.yml here)",
+    )
+}
+
 pub fn ps_header(config_width: usize) -> String {
     pick(
         format!(

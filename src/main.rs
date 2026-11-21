@@ -126,9 +126,10 @@ fn main() -> Result<()> {
     let args = Args::parse();
     i18n::init(settings::Settings::load()?.language);
     let Some(cli) = args.command else {
-        let file = config::Config::resolve_file(&args.path.unwrap_or_else(|| ".".into()))?;
-        let socket = paths::socket_for(&file)?;
-        launcher::ensure_daemon(&file, &socket, true)?;
+        let Some((file, socket)) = open_target(args.path)? else {
+            println!("{}", i18n::no_daemon_running());
+            return Ok(());
+        };
         return app::run(&file, &socket);
     };
 
@@ -239,6 +240,37 @@ fn update(version: Option<String>) -> Result<()> {
         bail!("la mise à jour a échoué");
     }
     Ok(())
+}
+
+/// Daemon à ouvrir dans la TUI : (fichier de config, socket). Le daemon n'est lancé que si
+/// un fichier lazyshell est trouvé (chemin donné, ou dossier courant et ses parents). Sans
+/// fichier ni chemin, on retombe sur un daemon déjà lancé (de préférence un qui a des sessions
+/// en cours) ; `None` s'il n'y en a aucun.
+fn open_target(path: Option<PathBuf>) -> Result<Option<(PathBuf, PathBuf)>> {
+    let explicit = path.is_some();
+    let file = match config::Config::resolve_file(&path.unwrap_or_else(|| ".".into())) {
+        Ok(file) => file,
+        Err(err) if explicit => return Err(err),
+        Err(_) => return running_daemon(),
+    };
+    let socket = paths::socket_for(&file)?;
+    launcher::ensure_daemon(&file, &socket, true)?;
+    Ok(Some((file, socket)))
+}
+
+/// Un daemon joignable, en préférant celui qui a des sessions actives.
+fn running_daemon() -> Result<Option<(PathBuf, PathBuf)>> {
+    let mut first = None;
+    for (config, socket) in paths::known_daemons()? {
+        let Ok(infos) = Client::connect(&socket).and_then(|mut client| client.list()) else {
+            continue;
+        };
+        if infos.iter().any(is_active) {
+            return Ok(Some((config, socket)));
+        }
+        first.get_or_insert((config, socket));
+    }
+    Ok(first)
 }
 
 fn connect(path: Option<PathBuf>) -> Result<Client> {

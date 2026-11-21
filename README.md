@@ -60,6 +60,10 @@ lazyshell
 parents up to your home directory. You can also pass a file or a directory: `lazyshell path/to/dir`.
 It starts the project daemon in the background if it is not already running.
 
+Outside any project (no `lazyshell.yml` found), `lazyshell` opens the TUI on a daemon that is
+already running (the daemons panel lets you switch between them) and never starts one. With no
+daemon running it just prints a message and exits.
+
 ## Configuration
 
 ### Project file (`lazyshell.yml`)
@@ -122,7 +126,7 @@ the current directory.
 
 | Command | Description |
 |---|---|
-| `lazyshell [path]` | Open the TUI (starts the daemon if needed). |
+| `lazyshell [path]` | Open the TUI (starts the daemon if a `lazyshell.yml` is found; from outside a project, attaches to a running daemon). |
 | `lazyshell status` | Sessions of the project: group, state, PID, CPU, memory, listening ports. |
 | `lazyshell ps [-a]` | Sessions of **all** daemons, like `docker ps` (`-a` includes stopped ones). |
 | `lazyshell start\|stop\|restart <name> [-g]` | Act on a session, or a group with `-g`. |
