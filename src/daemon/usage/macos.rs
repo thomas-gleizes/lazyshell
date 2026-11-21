@@ -9,10 +9,10 @@
 use std::collections::{HashMap, HashSet};
 
 use libproc::bsd_info::BSDInfo;
-use libproc::file_info::{pidfdinfo, ListFDs, ProcFDType};
+use libproc::file_info::{ListFDs, ProcFDType, pidfdinfo};
 use libproc::net_info::{SocketFDInfo, SocketInfoKind, TcpSIState};
 use libproc::proc_pid::{listpidinfo, pidinfo};
-use libproc::processes::{pids_by_type, ProcFilter};
+use libproc::processes::{ProcFilter, pids_by_type};
 use libproc::task_info::TaskInfo;
 
 use super::Totals;
@@ -22,10 +22,10 @@ const FD_SLACK: usize = 16;
 
 /// Nanosecondes par unité de temps Mach. Les temps CPU de `proc_taskinfo` sont dans cette
 /// unité : elle vaut 1 sur Intel mais 125/3 sur Apple Silicon.
+// `libc` marque ces symboles obsolètes au profit de `mach2`, mais ils restent corrects :
+// inutile d'ajouter une dépendance pour un seul appel.
+#[allow(deprecated)]
 fn nanos_per_mach_tick() -> f64 {
-    // `libc` marque ces symboles obsolètes au profit de `mach2`, mais ils restent corrects :
-    // inutile d'ajouter une dépendance pour un seul appel.
-    #[allow(deprecated)]
     let (status, info) = unsafe {
         let mut info: libc::mach_timebase_info = std::mem::zeroed();
         (libc::mach_timebase_info(&mut info), info)

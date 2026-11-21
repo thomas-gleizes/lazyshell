@@ -1,10 +1,10 @@
 use std::path::Path;
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
-use super::session::{shutdown, Session, Status, Subscription};
+use super::session::{Session, Status, Subscription, shutdown};
 use super::usage::Usage;
 use crate::config::Config;
 use crate::i18n;

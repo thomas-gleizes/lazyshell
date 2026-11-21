@@ -3,12 +3,12 @@ use std::path::Path;
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 use crate::daemon::{Command, ReloadReport, SessionInfo};
 use crate::paths;
 use crate::protocol::{
-    read_handshake, read_message, write_handshake, write_message, Request, Response, VERSION,
+    Request, Response, VERSION, read_handshake, read_message, write_handshake, write_message,
 };
 
 pub struct Client {
@@ -17,9 +17,9 @@ pub struct Client {
 
 impl Client {
     pub fn connect(socket: &Path) -> Result<Self> {
-        let mut stream = UnixStream::connect(socket).with_context(|| {
-            "aucun daemon actif pour ce projet (la TUI en lance un automatiquement)"
-        })?;
+        let mut stream = UnixStream::connect(socket).with_context(
+            || "aucun daemon actif pour ce projet (la TUI en lance un automatiquement)",
+        )?;
         write_handshake(&mut stream)?;
         let daemon_version = read_handshake(&mut stream).context("handshake avec le daemon")?;
         if daemon_version != VERSION {
