@@ -292,7 +292,7 @@ impl App {
         Ok(())
     }
 
-    /// Met à jour le titre de l'onglet du terminal (séquence OSC 2) : « lazyshell · projet · session ».
+    /// Met à jour le titre de l'onglet du terminal (séquence OSC 2) : « ● lazyshell · projet · session » (l'icône est l'état de la session).
     /// Le projet est omis tant que les daemons ne sont pas relevés.
     fn update_title(&mut self) {
         let mut parts = vec!["lazyshell".to_string()];
@@ -302,7 +302,17 @@ impl App {
         if let Some(info) = self.infos.get(self.selected) {
             parts.push(info.name.clone());
         }
-        let title = parts.join(" · ");
+        let mut title = parts.join(" · ");
+        if let Some(info) = self.infos.get(self.selected) {
+            // Pas de couleur dans un titre : l'échec a son propre symbole (✖) plutôt qu'un ● rouge.
+            let icon = match info.state {
+                State::NotStarted | State::Exited(0) => '○',
+                State::Running => '●',
+                State::Stopping => '◌',
+                State::Exited(_) => '✖',
+            };
+            title.insert_str(0, &format!("{icon} "));
+        }
         if title != self.title {
             let _ = execute!(std::io::stdout(), SetTitle(title.as_str()));
             self.title = title;
