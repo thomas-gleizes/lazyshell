@@ -105,6 +105,26 @@ pub fn session_stopped(config: &str, name: &str) -> String {
 
 // --- TUI ---
 
+pub fn up_header(path: &str) -> String {
+    pick(format!("[+] Démarrage {path}"), format!("[+] Up {path}"))
+}
+
+pub fn down_header(path: &str) -> String {
+    pick(format!("[+] Arrêt {path}"), format!("[+] Down {path}"))
+}
+
+pub fn daemon_started() -> &'static str {
+    pick_static("démarré", "started")
+}
+
+pub fn daemon_already_running() -> &'static str {
+    pick_static("déjà lancé", "already running")
+}
+
+pub fn daemon_stopped() -> &'static str {
+    pick_static("arrêté", "stopped")
+}
+
 pub fn stopping_all() -> &'static str {
     pick_static("Arrêt de toutes les sessions…", "Stopping all sessions…")
 }

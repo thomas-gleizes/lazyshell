@@ -151,17 +151,8 @@ fn main() -> Result<()> {
             println!("{}", connect(path)?.reload()?.summary());
             Ok(())
         }
-        Cli::Up { path } => {
-            let file = config::Config::resolve_file(&path.unwrap_or_else(|| ".".into()))?;
-            let socket = paths::socket_for(&file)?;
-            if launcher::ensure_daemon(&file, &socket, false)? {
-                println!("{}", display_path(&file));
-            } else {
-                println!("déjà lancé : {}", display_path(&file));
-            }
-            Ok(())
-        }
-        Cli::Down { path } => connect(path)?.shutdown(),
+        Cli::Up { path } => up(path),
+        Cli::Down { path } => down(path),
         Cli::Update { version } => update(version),
         Cli::Logs {
             name,
@@ -180,6 +171,80 @@ fn main() -> Result<()> {
             Ok(())
         }
     }
+}
+
+/// Une ligne d'étape façon `docker compose` : icône, nom aligné, état.
+fn step(icon: &str, name: &str, state: &str) {
+    println!(" {icon} {name:<20} {state}");
+}
+
+fn state_icon(info: &SessionInfo) -> &'static str {
+    match info.state {
+        State::NotStarted | State::Exited(0) => "○",
+        State::Running => "●",
+        State::Stopping => "◌",
+        State::Exited(_) => "✖",
+    }
+}
+
+/// Lance le daemon du projet (s'il ne tourne pas) et affiche l'état de chaque session.
+fn up(path: Option<PathBuf>) -> Result<()> {
+    let file = config::Config::resolve_file(&path.unwrap_or_else(|| ".".into()))?;
+    let socket = paths::socket_for(&file)?;
+    println!("{}", i18n::up_header(&display_path(&file)));
+    let started = launcher::ensure_daemon(&file, &socket, false)?;
+    step(
+        "✔",
+        "daemon",
+        if started {
+            i18n::daemon_started()
+        } else {
+            i18n::daemon_already_running()
+        },
+    );
+    // Les sessions `autostart` sont déjà lancées quand le daemon répond.
+    for info in Client::connect(&socket)?.list()? {
+        step(state_icon(&info), &info.name, &state_label(&info));
+    }
+    Ok(())
+}
+
+/// Arrête les sessions en cours une à une (en affichant la progression), puis le daemon.
+fn down(path: Option<PathBuf>) -> Result<()> {
+    let file = config::Config::resolve_file(&path.unwrap_or_else(|| ".".into()))?;
+    let mut client = Client::connect(&paths::socket_for(&file)?)?;
+    println!("{}", i18n::down_header(&display_path(&file)));
+    let mut pending: Vec<String> = client
+        .list()?
+        .into_iter()
+        .filter(is_active)
+        .map(|info| info.name)
+        .collect();
+    for name in &pending {
+        client.command(Command::Stop(Target::Session(name.clone())))?;
+        step("◌", name, i18n::stopping());
+    }
+    // `shutdown` attend déjà la fin des sessions, mais sans rien dire : on suit leur arrêt ici.
+    let deadline = Instant::now() + KILL_WAIT;
+    while !pending.is_empty() && Instant::now() < deadline {
+        let active: Vec<String> = client
+            .list()?
+            .into_iter()
+            .filter(is_active)
+            .map(|info| info.name)
+            .collect();
+        pending.retain(|name| {
+            let done = !active.contains(name);
+            if done {
+                step("✔", name, i18n::stopped());
+            }
+            !done
+        });
+        thread::sleep(Duration::from_millis(100));
+    }
+    client.shutdown()?;
+    step("✔", "daemon", i18n::daemon_stopped());
+    Ok(())
 }
 
 /// Écrit la sortie d'une session sur stdout : l'historique (ou ses `lines` dernières lignes),
