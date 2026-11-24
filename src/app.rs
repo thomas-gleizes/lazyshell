@@ -7,6 +7,7 @@ use crossterm::event::{
     KeyModifiers, MouseButton, MouseEventKind,
 };
 use crossterm::execute;
+use crossterm::terminal::SetTitle;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -154,6 +155,8 @@ struct App {
     selection: Option<Selection>,
     /// Texte actuellement sélectionné, relu dans le tampon à chaque affichage.
     selected_text: String,
+    /// Dernier titre envoyé au terminal (évite de le renvoyer à chaque tour de boucle).
+    title: String,
 }
 
 /// Sélection au glisser : `anchor` là où le bouton a été pressé, `cursor` la position courante.
@@ -209,11 +212,13 @@ pub fn run(config_file: &Path, socket: &Path) -> Result<()> {
         out_inner: Rect::default(),
         selection: None,
         selected_text: String::new(),
+        title: String::new(),
     };
     let mut terminal = ratatui::init();
     execute!(std::io::stdout(), EnableMouseCapture)?;
     let result = app.event_loop(&mut terminal);
-    let _ = execute!(std::io::stdout(), DisableMouseCapture);
+    // Titre vide : le terminal reprend son titre par défaut.
+    let _ = execute!(std::io::stdout(), DisableMouseCapture, SetTitle(""));
     ratatui::restore();
     result
 }
@@ -258,6 +263,7 @@ impl App {
                 self.fullscreen,
             ));
             self.sync_env();
+            self.update_title();
             terminal.draw(|frame| self.draw(frame))?;
 
             if self.shutdown_requested {
@@ -284,6 +290,23 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    /// Met à jour le titre de l'onglet du terminal (séquence OSC 2) : « lazyshell · projet · session ».
+    /// Le projet est omis tant que les daemons ne sont pas relevés.
+    fn update_title(&mut self) {
+        let mut parts = vec!["lazyshell".to_string()];
+        if let Some(entry) = self.daemons.iter().find(|d| d.socket == self.socket) {
+            parts.push(entry.label.clone());
+        }
+        if let Some(info) = self.infos.get(self.selected) {
+            parts.push(info.name.clone());
+        }
+        let title = parts.join(" · ");
+        if title != self.title {
+            let _ = execute!(std::io::stdout(), SetTitle(title.as_str()));
+            self.title = title;
+        }
     }
 
     /// Relève les daemons joignables : celui affiché (état déjà connu) et les autres, auxquels
