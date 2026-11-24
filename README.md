@@ -91,7 +91,7 @@ Environment precedence, lowest to highest: root `env_file` < session `env_file` 
 `$XDG_CONFIG_HOME/lazyshell/config.yaml` (default `~/.config/lazyshell/config.yaml`):
 
 ```yaml
-language: en   # fr (default) or en
+language: en   # en (default) or fr
 ```
 
 An unknown key or value is an error, so typos are not silently ignored.

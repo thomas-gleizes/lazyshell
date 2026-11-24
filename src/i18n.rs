@@ -7,16 +7,16 @@ use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
 pub enum Lang {
-    #[default]
     #[serde(rename = "fr")]
     Fr,
+    #[default]
     #[serde(rename = "en")]
     En,
 }
 
 static LANG: OnceLock<Lang> = OnceLock::new();
 
-/// À appeler une fois au démarrage ; sans appel, le français est utilisé.
+/// À appeler une fois au démarrage ; sans appel, l'anglais est utilisé.
 pub fn init(lang: Lang) {
     let _ = LANG.set(lang);
 }

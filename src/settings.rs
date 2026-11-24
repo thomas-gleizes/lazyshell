@@ -58,10 +58,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn language_defaults_to_french() {
+    fn language_defaults_to_english() {
         assert_eq!(
             serde_yaml::from_str::<Settings>("{}").unwrap().language,
-            Lang::Fr
+            Lang::En
         );
     }
 
