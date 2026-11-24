@@ -165,10 +165,10 @@ fn acquire_lock(socket: &Path) -> Result<File> {
         .truncate(false)
         .write(true)
         .open(&path)
-        .with_context(|| format!("verrou {}", path.display()))?;
+        .with_context(|| format!("ouverture du verrou impossible : {}", path.display()))?;
     if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
         bail!(
-            "un daemon tourne déjà pour ce projet ({})",
+            "un daemon est déjà actif pour ce projet : {}",
             socket.display()
         );
     }
@@ -181,8 +181,8 @@ fn acquire_lock(socket: &Path) -> Result<File> {
 /// Ouvre la socket (le verrou est tenu : un fichier existant est un reste à supprimer).
 fn bind(socket: &Path) -> Result<UnixListener> {
     let _ = std::fs::remove_file(socket);
-    let listener =
-        UnixListener::bind(socket).with_context(|| format!("socket {}", socket.display()))?;
+    let listener = UnixListener::bind(socket)
+        .with_context(|| format!("création de la socket impossible : {}", socket.display()))?;
     std::fs::set_permissions(socket, std::fs::Permissions::from_mode(0o600))?;
     Ok(listener)
 }

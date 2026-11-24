@@ -122,7 +122,18 @@ impl TargetArgs {
     }
 }
 
-fn main() -> Result<()> {
+fn main() -> std::process::ExitCode {
+    match run() {
+        Ok(()) => std::process::ExitCode::SUCCESS,
+        Err(err) => {
+            // Une seule ligne « lazyshell: contexte: cause » sur stderr, code de sortie 1.
+            eprintln!("lazyshell: {err:#}");
+            std::process::ExitCode::FAILURE
+        }
+    }
+}
+
+fn run() -> Result<()> {
     let args = Args::parse();
     i18n::init(settings::Settings::load()?.language);
     let Some(cli) = args.command else {
@@ -290,7 +301,7 @@ fn update(version: Option<String>) -> Result<()> {
     let exe = std::env::current_exe()?.canonicalize()?;
     let dir = exe
         .parent()
-        .ok_or_else(|| anyhow::anyhow!("dossier du binaire introuvable"))?;
+        .ok_or_else(|| anyhow::anyhow!("dossier de l'exécutable introuvable"))?;
     let mut cmd = std::process::Command::new("sh");
     cmd.arg("-c")
         .arg(format!("curl -fsSL {INSTALL_SCRIPT_URL} | sh"))
@@ -300,9 +311,9 @@ fn update(version: Option<String>) -> Result<()> {
     }
     let status = cmd
         .status()
-        .map_err(|err| anyhow::anyhow!("« sh » introuvable : {err}"))?;
+        .map_err(|err| anyhow::anyhow!("sh introuvable : {err}"))?;
     if !status.success() {
-        bail!("la mise à jour a échoué");
+        bail!("échec de la mise à jour");
     }
     Ok(())
 }
@@ -478,8 +489,9 @@ fn kill(path: Option<PathBuf>, all: bool) -> Result<()> {
         while client.list()?.iter().any(is_active) {
             if Instant::now() >= deadline {
                 bail!(
-                    "{} : des sessions ne se sont pas arrêtées",
-                    display_path(config)
+                    "{} : sessions toujours actives après {} s",
+                    display_path(config),
+                    KILL_WAIT.as_secs()
                 );
             }
             thread::sleep(Duration::from_millis(100));

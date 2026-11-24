@@ -66,7 +66,7 @@ impl Config {
         let file = if path.is_dir() {
             Self::find_in_ancestors(path).with_context(|| {
                 format!(
-                    "aucun fichier {} dans {} ni ses parents",
+                    "fichier {} introuvable dans {} et ses parents",
                     DEFAULT_FILES.join(" / "),
                     path.display()
                 )
@@ -75,7 +75,7 @@ impl Config {
             path.to_path_buf()
         };
         file.canonicalize()
-            .with_context(|| format!("config introuvable : {}", file.display()))
+            .with_context(|| format!("fichier de config introuvable : {}", file.display()))
     }
 
     /// Cherche la config dans `dir`, puis dans ses parents jusqu'au dossier personnel (inclus).
@@ -105,9 +105,9 @@ impl Config {
     pub fn load(path: &Path) -> Result<(Config, PathBuf)> {
         let file = Self::resolve_file(path)?;
         let text = std::fs::read_to_string(&file)
-            .with_context(|| format!("lecture de {}", file.display()))?;
+            .with_context(|| format!("lecture impossible : {}", file.display()))?;
         let mut config: Config = serde_yaml::from_str(&text)
-            .with_context(|| format!("config invalide dans {}", file.display()))?;
+            .with_context(|| format!("config invalide : {}", file.display()))?;
         config.validate()?;
 
         let base = file
@@ -138,7 +138,7 @@ impl Config {
 
     fn validate(&self) -> Result<()> {
         if self.sessions.is_empty() {
-            bail!("aucune session définie");
+            bail!("aucune session définie dans la config");
         }
         let mut seen = std::collections::HashSet::new();
         for session in &self.sessions {

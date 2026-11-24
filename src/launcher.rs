@@ -31,7 +31,7 @@ pub fn ensure_daemon(config_file: &Path, socket: &Path, auto_exit: bool) -> Resu
         .create(true)
         .append(true)
         .open(&log_path)
-        .with_context(|| format!("journal {}", log_path.display()))?;
+        .with_context(|| format!("ouverture du journal impossible : {}", log_path.display()))?;
     let mut command = Command::new(std::env::current_exe()?);
     command.arg("daemon");
     if auto_exit {
@@ -49,7 +49,7 @@ pub fn ensure_daemon(config_file: &Path, socket: &Path, auto_exit: bool) -> Resu
             Ok(())
         });
     }
-    let mut child = command.spawn().context("lancement du daemon")?;
+    let mut child = command.spawn().context("lancement du daemon impossible")?;
 
     let mut deadline = Instant::now() + START_TIMEOUT;
     let mut exited: Option<ExitStatus> = None;
@@ -65,10 +65,13 @@ pub fn ensure_daemon(config_file: &Path, socket: &Path, auto_exit: bool) -> Resu
         }
         if Instant::now() >= deadline {
             let why = match exited {
-                Some(status) => format!("le daemon s'est arrêté ({status})"),
-                None => "le daemon ne répond pas".to_string(),
+                Some(status) => format!("le daemon s'est arrêté au démarrage ({status})"),
+                None => format!(
+                    "le daemon ne répond pas après {} s",
+                    START_TIMEOUT.as_secs()
+                ),
             };
-            bail!("{why} ; voir {}", log_path.display());
+            bail!("{why} ; journal : {}", log_path.display());
         }
         thread::sleep(Duration::from_millis(50));
     }

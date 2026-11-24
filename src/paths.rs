@@ -15,7 +15,7 @@ pub fn socket_for(config_file: &Path) -> Result<PathBuf> {
     let socket = dir.join(format!("{}.sock", project_id(config_file)));
     if socket.as_os_str().len() > MAX_SOCKET_PATH {
         bail!(
-            "chemin de socket trop long ({}) : raccourcir $XDG_RUNTIME_DIR",
+            "chemin de socket trop long : {} ; raccourcir $XDG_RUNTIME_DIR",
             socket.display()
         );
     }
@@ -31,7 +31,7 @@ fn runtime_dir() -> Result<PathBuf> {
         .recursive(true)
         .mode(0o700)
         .create(&dir)
-        .with_context(|| format!("création de {}", dir.display()))?;
+        .with_context(|| format!("création du dossier impossible : {}", dir.display()))?;
     std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))?;
     Ok(dir)
 }
@@ -90,6 +90,6 @@ pub fn log_for(config_file: &Path) -> Result<PathBuf> {
         .recursive(true)
         .mode(0o700)
         .create(&dir)
-        .with_context(|| format!("création de {}", dir.display()))?;
+        .with_context(|| format!("création du dossier impossible : {}", dir.display()))?;
     Ok(dir.join(format!("{}.log", project_id(config_file))))
 }

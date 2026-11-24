@@ -65,8 +65,8 @@ pub fn no_session_running() -> &'static str {
 
 pub fn no_daemon_running() -> &'static str {
     pick_static(
-        "aucun processus lazyshell en cours (aucun daemon lancé, et pas de lazyshell.yml ici)",
-        "no lazyshell process running (no daemon started, and no lazyshell.yml here)",
+        "aucun daemon actif et aucun lazyshell.yml trouvé",
+        "no active daemon and no lazyshell.yml found",
     )
 }
 

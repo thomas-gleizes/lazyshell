@@ -122,7 +122,7 @@ impl Manager {
             .collect();
         if !blocking.is_empty() {
             return Err(anyhow!(
-                "sessions retirées de la config mais encore actives : {} (les arrêter d'abord)",
+                "rechargement refusé : sessions absentes de la config mais actives : {}",
                 blocking.join(", ")
             ));
         }
@@ -241,7 +241,7 @@ impl Manager {
         let session = self.find(name)?;
         session
             .subscribe()
-            .ok_or_else(|| anyhow!("{name} n'a pas encore été lancée"))
+            .ok_or_else(|| anyhow!("{name} : aucune exécution"))
     }
 
     /// Variables injectées dans la session (celles de l'exécution en cours, sinon de la définition).

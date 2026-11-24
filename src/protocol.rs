@@ -76,7 +76,7 @@ pub fn read_handshake(reader: &mut impl Read) -> Result<u32> {
     let mut header = [0u8; 8];
     reader.read_exact(&mut header)?;
     if &header[..4] != MAGIC {
-        bail!("l'autre côté ne parle pas le protocole lazyshell");
+        bail!("handshake invalide : le pair n'utilise pas le protocole lazyshell");
     }
     Ok(u32::from_be_bytes(header[4..].try_into().unwrap()))
 }
@@ -99,7 +99,7 @@ pub fn read_message<T: DeserializeOwned>(reader: &mut impl Read) -> Result<Optio
     }
     let len = u32::from_be_bytes(len);
     if len > MAX_FRAME {
-        bail!("message trop gros ({len} octets)");
+        bail!("message trop volumineux ({len} octets)");
     }
     let mut payload = vec![0u8; len as usize];
     reader.read_exact(&mut payload)?;

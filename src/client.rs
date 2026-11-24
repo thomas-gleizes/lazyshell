@@ -1,9 +1,10 @@
+use std::io::ErrorKind;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 
 use crate::daemon::{Command, ReloadReport, SessionInfo};
 use crate::paths;
@@ -17,18 +18,24 @@ pub struct Client {
 
 impl Client {
     pub fn connect(socket: &Path) -> Result<Self> {
-        let mut stream = UnixStream::connect(socket).with_context(
-            || "aucun daemon actif pour ce projet (la TUI en lance un automatiquement)",
-        )?;
+        let mut stream = UnixStream::connect(socket).map_err(|err| match err.kind() {
+            // Pas de socket, ou socket orpheline : aucun daemon n'écoute.
+            ErrorKind::NotFound | ErrorKind::ConnectionRefused => anyhow!(
+                "aucun daemon actif pour ce projet ({}) ; démarrer avec `lazyshell up`",
+                socket.display()
+            ),
+            _ => anyhow!("connexion à {} impossible : {err}", socket.display()),
+        })?;
         write_handshake(&mut stream)?;
-        let daemon_version = read_handshake(&mut stream).context("handshake avec le daemon")?;
+        let daemon_version =
+            read_handshake(&mut stream).context("handshake avec le daemon impossible")?;
         if daemon_version != VERSION {
             let pid = std::fs::read_to_string(paths::lock_for(socket)).unwrap_or_default();
             let hint = match pid.trim() {
                 "" => String::new(),
-                pid => format!(" : arrêter l'ancien daemon avec `kill {pid}`"),
+                pid => format!(" ; arrêter l'ancien daemon avec `kill {pid}`"),
             };
-            bail!("daemon en protocole v{daemon_version}, client en v{VERSION}{hint}");
+            bail!("protocole incompatible : daemon v{daemon_version}, client v{VERSION}{hint}");
         }
         Ok(Client { stream })
     }
@@ -36,7 +43,7 @@ impl Client {
     pub fn list(&mut self) -> Result<Vec<SessionInfo>> {
         match self.call(Request::List)? {
             Response::Infos(infos) => Ok(infos),
-            other => bail!("réponse inattendue : {other:?}"),
+            other => bail!("réponse du daemon inattendue : {other:?}"),
         }
     }
 

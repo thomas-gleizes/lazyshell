@@ -8,9 +8,11 @@ pub fn load(path: &Path) -> Result<HashMap<String, String>> {
     let text = match std::fs::read_to_string(path) {
         Ok(text) => text,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(HashMap::new()),
-        Err(err) => return Err(err).with_context(|| format!("lecture de {}", path.display())),
+        Err(err) => {
+            return Err(err).with_context(|| format!("lecture impossible : {}", path.display()));
+        }
     };
-    parse(&text).with_context(|| format!("fichier d'env invalide : {}", path.display()))
+    parse(&text).with_context(|| format!("fichier env invalide : {}", path.display()))
 }
 
 /// Syntaxe : `KEY=value`, préfixe `export` accepté, lignes vides et `#` ignorées,
@@ -27,7 +29,7 @@ pub fn parse(text: &str) -> Result<HashMap<String, String>> {
             .map(str::trim_start)
             .unwrap_or(line);
         let Some((key, value)) = line.split_once('=') else {
-            bail!("ligne {} : « KEY=valeur » attendu", index + 1);
+            bail!("ligne {} : format KEY=valeur attendu", index + 1);
         };
         let key = key.trim();
         if key.is_empty() || !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {

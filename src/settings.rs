@@ -23,14 +23,17 @@ impl Settings {
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(Settings::default());
             }
-            Err(err) => return Err(err).with_context(|| format!("lecture de {}", file.display())),
+            Err(err) => {
+                return Err(err)
+                    .with_context(|| format!("lecture impossible : {}", file.display()));
+            }
         };
         // Un fichier vide (ou que des commentaires) est valide : serde_yaml le lit comme `null`.
         if text.trim().is_empty() {
             return Ok(Settings::default());
         }
         serde_yaml::from_str(&text)
-            .with_context(|| format!("réglages invalides dans {}", file.display()))
+            .with_context(|| format!("réglages invalides : {}", file.display()))
     }
 }
 
@@ -43,7 +46,7 @@ pub fn config_file() -> Result<PathBuf> {
         None => match std::env::var_os("HOME").filter(|dir| !dir.is_empty()) {
             Some(home) => PathBuf::from(home).join(".config"),
             None => {
-                bail!("$HOME non défini : impossible de trouver ~/.config/lazyshell/config.yaml")
+                bail!("$HOME non défini : chemin de ~/.config/lazyshell/config.yaml indéterminé")
             }
         },
     };
