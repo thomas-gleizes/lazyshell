@@ -61,7 +61,7 @@ parents up to your home directory. You can also pass a file or a directory: `laz
 It starts the project daemon in the background if it is not already running.
 
 Outside any project (no `lazyshell.yml` found), `lazyshell` opens the TUI on a daemon that is
-already running (the daemons panel lets you switch between them) and never starts one. With no
+already running (the projects panel lets you switch between them) and never starts one. With no
 daemon running it just prints a message and exits.
 
 ## Configuration

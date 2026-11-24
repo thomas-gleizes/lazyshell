@@ -163,7 +163,7 @@ pub fn sessions_title() -> &'static str {
 }
 
 pub fn daemons_title() -> &'static str {
-    pick_static(" Daemons ", " Daemons ")
+    pick_static(" Projets ", " Projects ")
 }
 
 pub fn daemon_running(count: usize) -> String {
@@ -174,13 +174,13 @@ pub fn daemon_running(count: usize) -> String {
 }
 
 pub fn daemon_switched(label: &str) -> String {
-    pick(format!("daemon : {label}"), format!("daemon: {label}"))
+    pick(format!("projet : {label}"), format!("project: {label}"))
 }
 
 pub fn daemon_empty(label: &str) -> String {
     pick(
-        format!("{label} : aucune session dans ce daemon"),
-        format!("{label}: no session in this daemon"),
+        format!("{label} : aucune session dans ce projet"),
+        format!("{label}: no session in this project"),
     )
 }
 
@@ -246,8 +246,8 @@ pub fn session_stopped_hint() -> &'static str {
 }
 
 const HELP_FR: &str = "\
-1 / 2      panneau Daemons / Sessions (Entrée ou clic : basculer de daemon)
-j/k ↑/↓    session (ou daemon) suivant / précédent
+1 / 2      panneau Projets / Sessions (Entrée ou clic : changer de projet)
+j/k ↑/↓    session (ou projet) suivant / précédent
 s          lancer
 x          arrêter (SIGTERM, puis SIGKILL après 10 s)
 r          relancer
@@ -270,8 +270,8 @@ Q          arrêter toutes les sessions et le daemon
 Touche quelconque pour fermer.";
 
 const HELP_EN: &str = "\
-1 / 2      Daemons / Sessions panel (Enter or click: switch daemon)
-j/k ↑/↓    next / previous session (or daemon)
+1 / 2      Projects / Sessions panel (Enter or click: switch project)
+j/k ↑/↓    next / previous session (or project)
 s          start
 x          stop (SIGTERM, then SIGKILL after 10 s)
 r          restart
