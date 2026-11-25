@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home · lazyshell</title>
+<meta name="description" content="lazyshell runs the long-lived processes of a project as named sessions and shows them in a two-pane TUI.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+<a class="brand" href="index.html">lazyshell</a>
+<a class="link" href="index.html" aria-current="page">Home</a>
+<a class="link" href="getting-started.html">Getting started</a>
+<a class="link" href="configuration.html">Configuration</a>
+<a class="link" href="tui.html">TUI</a>
+<a class="link" href="cli.html">Command line</a>
+<a class="link" href="how-it-works.html">How it works</a>
+<a class="link" href="https://github.com/thomas-gleizes/lazyshell">GitHub ↗</a>
+</nav>
+<main>
+<h1>lazyshell</h1>
+<p><code>lazyshell</code> runs the long-lived processes of a project (dev server, watcher, database, tests…) as
+named sessions, described in a <code>lazyshell.yml</code> file, and lets you watch them in a two-pane TUI:
+the session list on the left, the live output of the selected one on the right.</p>
+<p>A background daemon owns the sessions. Closing the TUI does not stop them: reopen it later, or
+drive them from scripts and AI agents with plain CLI subcommands.</p>
+<div class="note"><strong>v2 is a full rewrite in Rust.</strong> The goal changed from a <code>tmux</code>-like terminal
+multiplexer (Go, versions <code>v1.x</code>) to a project process manager. The Go code and its history live on the
+<code>legacy/go</code> branch and the <code>v1.*</code> tags.</div>
+<h2>Features</h2>
+<ul>
+<li>Sessions declared in one YAML file, optionally grouped, with per-session env and <code>.env</code> files.</li>
+<li>Two-pane TUI: search, scrollback, soft-wrap, fullscreen, mouse selection and copy.</li>
+<li>One daemon per project: sessions survive the TUI being closed.</li>
+<li>Each session runs in a pseudo-terminal, so colours and full-screen programs render correctly.</li>
+<li>Scriptable: <code>status</code>, <code>logs</code>, <code>env</code>, <code>start</code>/<code>stop</code>/<code>restart</code> work without a terminal.</li>
+<li>Linux and macOS, amd64 and arm64.</li>
+</ul>
+<h2>Where to go next</h2>
+<ul>
+<li><a href="getting-started.html">Getting started</a>: install and run your first project.</li>
+<li><a href="configuration.html">Configuration</a>: <code>lazyshell.yml</code> and user settings.</li>
+<li><a href="tui.html">TUI</a>: keyboard and mouse reference.</li>
+<li><a href="cli.html">Command line</a>: every subcommand.</li>
+<li><a href="how-it-works.html">How it works</a>: daemon, sockets, pseudo-terminals.</li>
+</ul>
+<div class="pager"><span></span><a href="getting-started.html">Getting started →</a></div>
+</main>
+</body>
+</html>

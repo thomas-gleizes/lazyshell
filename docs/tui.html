@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TUI · lazyshell</title>
+<meta name="description" content="lazyshell runs the long-lived processes of a project as named sessions and shows them in a two-pane TUI.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+<a class="brand" href="index.html">lazyshell</a>
+<a class="link" href="index.html">Home</a>
+<a class="link" href="getting-started.html">Getting started</a>
+<a class="link" href="configuration.html">Configuration</a>
+<a class="link" href="tui.html" aria-current="page">TUI</a>
+<a class="link" href="cli.html">Command line</a>
+<a class="link" href="how-it-works.html">How it works</a>
+<a class="link" href="https://github.com/thomas-gleizes/lazyshell">GitHub ↗</a>
+</nav>
+<main>
+<h1>TUI</h1>
+<p>The left pane lists the sessions (and a projects panel to switch between daemons); the right pane shows
+the output of the selected session, with an <em>Output</em> and an <em>Env</em> tab. Press <code>?</code> for the same list as below.</p>
+<table>
+<tr><th>Key</th><th>Action</th></tr>
+<tr><td><code>j</code> / <code>k</code>, <code>↑</code> / <code>↓</code></td><td>Next / previous session</td></tr>
+<tr><td><code>s</code> / <code>x</code> / <code>r</code></td><td>Start / stop / restart the session (stop = SIGTERM, then SIGKILL after 10 s)</td></tr>
+<tr><td><code>S</code> / <code>X</code> / <code>R</code></td><td>Start / stop / restart the whole group</td></tr>
+<tr><td><code>PgUp</code> / <code>PgDn</code>, mouse wheel</td><td>Scroll the output</td></tr>
+<tr><td><code>g</code> / <code>G</code></td><td>Top of history / back to live</td></tr>
+<tr><td><code>Tab</code>, click</td><td>Switch between the Output and Env tabs</td></tr>
+<tr><td><code>w</code></td><td>Soft-wrap on/off</td></tr>
+<tr><td><code>←</code> / <code>→</code></td><td>Scroll horizontally (wrap off)</td></tr>
+<tr><td><code>f</code></td><td>Fullscreen output (<code>Esc</code> to leave)</td></tr>
+<tr><td><code>/</code>, <code>n</code> / <code>N</code></td><td>Search the output, older / newer match (<code>Esc</code> clears)</td></tr>
+<tr><td>mouse drag</td><td>Select text in the output panel and copy it to the clipboard</td></tr>
+<tr><td><code>L</code></td><td>Reload the config (running sessions are left unchanged)</td></tr>
+<tr><td><code>q</code></td><td>Quit the TUI, sessions keep running</td></tr>
+<tr><td><code>Q</code></td><td>Stop all sessions and the daemon</td></tr>
+</table>
+<p>The terminal tab title reflects the state of the session.</p>
+<div class="pager"><a href="configuration.html">← Configuration</a><a href="cli.html">Command line →</a></div>
+</main>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Getting started · lazyshell</title>
+<meta name="description" content="lazyshell runs the long-lived processes of a project as named sessions and shows them in a two-pane TUI.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+<a class="brand" href="index.html">lazyshell</a>
+<a class="link" href="index.html">Home</a>
+<a class="link" href="getting-started.html" aria-current="page">Getting started</a>
+<a class="link" href="configuration.html">Configuration</a>
+<a class="link" href="tui.html">TUI</a>
+<a class="link" href="cli.html">Command line</a>
+<a class="link" href="how-it-works.html">How it works</a>
+<a class="link" href="https://github.com/thomas-gleizes/lazyshell">GitHub ↗</a>
+</nav>
+<main>
+<h1>Getting started</h1>
+<h2>Install</h2>
+<p>Prebuilt binaries (Linux and macOS, amd64/arm64) are published on each GitHub release. The install
+script downloads the latest one, verifies its SHA-256 checksum and installs it in <code>~/.local/bin</code>.</p>
+<pre><code>curl -fsSL https://raw.githubusercontent.com/thomas-gleizes/lazyshell/main/install.sh | sh</code></pre>
+<table>
+<tr><th>Variable</th><th>Effect</th></tr>
+<tr><td><code>LAZYSHELL_INSTALL_DIR</code></td><td>Install directory. Default: <code>~/.local/bin</code>.</td></tr>
+<tr><td><code>LAZYSHELL_VERSION</code></td><td>Tag to install, e.g. <code>v0.2.0</code>. Default: latest release.</td></tr>
+</table>
+<h3>From source</h3>
+<p>Requires Rust (edition 2024). Unix only (Linux and macOS), because the daemon talks over a Unix socket.</p>
+<pre><code>git clone https://github.com/thomas-gleizes/lazyshell.git
+cd lazyshell
+cargo install --path .
+lazyshell --help</code></pre>
+<h3>Update</h3>
+<pre><code>lazyshell update                 # latest release
+lazyshell update --version v0.2.0</code></pre>
+<p>Running daemons keep the old version until you run <code>lazyshell down</code> then <code>lazyshell up</code>.</p>
+<h2>Quick start</h2>
+<p>Create a <code>lazyshell.yml</code> at the root of your project:</p>
+<pre><code>sessions:
+  - name: api
+    group: backend
+    cwd: ./api
+    command: cargo run
+    autostart: true
+  - name: web
+    group: frontend
+    cwd: ./web
+    command: npm run dev
+    env:
+      PORT: "5173"</code></pre>
+<p>Then run, from anywhere inside the project:</p>
+<pre><code>lazyshell</code></pre>
+<p><code>lazyshell</code> looks for <code>lazyshell.yml</code> (or <code>lazyshell.yaml</code>) in the current directory, then in its
+parents up to your home directory. You can also pass a file or a directory: <code>lazyshell path/to/dir</code>.
+It starts the project daemon in the background if it is not already running.</p>
+<p>Outside any project (no <code>lazyshell.yml</code> found), <code>lazyshell</code> opens the TUI on a daemon that is
+already running (the projects panel lets you switch between them) and never starts one. With no
+daemon running it prints a message and exits.</p>
+<p>Press <code>?</code> in the TUI for the key list, <code>q</code> to leave it (sessions keep running) and <code>Q</code> to stop everything.</p>
+<div class="pager"><a href="index.html">← Home</a><a href="configuration.html">Configuration →</a></div>
+</main>
+</body>
+</html>

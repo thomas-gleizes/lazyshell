@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How it works · lazyshell</title>
+<meta name="description" content="lazyshell runs the long-lived processes of a project as named sessions and shows them in a two-pane TUI.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+<a class="brand" href="index.html">lazyshell</a>
+<a class="link" href="index.html">Home</a>
+<a class="link" href="getting-started.html">Getting started</a>
+<a class="link" href="configuration.html">Configuration</a>
+<a class="link" href="tui.html">TUI</a>
+<a class="link" href="cli.html">Command line</a>
+<a class="link" href="how-it-works.html" aria-current="page">How it works</a>
+<a class="link" href="https://github.com/thomas-gleizes/lazyshell">GitHub ↗</a>
+</nav>
+<main>
+<h1>How it works</h1>
+<ul>
+<li><strong>One daemon per project</strong>, identified by the absolute path of its config file.</li>
+<li>The daemon listens on a <strong>Unix socket</strong> under <code>$XDG_RUNTIME_DIR/lazyshell/</code> (or
+<code>/tmp/lazyshell-&lt;uid&gt;/</code>), in a directory with mode <code>0700</code>, so other users cannot reach it.</li>
+<li>Each session runs in its own <strong>pseudo-terminal</strong>; the output panel is a terminal emulator, so
+colours and full-screen programs render correctly.</li>
+<li>With <code>--auto-exit</code> (what the TUI uses), the daemon exits on its own once no session is active
+and no client is connected. <code>lazyshell up</code> starts it without that flag, so it runs until <code>down</code>.</li>
+<li>Stopping a session sends SIGTERM, then SIGKILL after 10 s.</li>
+</ul>
+<h2>Platforms</h2>
+<p>Linux and macOS, amd64 and arm64. Windows is not supported (Unix sockets and PTYs).</p>
+<h2>Contributing</h2>
+<p>Source and issues: <a href="https://github.com/thomas-gleizes/lazyshell">github.com/thomas-gleizes/lazyshell</a>.
+CI runs <code>cargo fmt</code>, <code>cargo clippy -D warnings</code> and <code>cargo test</code> on Linux and macOS.</p>
+<h2>License</h2>
+<p><a href="https://github.com/thomas-gleizes/lazyshell/blob/main/LICENSE">MIT</a></p>
+<div class="pager"><a href="cli.html">← Command line</a><span></span></div>
+</main>
+</body>
+</html>

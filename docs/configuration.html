@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Configuration · lazyshell</title>
+<meta name="description" content="lazyshell runs the long-lived processes of a project as named sessions and shows them in a two-pane TUI.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+<a class="brand" href="index.html">lazyshell</a>
+<a class="link" href="index.html">Home</a>
+<a class="link" href="getting-started.html">Getting started</a>
+<a class="link" href="configuration.html" aria-current="page">Configuration</a>
+<a class="link" href="tui.html">TUI</a>
+<a class="link" href="cli.html">Command line</a>
+<a class="link" href="how-it-works.html">How it works</a>
+<a class="link" href="https://github.com/thomas-gleizes/lazyshell">GitHub ↗</a>
+</nav>
+<main>
+<h1>Configuration</h1>
+<h2>Project file (<code>lazyshell.yml</code>)</h2>
+<table>
+<tr><th>Key</th><th>Where</th><th>Description</th></tr>
+<tr><td><code>shell</code></td><td>root</td><td>Shell used to run commands. Default: <code>$SHELL</code>, else <code>/bin/sh</code>.</td></tr>
+<tr><td><code>env_file</code></td><td>root, session</td><td>A path or a list of paths to <code>.env</code> files. Later files override earlier ones; a missing file is ignored.</td></tr>
+<tr><td><code>groups</code></td><td>root</td><td>List of <code>- name: …</code> entries declaring session groups.</td></tr>
+<tr><td><code>sessions</code></td><td>root</td><td>Required, at least one session. Names must be unique.</td></tr>
+<tr><td><code>name</code></td><td>session</td><td>Session name.</td></tr>
+<tr><td><code>command</code></td><td>session</td><td>Command to run.</td></tr>
+<tr><td><code>group</code></td><td>session</td><td>Group the session belongs to, to start/stop/restart several at once.</td></tr>
+<tr><td><code>cwd</code></td><td>session</td><td>Working directory, relative to the folder of the config file.</td></tr>
+<tr><td><code>env</code></td><td>session</td><td>Inline variables.</td></tr>
+<tr><td><code>autostart</code></td><td>session</td><td>Start the session when the daemon starts. Default: <code>false</code>.</td></tr>
+</table>
+<h3>Full example</h3>
+<pre><code>shell: /bin/zsh
+env_file: .env
+groups:
+  - name: backend
+  - name: frontend
+sessions:
+  - name: db
+    group: backend
+    command: docker compose up postgres
+    autostart: true
+  - name: api
+    group: backend
+    cwd: ./api
+    command: cargo watch -x run
+    env_file: [.env.api, .env.api.local]
+    env:
+      RUST_LOG: debug
+  - name: web
+    group: frontend
+    cwd: ./web
+    command: npm run dev</code></pre>
+<h3>Environment precedence</h3>
+<p>Lowest to highest: root <code>env_file</code> &lt; session <code>env_file</code> &lt; session <code>env</code>.
+Use <code>lazyshell env &lt;name&gt;</code> to print what a session actually receives.</p>
+<h3><code>.env</code> syntax</h3>
+<ul>
+<li><code>KEY=value</code>, with an optional <code>export</code> prefix.</li>
+<li><code>#</code> starts a comment.</li>
+<li>Double-quoted values support the escapes <code>\n \t \" \\</code>; single-quoted values are literal.</li>
+<li>No variable interpolation.</li>
+</ul>
+<h3>Reloading</h3>
+<p>Press <code>L</code> in the TUI or run <code>lazyshell reload</code>. Running sessions are left unchanged; a <code>~</code>
+next to a session means its config changed: restart it to apply the change.</p>
+<h2>User settings</h2>
+<p>Stored in <code>$XDG_CONFIG_HOME/lazyshell/config.yaml</code> (default <code>~/.config/lazyshell/config.yaml</code>):</p>
+<pre><code>language: en   # en (default) or fr</code></pre>
+<p>An unknown key or value is an error, so typos are not silently ignored.</p>
+<div class="pager"><a href="getting-started.html">← Getting started</a><a href="tui.html">TUI →</a></div>
+</main>
+</body>
+</html>

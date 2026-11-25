@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Command line · lazyshell</title>
+<meta name="description" content="lazyshell runs the long-lived processes of a project as named sessions and shows them in a two-pane TUI.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+<a class="brand" href="index.html">lazyshell</a>
+<a class="link" href="index.html">Home</a>
+<a class="link" href="getting-started.html">Getting started</a>
+<a class="link" href="configuration.html">Configuration</a>
+<a class="link" href="tui.html">TUI</a>
+<a class="link" href="cli.html" aria-current="page">Command line</a>
+<a class="link" href="how-it-works.html">How it works</a>
+<a class="link" href="https://github.com/thomas-gleizes/lazyshell">GitHub ↗</a>
+</nav>
+<main>
+<h1>Command line</h1>
+<p>All subcommands take an optional <code>[path]</code> (file or directory) to pick the project; the default is
+the current directory.</p>
+<table>
+<tr><th>Command</th><th>Description</th></tr>
+<tr><td><code>lazyshell [path]</code></td><td>Open the TUI (starts the daemon if a <code>lazyshell.yml</code> is found; from outside a project, attaches to a running daemon).</td></tr>
+<tr><td><code>lazyshell status</code></td><td>Sessions of the project: group, state, PID, CPU, memory, listening ports.</td></tr>
+<tr><td><code>lazyshell ps [-a]</code></td><td>Sessions of <strong>all</strong> daemons, like <code>docker ps</code> (<code>-a</code> includes stopped ones).</td></tr>
+<tr><td><code>lazyshell start|stop|restart &lt;name&gt; [-g]</code></td><td>Act on a session, or a group with <code>-g</code>.</td></tr>
+<tr><td><code>lazyshell kill [-a]</code></td><td>Stop every running session of the project (<code>-a</code>: of all projects).</td></tr>
+<tr><td><code>lazyshell logs &lt;name&gt; [-f] [-n N] [--raw]</code></td><td>Print the output as plain text; <code>-f</code> follows, <code>-n</code> limits to the last N lines, <code>--raw</code> keeps ANSI sequences.</td></tr>
+<tr><td><code>lazyshell env &lt;name&gt;</code></td><td>Print the environment injected into a session (<code>KEY=value</code>).</td></tr>
+<tr><td><code>lazyshell reload</code></td><td>Re-read the config and apply it to the running daemon.</td></tr>
+<tr><td><code>lazyshell up</code></td><td>Start the daemon in the background, without the TUI (runs until <code>down</code>).</td></tr>
+<tr><td><code>lazyshell down</code></td><td>Stop all sessions, then the daemon.</td></tr>
+<tr><td><code>lazyshell update [--version TAG]</code></td><td>Update to the latest release (re-runs the install script in place).</td></tr>
+<tr><td><code>lazyshell daemon [--auto-exit]</code></td><td>Run the daemon in the foreground (the TUI normally spawns it).</td></tr>
+</table>
+<h2>Examples</h2>
+<pre><code>lazyshell up                  # start the daemon, no TUI
+lazyshell start api           # start one session
+lazyshell restart backend -g  # restart a whole group
+lazyshell logs api -n 100     # last 100 lines
+lazyshell logs api -f         # follow, like tail -f
+lazyshell env api             # what the session receives
+lazyshell down                # stop everything</code></pre>
+<p><code>logs</code> and <code>env</code> give scripts and AI agents a way to read a session without a terminal.
+Errors are printed on one line on stderr (<code>lazyshell: context: cause</code>) with exit code 1.</p>
+<div class="pager"><a href="tui.html">← TUI</a><a href="how-it-works.html">How it works →</a></div>
+</main>
+</body>
+</html>
