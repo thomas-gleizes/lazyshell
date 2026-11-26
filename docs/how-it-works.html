@@ -27,7 +27,7 @@
 <li>Each session runs in its own <strong>pseudo-terminal</strong>; the output panel is a terminal emulator, so
 colours and full-screen programs render correctly.</li>
 <li>With <code>--auto-exit</code> (what the TUI uses), the daemon exits on its own once no session is active
-and no client is connected. <code>lazyshell up</code> starts it without that flag, so it runs until <code>down</code>.</li>
+or waiting for its dependencies, and no client is connected. <code>lazyshell up</code> starts it without that flag, so it runs until <code>down</code>.</li>
 <li>Stopping a session sends SIGTERM, then SIGKILL after 10 s.</li>
 </ul>
 <h2>Platforms</h2>

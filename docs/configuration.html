@@ -33,6 +33,9 @@
 <tr><td><code>cwd</code></td><td>session</td><td>Working directory, relative to the folder of the config file.</td></tr>
 <tr><td><code>env</code></td><td>session</td><td>Inline variables.</td></tr>
 <tr><td><code>autostart</code></td><td>session</td><td>Start the session when the daemon starts. Default: <code>false</code>.</td></tr>
+<tr><td><code>type</code></td><td>session</td><td><code>service</code> (default, long-running) or <code>task</code> (runs to completion).</td></tr>
+<tr><td><code>depends_on</code></td><td>session</td><td>List of session names to start, and wait for, before this one.</td></tr>
+<tr><td><code>ready</code></td><td>service</td><td>Readiness probe: <code>command</code>, plus an optional <code>timeout</code> (<code>30</code>, <code>30s</code>, <code>2m</code>; default <code>60s</code>).</td></tr>
 </table>
 <h3>Full example</h3>
 <pre><code>shell: /bin/zsh
@@ -69,6 +72,36 @@ Use <code>lazyshell env &lt;name&gt;</code> to print what a session actually rec
 <h3>Reloading</h3>
 <p>Press <code>L</code> in the TUI or run <code>lazyshell reload</code>. Running sessions are left unchanged; a <code>~</code>
 next to a session means its config changed: restart it to apply the change.</p>
+<h2>Dependencies</h2>
+<pre><code>sessions:
+  - name: install
+    type: task
+    command: pnpm install
+  - name: db
+    command: docker compose up postgres
+    ready:
+      command: docker compose exec -T postgres pg_isready -h localhost
+      timeout: 60s
+  - name: api
+    command: pnpm start:dev
+    depends_on: [install, db]</code></pre>
+<p>Starting a session also starts its dependencies. What it waits for depends on each of them:</p>
+<table>
+<tr><th>Dependency</th><th>The session starts once the dependency…</th></tr>
+<tr><td><code>service</code> without <code>ready</code></td><td>has been launched</td></tr>
+<tr><td><code>service</code> with <code>ready</code></td><td>passes its probe</td></tr>
+<tr><td><code>task</code></td><td>has exited with code <code>0</code></td></tr>
+</table>
+<ul>
+<li>The probe command is retried every second, with the shell, directory and environment of its session.</li>
+<li>A task that succeeded is not run again for its dependents while the daemon runs and its launch
+definition is unchanged. Starting or restarting the task itself always runs it.</li>
+<li>If a task fails, a probe times out or a dependency stops before being satisfied, the session is
+<strong>blocked</strong> and shows why. It starts once the dependency succeeds; starting it again retries.</li>
+<li>Stopping a waiting or blocked session cancels its start.</li>
+<li>Stopping or restarting a dependency does not affect the sessions that depend on it.</li>
+<li>An unknown name or a dependency cycle is a config error.</li>
+</ul>
 <h2>User settings</h2>
 <p>Stored in <code>$XDG_CONFIG_HOME/lazyshell/config.yaml</code> (default <code>~/.config/lazyshell/config.yaml</code>):</p>
 <pre><code>language: en   # en (default) or fr</code></pre>

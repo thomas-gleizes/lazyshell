@@ -80,11 +80,48 @@ daemon running it just prints a message and exits.
 | `cwd` | session | Working directory, relative to the folder of the config file. |
 | `env` | session | Inline variables. |
 | `autostart` | session | Start the session when the daemon starts. Default: `false`. |
+| `type` | session | `service` (default, long-running) or `task` (runs to completion). |
+| `depends_on` | session | List of session names to start, and wait for, before this one. |
+| `ready` | service | Readiness probe: `command`, plus an optional `timeout` (`30`, `30s`, `2m`; default `60s`). |
 
 Environment precedence, lowest to highest: root `env_file` < session `env_file` < session `env`.
 
 `.env` syntax: `KEY=value`, optional `export` prefix, `#` comments, double-quoted values (escapes
 `\n \t \" \\`) or single-quoted values (literal). No interpolation.
+
+### Dependencies
+
+```yaml
+sessions:
+  - name: install
+    type: task
+    command: pnpm install
+  - name: db
+    command: docker compose up postgres
+    ready:
+      command: docker compose exec -T postgres pg_isready -h localhost
+      timeout: 60s
+  - name: api
+    command: pnpm start:dev
+    depends_on: [install, db]
+```
+
+Starting a session also starts its dependencies. What it waits for depends on each of them:
+
+| Dependency | The session starts once the dependency… |
+|---|---|
+| `service` without `ready` | has been launched |
+| `service` with `ready` | passes its probe |
+| `task` | has exited with code `0` |
+
+- The probe command is retried every second, with the shell, directory and environment of its session.
+- A task that succeeded is not run again for its dependents while the daemon runs and its launch
+  definition is unchanged. Starting or restarting the task itself always runs it.
+- If a task fails, a probe times out or a dependency stops before being satisfied, the session is
+  **blocked** and shows why. It starts once the dependency succeeds; starting it again retries.
+- Stopping a waiting or blocked session cancels its start.
+- Stopping or restarting a dependency does not affect the sessions that depend on it.
+- An unknown name or a dependency cycle is a config error.
 
 ### User settings
 
@@ -118,6 +155,7 @@ Press `?` in the TUI for the same list.
 | `Q` | Stop all sessions and the daemon |
 
 A `~` next to a session means its config changed: restart it to apply the change.
+`◔` marks a session waiting for its dependencies, `✖ blocked` one held back by a failed dependency.
 
 ## Command line
 
@@ -149,7 +187,7 @@ the current directory.
 - Each session runs in its own pseudo-terminal; the output panel is a terminal emulator, so
   colours and full-screen programs render correctly.
 - With `--auto-exit` (what the TUI uses), the daemon exits on its own once no session is active
-  and no client is connected.
+  or waiting for its dependencies, and no client is connected.
 
 ## License
 
