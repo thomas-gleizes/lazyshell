@@ -93,11 +93,17 @@ next to a session means its config changed: restart it to apply the change.</p>
 <tr><td><code>task</code></td><td>has exited with code <code>0</code></td></tr>
 </table>
 <ul>
-<li>The probe command is retried every second, with the shell, directory and environment of its session.</li>
+<li>The probe command is retried every second, with the shell, directory and environment of its session.
+An attempt still running after 10&nbsp;s is killed, then retried.</li>
 <li>A task that succeeded is not run again for its dependents while the daemon runs and its launch
-definition is unchanged. Starting or restarting the task itself always runs it.</li>
+definition is unchanged; its own dependencies are still started and waited for. Starting or
+restarting the task itself always runs it.</li>
+<li>A task you stop does not count as succeeded, even if it exits with code <code>0</code>.</li>
+<li>Starting a session while one of its dependencies is stopping starts that dependency again once
+it has exited.</li>
 <li>If a task fails, a probe times out or a dependency stops before being satisfied, the session is
 <strong>blocked</strong> and shows why. It starts once the dependency succeeds; starting it again retries.</li>
+<li>Starting a running service whose probe timed out retries the probe without restarting it.</li>
 <li>Stopping a waiting or blocked session cancels its start.</li>
 <li>Stopping or restarting a dependency does not affect the sessions that depend on it.</li>
 <li>An unknown name or a dependency cycle is a config error.</li>

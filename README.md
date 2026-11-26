@@ -115,10 +115,16 @@ Starting a session also starts its dependencies. What it waits for depends on ea
 | `task` | has exited with code `0` |
 
 - The probe command is retried every second, with the shell, directory and environment of its session.
+  An attempt still running after 10 s is killed, then retried.
 - A task that succeeded is not run again for its dependents while the daemon runs and its launch
-  definition is unchanged. Starting or restarting the task itself always runs it.
+  definition is unchanged; its own dependencies are still started and waited for. Starting or
+  restarting the task itself always runs it.
+- A task you stop does not count as succeeded, even if it exits with code `0`.
+- Starting a session while one of its dependencies is stopping starts that dependency again once
+  it has exited.
 - If a task fails, a probe times out or a dependency stops before being satisfied, the session is
   **blocked** and shows why. It starts once the dependency succeeds; starting it again retries.
+- Starting a running service whose probe timed out retries the probe without restarting it.
 - Stopping a waiting or blocked session cancels its start.
 - Stopping or restarting a dependency does not affect the sessions that depend on it.
 - An unknown name or a dependency cycle is a config error.
