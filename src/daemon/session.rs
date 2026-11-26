@@ -70,6 +70,8 @@ pub struct Run {
     pub status: Mutex<Status>,
     pub started_at: Instant,
     pid: u32,
+    /// L'arrêt de ce processus a été demandé : sa sortie ne vaut pas réussite.
+    stop_requested: AtomicBool,
     sampler: Mutex<Sampler>,
     /// Définition avec laquelle ce processus a été lancé.
     spec: Spec,
@@ -185,9 +187,17 @@ impl Session {
 
     /// La tâche a réussi avec la définition actuelle : inutile de la rejouer.
     pub fn has_succeeded(&self) -> bool {
-        self.run.as_ref().is_some_and(|run| {
-            *run.status.lock().unwrap() == Status::Exited(0) && run.spec == self.spec
-        })
+        !self.was_stopped()
+            && self.run.as_ref().is_some_and(|run| {
+                *run.status.lock().unwrap() == Status::Exited(0) && run.spec == self.spec
+            })
+    }
+
+    /// L'arrêt de l'exécution en cours (ou dernière) a été demandé.
+    pub fn was_stopped(&self) -> bool {
+        self.run
+            .as_ref()
+            .is_some_and(|run| run.stop_requested.load(Ordering::SeqCst))
     }
 
     pub fn restart_pending(&self) -> bool {
@@ -248,6 +258,7 @@ impl Session {
             status: Mutex::new(Status::Running),
             started_at,
             pid,
+            stop_requested: AtomicBool::new(false),
             sampler: Mutex::new(Sampler::new(pid, started_at)),
             spec: self.spec.clone(),
             master: Mutex::new(pair.master),
@@ -307,6 +318,7 @@ impl Session {
                 return;
             }
             *status = Status::Stopping;
+            run.stop_requested.store(true, Ordering::SeqCst);
         }
         signal_group(run.pid, libc::SIGTERM);
 

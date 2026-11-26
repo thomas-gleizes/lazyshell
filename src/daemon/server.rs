@@ -65,7 +65,7 @@ pub fn run(
         paths::config_record_for(socket),
         config_file.as_os_str().as_encoded_bytes(),
     )?;
-    let manager = Arc::new(Mutex::new(Manager::new(config, base)?));
+    let manager = Arc::new(Mutex::new(Manager::new(config, base)));
     let stop = Arc::new(AtomicBool::new(false));
     let config_file = Arc::new(config_file.to_path_buf());
     install_signal_handlers();

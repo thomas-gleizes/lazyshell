@@ -94,7 +94,7 @@ fn arrange(declared: &[String], sessions: &[Session]) -> Vec<usize> {
 }
 
 impl Manager {
-    pub fn new(config: &Config, base: &Path) -> Result<Self> {
+    pub fn new(config: &Config, base: &Path) -> Self {
         let shell = config.shell();
         let sessions: Vec<Session> = config
             .sessions
@@ -116,8 +116,10 @@ impl Manager {
             .filter(|(_, cfg)| cfg.autostart)
             .map(|(index, _)| index)
             .collect();
-        manager.request(&autostart)?;
-        Ok(manager)
+        // Un échec de lancement n'empêche pas le daemon de servir les autres sessions :
+        // il reste visible dans l'état de la session (`Blocked`).
+        let _ = manager.request(&autostart);
+        manager
     }
 
     /// Applique une config relue. Les sessions inchangées ne sont pas touchées ; une
@@ -178,7 +180,8 @@ impl Manager {
             .iter()
             .filter_map(|name| self.index_of(name))
             .collect();
-        self.request(&to_request)?;
+        // La config est appliquée : un échec de lancement ne la fait pas refuser.
+        let _ = self.request(&to_request);
         Ok(report)
     }
 
@@ -254,10 +257,8 @@ impl Manager {
                 for index in hits {
                     self.sessions[index].cancel_and_stop();
                 }
-                // Les sessions qui attendaient celles-ci sont bloquées sans attendre `tick` ;
-                // l'échec de lancement d'une autre session n'est pas celui de cet arrêt.
-                let _ = self.request(&[]);
-                Ok(())
+                // Les sessions qui attendaient celles-ci sont bloquées sans attendre `tick`.
+                self.request(&[])
             }
             Command::Restart(_) => {
                 // Les actives s'arrêtent d'abord : les autres voient ainsi leurs dépendances

@@ -5,7 +5,7 @@
 //! à chaque `tick`. Rien ne se propage dans l'autre sens : arrêter ou relancer une
 //! dépendance ne touche pas les sessions qui en dépendent.
 
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
@@ -29,6 +29,7 @@ pub enum Wait {
 /// Pourquoi une dépendance bloque.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Cause {
+    /// Jamais lancée, ou tâche arrêtée à la demande même si elle est sortie avec le code 0.
     NotStarted,
     Exited(i32),
     /// La sonde `ready` a expiré.
@@ -47,41 +48,55 @@ enum Verdict {
 
 impl Manager {
     /// Demande le démarrage des sessions `roots` et, en chaîne, de leurs dépendances.
-    /// Sans effet sur une session active. Une tâche visée est toujours rejouée ; une
-    /// tâche simplement requise ne l'est pas si elle a déjà réussi à l'identique.
+    /// Une session active n'est pas relancée ; sa sonde expirée est rejouée. Une tâche
+    /// visée est toujours rejouée ; une tâche simplement requise ne l'est pas si elle a
+    /// déjà réussi à l'identique, mais ses propres dépendances sont tout de même lancées.
+    /// Renvoie le premier échec de lancement parmi les sessions visées et leurs
+    /// dépendances.
     pub(super) fn request(&mut self, roots: &[usize]) -> Result<()> {
         let mut queue = Vec::new();
         for &index in roots {
-            if !self.sessions[index].is_active() {
-                self.sessions[index].wait = Some(Wait::On(Vec::new()));
+            let session = &mut self.sessions[index];
+            if session.is_active() {
+                session.rearm_probe();
+            } else {
+                session.wait = Some(Wait::On(Vec::new()));
                 queue.push(index);
             }
         }
+        // Les sessions concernées par cette demande : les visées et ce qu'elles requièrent.
+        let mut involved: HashSet<usize> = roots.iter().copied().collect();
         let mut visited = HashSet::new();
         while let Some(index) = queue.pop() {
             if !visited.insert(index) {
                 continue;
             }
             for dependency in self.dependencies(index) {
+                involved.insert(dependency);
                 let session = &mut self.sessions[dependency];
-                if session.is_active() {
-                    session.rearm_probe();
-                    continue;
-                }
-                let done =
-                    session.wait.is_none() && session.kind == Kind::Task && session.has_succeeded();
-                if !done {
-                    session.wait = Some(Wait::On(Vec::new()));
-                    queue.push(dependency);
+                match session.status() {
+                    // En cours d'arrêt : elle sera relancée dès sa fin.
+                    Some(Status::Stopping) => session.request_restart(),
+                    Some(Status::Running) => session.rearm_probe(),
+                    _ => {
+                        let done = session.wait.is_none()
+                            && session.kind == Kind::Task
+                            && session.has_succeeded();
+                        if !done {
+                            session.wait = Some(Wait::On(Vec::new()));
+                        }
+                        queue.push(dependency);
+                    }
                 }
             }
         }
-        self.advance()
+        self.advance(&involved)
     }
 
     /// Démarre les sessions en attente dont les dépendances sont satisfaites et met à
-    /// jour la raison des autres. Renvoie le premier échec de lancement.
-    fn advance(&mut self) -> Result<()> {
+    /// jour la raison des autres. Un échec de lancement est journalisé et reste visible
+    /// dans l'état de la session ; seul le premier parmi `reported` est renvoyé.
+    fn advance(&mut self, reported: &HashSet<usize>) -> Result<()> {
         if self.sessions.iter().all(|s| s.wait.is_none()) {
             return Ok(());
         }
@@ -94,18 +109,7 @@ impl Manager {
             ) {
                 continue;
             }
-            let mut missing = Vec::new();
-            let mut failure = None;
-            for dependency in self.dependencies(index) {
-                let name = self.sessions[dependency].name.clone();
-                match self.verdict(dependency) {
-                    Verdict::Satisfied => {}
-                    Verdict::Pending => missing.push(name),
-                    Verdict::Failed(cause) => {
-                        failure.get_or_insert((name, cause));
-                    }
-                }
-            }
+            let (missing, failure) = self.unmet(index);
             let session = &mut self.sessions[index];
             if let Some((dependency, cause)) = failure {
                 session.wait = Some(Wait::Blocked { dependency, cause });
@@ -114,10 +118,40 @@ impl Manager {
             } else if let Err(err) = session.start() {
                 eprintln!("{} : lancement impossible : {err}", session.name);
                 session.wait = Some(Wait::LaunchFailed(err.to_string()));
-                first_error.get_or_insert_with(|| anyhow!("{} : {err}", session.name));
+                if reported.contains(&index) {
+                    first_error.get_or_insert_with(|| anyhow!("{} : {err}", session.name));
+                }
             }
         }
         first_error.map_or(Ok(()), Err)
+    }
+
+    /// Ce qui retient une session : les dépendances encore attendues et la première en
+    /// échec. Une tâche déjà réussie ne dispense pas de ses propres dépendances.
+    fn unmet(&self, index: usize) -> (Vec<String>, Option<(String, Cause)>) {
+        let mut missing = Vec::new();
+        let mut failure = None;
+        // En largeur : les dépendances directes sont citées avant les indirectes.
+        let mut queue = VecDeque::from(self.dependencies(index));
+        let mut visited = HashSet::new();
+        while let Some(dependency) = queue.pop_front() {
+            if !visited.insert(dependency) {
+                continue;
+            }
+            let session = &self.sessions[dependency];
+            match self.verdict(dependency) {
+                Verdict::Satisfied => {
+                    if session.kind == Kind::Task {
+                        queue.extend(self.dependencies(dependency));
+                    }
+                }
+                Verdict::Pending => missing.push(session.name.clone()),
+                Verdict::Failed(cause) => {
+                    failure.get_or_insert_with(|| (session.name.clone(), cause));
+                }
+            }
+        }
+        (missing, failure)
     }
 
     /// Où en est une session vue par celles qui en dépendent.
@@ -140,6 +174,9 @@ impl Manager {
                 Readiness::TimedOut => Verdict::Failed(Cause::NotReady),
             },
             (Some(Status::Exited(0)), Kind::Task) if session.has_succeeded() => Verdict::Satisfied,
+            (Some(Status::Exited(0)), Kind::Task) if session.was_stopped() => {
+                Verdict::Failed(Cause::NotStarted)
+            }
             (Some(Status::Exited(0)), Kind::Task) => Verdict::Failed(Cause::Changed),
             (Some(Status::Exited(code)), _) => Verdict::Failed(Cause::Exited(code)),
         }
@@ -197,7 +234,7 @@ mod tests {
                 std::env::temp_dir().join(format!("lazyshell-test-{}-{name}", std::process::id()));
             let _ = std::fs::remove_dir_all(&dir);
             std::fs::create_dir_all(&dir).unwrap();
-            let manager = Manager::new(&config(sessions), &dir).unwrap();
+            let manager = Manager::new(&config(sessions), &dir);
             Fixture { dir, manager }
         }
 
@@ -595,5 +632,176 @@ mod tests {
             .manager
             .command(Command::Start(Target::Session("app".into())));
         assert!(error.unwrap_err().to_string().starts_with("app : "));
+    }
+
+    #[test]
+    fn dependencies_of_a_succeeded_task_are_started_again() {
+        let mut f = Fixture::new(
+            "transitive",
+            "
+  - {name: db, command: sleep 30, ready: {command: test -f up}}
+  - {name: migrate, type: task, command: echo run >> runs, depends_on: [db]}
+  - {name: app, command: sleep 30, depends_on: [migrate]}",
+        );
+        f.touch("up");
+        f.start("app");
+        f.wait_for("app", State::Running);
+        f.stop("app");
+        f.stop("db");
+        f.wait_exit("app");
+        f.wait_exit("db");
+        std::fs::remove_file(f.dir.join("up")).unwrap();
+        f.start("app");
+        assert_eq!(f.state("db"), State::Running);
+        assert_eq!(f.info("app").wait, Some(Wait::On(vec!["db".into()])));
+        f.touch("up");
+        f.wait_for("app", State::Running);
+        assert_eq!(f.lines("runs"), 1);
+    }
+
+    #[test]
+    fn stopping_dependency_is_restarted_when_required() {
+        let mut f = Fixture::new(
+            "stoppingdep",
+            r#"
+  - name: db
+    command: trap 'sleep 0.5; exit 0' TERM; echo up >> ups; while :; do sleep 0.05; done
+  - name: app
+    command: sleep 30
+    depends_on: [db]"#,
+        );
+        f.start("db");
+        let run = f.run_id("db");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while f.lines("ups") == 0 {
+            assert!(Instant::now() < deadline);
+            f.tick_for(Duration::from_millis(10));
+        }
+        f.stop("db");
+        assert_eq!(f.state("db"), State::Stopping);
+        f.start("app");
+        assert_eq!(f.state("app"), State::Waiting);
+        f.wait_for("app", State::Running);
+        assert_eq!(f.state("db"), State::Running);
+        assert_ne!(f.run_id("db"), run);
+    }
+
+    #[test]
+    fn stopped_task_exiting_zero_has_not_succeeded() {
+        let mut f = Fixture::new(
+            "stoppedtask",
+            r#"
+  - name: install
+    type: task
+    command: trap 'exit 0' TERM; echo run >> runs; while [ ! -f go ]; do sleep 0.05; done
+  - name: app
+    command: sleep 30
+    depends_on: [install]"#,
+        );
+        f.start("app");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while f.lines("runs") == 0 {
+            assert!(Instant::now() < deadline);
+            f.tick_for(Duration::from_millis(10));
+        }
+        f.stop("install");
+        f.wait_for("app", State::Blocked);
+        assert_eq!(f.state("install"), State::Exited(0));
+        assert_eq!(f.blocked_on("app"), ("install".into(), Cause::NotStarted));
+        // Redemandée, l'application rejoue la tâche interrompue.
+        f.start("app");
+        f.touch("go");
+        f.wait_for("app", State::Running);
+        assert_eq!(f.lines("runs"), 2);
+    }
+
+    #[test]
+    fn starting_a_service_again_retries_its_expired_probe() {
+        let mut f = Fixture::new(
+            "rearm",
+            "
+  - {name: db, command: sleep 30, ready: {command: test -f up, timeout: 1}}
+  - {name: app, command: sleep 30, depends_on: [db]}",
+        );
+        f.start("app");
+        let run = f.run_id("db");
+        f.wait_for("app", State::Blocked);
+        f.touch("up");
+        f.start("db");
+        f.wait_for("app", State::Running);
+        assert_eq!(f.run_id("db"), run);
+    }
+
+    /// Une session dont le processus ne peut pas être créé (octet nul dans une variable).
+    const BROKEN: &str = r#"
+  - name: install
+    type: task
+    command: while [ ! -f go ]; do sleep 0.05; done
+  - name: broken
+    command: sleep 30
+    env: {BROKEN: "a\0b"}
+    depends_on: [install]
+  - name: other
+    command: sleep 30"#;
+
+    #[test]
+    fn launch_errors_of_other_sessions_are_not_reported() {
+        for command in [Command::Start, Command::Restart] {
+            let mut f = Fixture::new("unrelated", BROKEN);
+            f.start("broken");
+            f.touch("go");
+            // Sans `tick` : la demande suivante est la première à tenter de lancer `broken`.
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while f.state("install") != State::Exited(0) {
+                assert!(Instant::now() < deadline);
+                thread::sleep(Duration::from_millis(10));
+            }
+            f.send(command(Target::Session("other".into())));
+            assert!(matches!(f.info("broken").wait, Some(Wait::LaunchFailed(_))));
+            assert_eq!(f.state("other"), State::Running);
+        }
+    }
+
+    #[test]
+    fn launch_error_of_a_dependency_is_reported() {
+        let mut f = Fixture::new(
+            "brokendep",
+            r#"
+  - name: db
+    command: sleep 30
+    env: {BROKEN: "a\0b"}
+  - name: app
+    command: sleep 30
+    depends_on: [db]"#,
+        );
+        let error = f
+            .manager
+            .command(Command::Start(Target::Session("app".into())));
+        assert!(error.unwrap_err().to_string().starts_with("db : "));
+        assert_eq!(f.state("app"), State::Blocked);
+    }
+
+    #[test]
+    fn launch_failure_neither_aborts_startup_nor_refuses_a_reload() {
+        let broken = |name: &str| {
+            format!(
+                "
+  - {{name: {name}, command: sleep 30, autostart: true, env: {{BROKEN: \"a\\0b\"}}}}"
+            )
+        };
+        let first = format!(
+            "
+  - {{name: ok, command: sleep 30, autostart: true}}{}",
+            broken("early")
+        );
+        let mut f = Fixture::new("startup", &first);
+        assert_eq!(f.state("ok"), State::Running);
+        assert_eq!(f.state("early"), State::Blocked);
+        let dir = f.dir.clone();
+        let second = format!("{first}{}", broken("late"));
+        let report = f.manager.reload(&config(&second), &dir).unwrap();
+        assert_eq!(report.added, ["late"]);
+        assert_eq!(f.state("late"), State::Blocked);
+        assert_eq!(f.state("ok"), State::Running);
     }
 }
