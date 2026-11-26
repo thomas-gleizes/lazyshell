@@ -3,10 +3,13 @@
 //! derrière une socket dans un processus daemon aux jalons suivants.
 
 mod manager;
+mod probe;
+mod schedule;
 mod server;
 mod session;
 mod usage;
 
 pub use manager::{Command, Manager, ReloadReport, SessionInfo, State, Target};
+pub use schedule::{Cause, Wait};
 pub use server::run as serve;
 pub use session::Subscription;

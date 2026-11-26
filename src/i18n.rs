@@ -5,6 +5,8 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
+use crate::daemon::{Cause, Wait};
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
 pub enum Lang {
     #[serde(rename = "fr")]
@@ -55,6 +57,48 @@ pub fn failed(code: i32) -> String {
 
 pub fn running(secs: u64) -> String {
     pick(format!("en cours ({secs}s)"), format!("running ({secs}s)"))
+}
+
+pub fn waiting() -> &'static str {
+    pick_static("en attente", "waiting")
+}
+
+pub fn blocked() -> &'static str {
+    pick_static("bloquée", "blocked")
+}
+
+/// Ce qui retient le démarrage d'une session, en une phrase.
+pub fn wait_reason(wait: &Wait) -> String {
+    match wait {
+        Wait::On(names) => {
+            let names = names.join(", ");
+            pick(format!("attend {names}"), format!("waiting for {names}"))
+        }
+        Wait::Blocked { dependency, cause } => {
+            let cause = match cause {
+                Cause::NotStarted => stopped().to_string(),
+                Cause::Exited(0) => finished().to_string(),
+                Cause::Exited(code) => failed(*code),
+                Cause::NotReady => {
+                    pick_static("pas prête (délai dépassé)", "not ready (timed out)").to_string()
+                }
+                Cause::Blocked => blocked().to_string(),
+                Cause::Changed => pick_static(
+                    "modifiée depuis sa dernière réussite",
+                    "changed since it last succeeded",
+                )
+                .to_string(),
+            };
+            pick(
+                format!("bloquée par {dependency} : {cause}"),
+                format!("blocked by {dependency}: {cause}"),
+            )
+        }
+        Wait::LaunchFailed(error) => pick(
+            format!("lancement impossible : {error}"),
+            format!("launch failed: {error}"),
+        ),
+    }
 }
 
 // --- CLI ---

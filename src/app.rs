@@ -309,7 +309,8 @@ impl App {
                 State::NotStarted | State::Exited(0) => '○',
                 State::Running => '●',
                 State::Stopping => '◌',
-                State::Exited(_) => '✖',
+                State::Waiting => '◔',
+                State::Exited(_) | State::Blocked => '✖',
             };
             title.insert_str(0, &format!("{icon} "));
         }
@@ -813,6 +814,14 @@ impl App {
 
     /// Commande de la session sélectionnée, qu'elle tourne ou non.
     fn draw_command(&self, frame: &mut Frame, area: Rect) {
+        // La raison d'une attente s'affiche dans le titre, même sous une ancienne sortie.
+        let mut title = vec![Span::raw(i18n::command_title())];
+        if let Some(wait) = &self.current().wait {
+            title.push(Span::styled(
+                format!("· {} ", i18n::wait_reason(wait)),
+                Style::new().fg(Color::Yellow),
+            ));
+        }
         // Une commande multiligne tient sur une seule ligne d'affichage.
         let command = self.current().command.trim().replace('\n', " ↵ ");
         let line = Line::from(vec![
@@ -820,11 +829,7 @@ impl App {
             Span::raw(command),
         ]);
         frame.render_widget(
-            Paragraph::new(line).block(
-                Block::new()
-                    .borders(Borders::ALL)
-                    .title(i18n::command_title()),
-            ),
+            Paragraph::new(line).block(Block::new().borders(Borders::ALL).title(Line::from(title))),
             area,
         );
     }
@@ -939,8 +944,14 @@ impl App {
             Tab::Output => {}
         }
         let Some(view) = &mut self.view else {
+            let hint = match &self.infos[self.selected].wait {
+                Some(wait) => i18n::wait_reason(wait),
+                None => i18n::session_stopped_hint().to_string(),
+            };
             frame.render_widget(
-                Paragraph::new(i18n::session_stopped_hint()).block(block),
+                Paragraph::new(hint)
+                    .wrap(ratatui::widgets::Wrap { trim: false })
+                    .block(block),
                 area,
             );
             return;
@@ -1114,6 +1125,8 @@ fn status_display(session: &SessionInfo) -> (&'static str, Color, String) {
         State::Stopping => ("◌", Color::Yellow, i18n::stopping().into()),
         State::Exited(0) => ("○", Color::DarkGray, i18n::finished().into()),
         State::Exited(code) => ("●", Color::Red, i18n::failed(code)),
+        State::Waiting => ("◔", Color::Yellow, i18n::waiting().into()),
+        State::Blocked => ("✖", Color::Red, i18n::blocked().into()),
     }
 }
 

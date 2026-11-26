@@ -4,6 +4,7 @@ use std::time::Duration;
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
+use super::schedule::Wait;
 use super::session::{Session, Status, Subscription, shutdown};
 use super::usage::Usage;
 use crate::config::Config;
@@ -28,6 +29,10 @@ pub enum State {
     Running,
     Stopping,
     Exited(i32),
+    /// Démarrage en attente des dépendances.
+    Waiting,
+    /// Démarrage impossible tant qu'une dépendance reste en échec.
+    Blocked,
 }
 
 /// Vue d'une session sans accès au processus : ce que la TUI a le droit de savoir.
@@ -47,6 +52,8 @@ pub struct SessionInfo {
     pub usage: Option<Usage>,
     /// Commande lancée par la session (celle de l'exécution en cours ou dernière).
     pub command: String,
+    /// Ce qui retient le démarrage ; présent pour les états `Waiting` et `Blocked`.
+    pub wait: Option<Wait>,
 }
 
 /// Bilan d'un rechargement de la config.
@@ -59,7 +66,7 @@ pub struct ReloadReport {
 }
 
 pub struct Manager {
-    sessions: Vec<Session>,
+    pub(super) sessions: Vec<Session>,
     declared_groups: Vec<String>,
     /// Indices dans `sessions`, regroupés dans l'ordre d'affichage.
     order: Vec<usize>,
@@ -89,7 +96,7 @@ fn arrange(declared: &[String], sessions: &[Session]) -> Vec<usize> {
 impl Manager {
     pub fn new(config: &Config, base: &Path) -> Result<Self> {
         let shell = config.shell();
-        let mut sessions: Vec<Session> = config
+        let sessions: Vec<Session> = config
             .sessions
             .iter()
             .map(|cfg| Session::new(cfg, base, &shell))
@@ -97,16 +104,20 @@ impl Manager {
         let declared_groups: Vec<String> = config.groups.iter().map(|g| g.name.clone()).collect();
         let order = arrange(&declared_groups, &sessions);
 
-        for (session, cfg) in sessions.iter_mut().zip(&config.sessions) {
-            if cfg.autostart {
-                session.start()?;
-            }
-        }
-        Ok(Manager {
+        let mut manager = Manager {
             sessions,
             declared_groups,
             order,
-        })
+        };
+        let autostart: Vec<usize> = config
+            .sessions
+            .iter()
+            .enumerate()
+            .filter(|(_, cfg)| cfg.autostart)
+            .map(|(index, _)| index)
+            .collect();
+        manager.request(&autostart)?;
+        Ok(manager)
     }
 
     /// Applique une config relue. Les sessions inchangées ne sont pas touchées ; une
@@ -139,25 +150,35 @@ impl Manager {
         };
         self.sessions.retain(|s| names.contains(&s.name.as_str()));
 
+        // Sessions à (re)planifier : nouvelles en `autostart`, ou en attente et recâblées.
+        let mut to_request = Vec::new();
         for cfg in &config.sessions {
             match self.sessions.iter_mut().find(|s| s.name == cfg.name) {
                 Some(session) => {
+                    let rewired = session.depends_on != cfg.depends_on;
+                    if rewired && session.wait.is_some() {
+                        to_request.push(cfg.name.clone());
+                    }
                     if session.update(cfg, base, &shell) {
                         report.changed.push(cfg.name.clone());
                     }
                 }
                 None => {
-                    let mut session = Session::new(cfg, base, &shell);
                     if cfg.autostart {
-                        session.start()?;
+                        to_request.push(cfg.name.clone());
                     }
-                    self.sessions.push(session);
+                    self.sessions.push(Session::new(cfg, base, &shell));
                     report.added.push(cfg.name.clone());
                 }
             }
         }
         self.declared_groups = config.groups.iter().map(|g| g.name.clone()).collect();
         self.order = arrange(&self.declared_groups, &self.sessions);
+        let to_request: Vec<usize> = to_request
+            .iter()
+            .filter_map(|name| self.index_of(name))
+            .collect();
+        self.request(&to_request)?;
         Ok(report)
     }
 
@@ -167,11 +188,13 @@ impl Manager {
             .iter()
             .map(|&index| {
                 let session = &self.sessions[index];
-                let state = match session.status() {
-                    None => State::NotStarted,
-                    Some(Status::Running) => State::Running,
-                    Some(Status::Stopping) => State::Stopping,
-                    Some(Status::Exited(code)) => State::Exited(code),
+                let state = match (&session.wait, session.status()) {
+                    (Some(Wait::On(_)), _) => State::Waiting,
+                    (Some(_), _) => State::Blocked,
+                    (None, None) => State::NotStarted,
+                    (None, Some(Status::Running)) => State::Running,
+                    (None, Some(Status::Stopping)) => State::Stopping,
+                    (None, Some(Status::Exited(code))) => State::Exited(code),
                 };
                 SessionInfo {
                     name: session.name.clone(),
@@ -186,53 +209,67 @@ impl Manager {
                     pid: session.pid(),
                     usage: session.usage(),
                     command: session.command(),
+                    wait: session.wait.clone(),
                 }
             })
             .collect()
     }
 
-    /// Au moins une session tourne (ou est en cours d'arrêt).
+    /// Au moins une session tourne, s'arrête ou attend ses dépendances.
     pub fn has_active(&self) -> bool {
-        self.sessions.iter().any(Session::is_active)
+        self.sessions
+            .iter()
+            .any(|s| s.is_active() || matches!(s.wait, Some(Wait::On(_))))
     }
 
-    /// Finalise les redémarrages en attente ; à appeler régulièrement.
+    /// Fait avancer sondes, redémarrages et attentes ; à appeler régulièrement.
     pub fn tick(&mut self) {
         for session in &mut self.sessions {
             session.tick();
         }
+        let restarts: Vec<usize> = (0..self.sessions.len())
+            .filter(|&i| self.sessions[i].take_restart())
+            .collect();
+        // Un échec de lancement reste visible dans l'état de la session (`Blocked`).
+        let _ = self.request(&restarts);
     }
 
     /// Applique la commande à toutes les sessions visées ; renvoie la première erreur.
     pub fn command(&mut self, command: Command) -> Result<()> {
-        let (target, action): (_, fn(&mut Session) -> Result<()>) = match command {
-            Command::Start(target) => (target, Session::start),
-            Command::Stop(target) => (target, |s| {
-                s.stop();
-                Ok(())
-            }),
-            Command::Restart(target) => (target, Session::restart),
+        let target = match &command {
+            Command::Start(target) | Command::Stop(target) | Command::Restart(target) => target,
         };
-
-        let mut first_error = None;
-        let mut matched = false;
-        for session in &mut self.sessions {
-            let hit = match &target {
-                Target::Session(name) => &session.name == name,
-                Target::Group(group) => &session.group == group,
-            };
-            if !hit {
-                continue;
-            }
-            matched = true;
-            if let Err(err) = action(session) {
-                first_error.get_or_insert_with(|| anyhow!("{} : {err}", session.name));
-            }
+        let hits: Vec<usize> = (0..self.sessions.len())
+            .filter(|&i| match target {
+                Target::Session(name) => &self.sessions[i].name == name,
+                Target::Group(group) => &self.sessions[i].group == group,
+            })
+            .collect();
+        if hits.is_empty() {
+            return Err(anyhow!("cible inconnue"));
         }
-        match (first_error, matched) {
-            (Some(err), _) => Err(err),
-            (None, false) => Err(anyhow!("cible inconnue")),
-            (None, true) => Ok(()),
+        match command {
+            Command::Start(_) => self.request(&hits),
+            Command::Stop(_) => {
+                for index in hits {
+                    self.sessions[index].cancel_and_stop();
+                }
+                // Les sessions qui attendaient celles-ci sont bloquées sans attendre `tick` ;
+                // l'échec de lancement d'une autre session n'est pas celui de cet arrêt.
+                let _ = self.request(&[]);
+                Ok(())
+            }
+            Command::Restart(_) => {
+                // Les actives s'arrêtent d'abord : les autres voient ainsi leurs dépendances
+                // en cours de redémarrage et les attendent.
+                let (active, idle): (Vec<usize>, Vec<usize>) = hits
+                    .into_iter()
+                    .partition(|&i| self.sessions[i].is_active());
+                for index in active {
+                    self.sessions[index].request_restart();
+                }
+                self.request(&idle)
+            }
         }
     }
 
@@ -257,6 +294,10 @@ impl Manager {
             .ok_or_else(|| anyhow!("session inconnue : {name}"))?;
         session.resize(rows.max(1), cols.max(1));
         Ok(())
+    }
+
+    pub(super) fn index_of(&self, name: &str) -> Option<usize> {
+        self.sessions.iter().position(|s| s.name == name)
     }
 
     fn find(&self, name: &str) -> Result<&Session> {

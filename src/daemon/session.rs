@@ -10,8 +10,10 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 
+use super::probe::{self, Probe, Readiness};
+use super::schedule::Wait;
 use super::usage::{Sampler, Usage};
-use crate::config::SessionConfig;
+use crate::config::{Kind, ReadyConfig, SessionConfig};
 
 /// Taille d'historique rejouée à un nouveau client ; le tampon peut monter à 2× avant d'être rogné.
 const RING_CAP: usize = 2 * 1024 * 1024;
@@ -69,10 +71,8 @@ pub struct Run {
     pub started_at: Instant,
     pid: u32,
     sampler: Mutex<Sampler>,
-    /// Variables avec lesquelles ce processus a été lancé.
-    env: BTreeMap<String, String>,
-    /// Commande avec laquelle ce processus a été lancé.
-    command: String,
+    /// Définition avec laquelle ce processus a été lancé.
+    spec: Spec,
     master: Mutex<Box<dyn MasterPty + Send>>,
 }
 
@@ -101,6 +101,7 @@ struct Spec {
     command: String,
     shell: String,
     env: BTreeMap<String, String>,
+    ready: Option<ReadyConfig>,
 }
 
 impl Spec {
@@ -117,6 +118,7 @@ impl Spec {
                 .iter()
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect(),
+            ready: config.ready.clone(),
         }
     }
 }
@@ -124,6 +126,12 @@ impl Spec {
 pub struct Session {
     pub name: String,
     pub group: String,
+    pub kind: Kind,
+    pub depends_on: Vec<String>,
+    /// Démarrage demandé mais retenu par les dépendances ; `None` sinon.
+    pub wait: Option<Wait>,
+    /// Sonde `ready` de l'exécution en cours.
+    probe: Option<Probe>,
     spec: Spec,
     /// La config a changé alors que la session tournait : elle utilise encore l'ancienne.
     pub outdated: bool,
@@ -138,6 +146,10 @@ impl Session {
         Session {
             name: config.name.clone(),
             group: group_of(config),
+            kind: config.kind,
+            depends_on: config.depends_on.clone(),
+            wait: None,
+            probe: None,
             spec: Spec::new(config, base, shell),
             outdated: false,
             run: None,
@@ -146,13 +158,17 @@ impl Session {
         }
     }
 
-    /// Applique une nouvelle définition. Renvoie `true` si le lancement a changé ; une
-    /// session en cours n'est pas touchée, elle est seulement marquée `outdated`.
+    /// Applique une nouvelle définition. Renvoie `true` si le lancement ou les dépendances
+    /// ont changé ; une session en cours n'est pas touchée, et n'est marquée `outdated`
+    /// que si son lancement diffère.
     pub fn update(&mut self, config: &SessionConfig, base: &std::path::Path, shell: &str) -> bool {
         self.group = group_of(config);
+        let rewired = self.kind != config.kind || self.depends_on != config.depends_on;
+        self.kind = config.kind;
+        self.depends_on = config.depends_on.clone();
         let spec = Spec::new(config, base, shell);
         if spec == self.spec {
-            return false;
+            return rewired;
         }
         self.spec = spec;
         self.outdated = self.is_active();
@@ -167,12 +183,39 @@ impl Session {
         matches!(self.status(), Some(Status::Running | Status::Stopping))
     }
 
+    /// La tâche a réussi avec la définition actuelle : inutile de la rejouer.
+    pub fn has_succeeded(&self) -> bool {
+        self.run.as_ref().is_some_and(|run| {
+            *run.status.lock().unwrap() == Status::Exited(0) && run.spec == self.spec
+        })
+    }
+
+    pub fn restart_pending(&self) -> bool {
+        self.restart_pending.load(Ordering::SeqCst)
+    }
+
+    /// Disponibilité de l'exécution en cours ; sans sonde, un processus lancé est prêt.
+    pub fn readiness(&self) -> Readiness {
+        self.probe
+            .as_ref()
+            .map_or(Readiness::Ready, Probe::readiness)
+    }
+
+    /// Redonne sa chance à une sonde expirée, sans relancer le service.
+    pub fn rearm_probe(&mut self) {
+        if let Some(probe) = &mut self.probe {
+            probe.rearm();
+        }
+    }
+
+    /// Lance le processus tout de suite, sans regarder les dépendances (voir `Manager`).
     pub fn start(&mut self) -> Result<()> {
         if self.is_active() {
             return Ok(());
         }
         self.restart_pending.store(false, Ordering::SeqCst);
         self.outdated = false;
+        self.probe = None;
 
         let (rows, cols) = self.size;
         let pair = native_pty_system().openpty(PtySize {
@@ -206,8 +249,7 @@ impl Session {
             started_at,
             pid,
             sampler: Mutex::new(Sampler::new(pid, started_at)),
-            env: self.spec.env.clone(),
-            command: self.spec.command.clone(),
+            spec: self.spec.clone(),
             master: Mutex::new(pair.master),
         });
 
@@ -232,11 +274,32 @@ impl Session {
         });
 
         self.run = Some(run);
+        self.wait = None;
+        self.probe = self.spec.ready.clone().map(|ready| {
+            Probe::new(
+                ready,
+                probe::Context {
+                    shell: self.spec.shell.clone(),
+                    cwd: self.spec.cwd.clone(),
+                    env: self.spec.env.clone(),
+                },
+            )
+        });
         Ok(())
     }
 
+    /// Arrêt demandé par l'utilisateur : annule aussi l'attente et le redémarrage prévus.
+    pub fn cancel_and_stop(&mut self) {
+        self.wait = None;
+        self.restart_pending.store(false, Ordering::SeqCst);
+        self.stop();
+    }
+
     /// SIGTERM sur tout le groupe de processus, puis SIGKILL après le délai.
-    pub fn stop(&mut self) {
+    fn stop(&mut self) {
+        if let Some(probe) = &mut self.probe {
+            probe.cancel();
+        }
         let Some(run) = &self.run else { return };
         {
             let mut status = run.status.lock().unwrap();
@@ -260,25 +323,30 @@ impl Session {
         });
     }
 
-    /// Arrête puis relance dès que le processus est terminé (voir `tick`).
-    pub fn restart(&mut self) -> Result<()> {
-        if self.is_active() {
-            self.restart_pending.store(true, Ordering::SeqCst);
-            self.stop();
-            Ok(())
-        } else {
-            self.start()
-        }
+    /// Arrête le processus en cours ; il sera relancé dès sa fin (voir `take_restart`).
+    pub fn request_restart(&mut self) {
+        self.restart_pending.store(true, Ordering::SeqCst);
+        self.stop();
     }
 
-    /// À appeler régulièrement : finalise un redémarrage en attente.
+    /// `true`, une seule fois, quand un redémarrage prévu peut avoir lieu.
+    pub fn take_restart(&mut self) -> bool {
+        !self.is_active() && self.restart_pending.swap(false, Ordering::SeqCst)
+    }
+
+    /// À appeler régulièrement : mesure la consommation et fait avancer la sonde.
     pub fn tick(&mut self) {
         // Mesure le CPU à intervalle régulier : le pourcentage est un écart entre deux relevés.
         if self.is_active() {
             let _ = self.usage();
         }
-        if self.restart_pending.load(Ordering::SeqCst) && !self.is_active() {
-            let _ = self.start();
+        let running = self.status() == Some(Status::Running);
+        if let Some(probe) = &mut self.probe {
+            if running {
+                probe.poll();
+            } else {
+                probe.cancel();
+            }
         }
     }
 
@@ -314,7 +382,10 @@ impl Session {
 
     /// Variables de l'exécution en cours (ou dernière), à défaut de la définition courante.
     pub fn env(&self) -> Vec<(String, String)> {
-        let env = self.run.as_ref().map_or(&self.spec.env, |run| &run.env);
+        let env = self
+            .run
+            .as_ref()
+            .map_or(&self.spec.env, |run| &run.spec.env);
         env.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 
@@ -322,7 +393,7 @@ impl Session {
     pub fn command(&self) -> String {
         self.run
             .as_ref()
-            .map_or(&self.spec.command, |run| &run.command)
+            .map_or(&self.spec.command, |run| &run.spec.command)
             .clone()
     }
 
@@ -348,8 +419,7 @@ fn signal_group(pid: u32, signal: i32) {
 /// Arrête toutes les sessions actives et attend leur fin (SIGKILL après le délai).
 pub fn shutdown(sessions: &mut [Session]) {
     for session in sessions.iter_mut() {
-        session.restart_pending.store(false, Ordering::SeqCst);
-        session.stop();
+        session.cancel_and_stop();
     }
     let deadline = Instant::now() + STOP_TIMEOUT + Duration::from_secs(1);
     while Instant::now() < deadline && sessions.iter().any(Session::is_active) {

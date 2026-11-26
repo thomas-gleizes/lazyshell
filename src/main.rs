@@ -194,7 +194,8 @@ fn state_icon(info: &SessionInfo) -> &'static str {
         State::NotStarted | State::Exited(0) => "○",
         State::Running => "●",
         State::Stopping => "◌",
-        State::Exited(_) => "✖",
+        State::Waiting => "◔",
+        State::Exited(_) | State::Blocked => "✖",
     }
 }
 
@@ -215,7 +216,7 @@ fn up(path: Option<PathBuf>) -> Result<()> {
     );
     // Les sessions `autostart` sont déjà lancées quand le daemon répond.
     for info in Client::connect(&socket)?.list()? {
-        step(state_icon(&info), &info.name, &state_label(&info));
+        step(state_icon(&info), &info.name, &state_detail(&info));
     }
     Ok(())
 }
@@ -225,10 +226,8 @@ fn down(path: Option<PathBuf>) -> Result<()> {
     let file = config::Config::resolve_file(&path.unwrap_or_else(|| ".".into()))?;
     let mut client = Client::connect(&paths::socket_for(&file)?)?;
     println!("{}", i18n::down_header(&display_path(&file)));
-    let mut pending: Vec<String> = client
-        .list()?
+    let mut pending: Vec<String> = stop_order(client.list()?)
         .into_iter()
-        .filter(is_active)
         .map(|info| info.name)
         .collect();
     for name in &pending {
@@ -357,7 +356,7 @@ fn connect(path: Option<PathBuf>) -> Result<Client> {
 fn print_status(client: &mut Client) -> Result<()> {
     println!("{}", i18n::status_header());
     for info in client.list()? {
-        let (cpu, memory, ports) = match &info.usage {
+        let (cpu, memory, mut ports) = match &info.usage {
             Some(usage) => (
                 format!("{:.1}%", usage.cpu_percent),
                 format_bytes(usage.memory_bytes),
@@ -366,6 +365,10 @@ fn print_status(client: &mut Client) -> Result<()> {
             None => ("-".to_string(), "-".to_string(), "-".to_string()),
         };
         let pid = info.pid.map_or("-".to_string(), |pid| pid.to_string());
+        // La raison d'une attente ferme la ligne, pour ne pas décaler les colonnes.
+        if let Some(wait) = &info.wait {
+            ports = format!("{ports}  ({})", i18n::wait_reason(wait));
+        }
         println!(
             "{:<14} {:<20} {:<16} {pid:>7} {cpu:>6} {memory:>9}  {ports}",
             info.group,
@@ -411,11 +414,28 @@ fn state_label(info: &SessionInfo) -> String {
         State::Stopping => i18n::stopping().to_string(),
         State::Exited(0) => i18n::finished().to_string(),
         State::Exited(code) => i18n::failed(code),
+        State::Waiting => i18n::waiting().to_string(),
+        State::Blocked => i18n::blocked().to_string(),
     }
 }
 
+/// L'état, ou la raison complète quand le démarrage est retenu.
+fn state_detail(info: &SessionInfo) -> String {
+    info.wait
+        .as_ref()
+        .map_or_else(|| state_label(info), i18n::wait_reason)
+}
+
+/// Processus en cours, ou démarrage encore demandé (en attente ou bloqué).
 fn is_active(info: &SessionInfo) -> bool {
-    matches!(info.state, State::Running | State::Stopping)
+    matches!(info.state, State::Running | State::Stopping) || info.wait.is_some()
+}
+
+/// Sessions à arrêter : les démarrages retenus d'abord, pour qu'aucun ne parte entre-temps.
+fn stop_order(infos: Vec<SessionInfo>) -> Vec<SessionInfo> {
+    let mut active: Vec<_> = infos.into_iter().filter(is_active).collect();
+    active.sort_by_key(|info| info.wait.is_none());
+    active
 }
 
 /// Daemons joignables : (fichier de config, client). Les sockets orphelines sont ignorées.
@@ -463,7 +483,7 @@ fn print_ps(all: bool) -> Result<()> {
             "{config:<width$}  {:<14} {:<20} {}",
             info.group,
             info.name,
-            state_label(&info)
+            state_detail(&info)
         );
     }
     Ok(())
@@ -481,7 +501,7 @@ fn kill(path: Option<PathBuf>, all: bool) -> Result<()> {
 
     let mut killed = 0;
     for (config, client) in &mut daemons {
-        let active: Vec<_> = client.list()?.into_iter().filter(is_active).collect();
+        let active = stop_order(client.list()?);
         for info in &active {
             client.command(Command::Stop(Target::Session(info.name.clone())))?;
         }
