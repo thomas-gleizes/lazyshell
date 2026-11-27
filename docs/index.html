@@ -25,6 +25,8 @@ named sessions, described in a <code>lazyshell.yml</code> file, and lets you wat
 the session list on the left, the live output of the selected one on the right.</p>
 <p>A background daemon owns the sessions. Closing the TUI does not stop them: reopen it later, or
 drive them from scripts and AI agents with plain CLI subcommands.</p>
+<p><img src="assets/hero.gif" width="1200" height="680"
+alt="Demo: lazyshell starts the sessions in dependency order, a failed task blocks the one that depends on it, a group is restarted, and sessions keep running after the TUI is closed."></p>
 <div class="note"><strong>v2 is a full rewrite in Rust.</strong> The goal changed from a <code>tmux</code>-like terminal
 multiplexer (Go, versions <code>v1.x</code>) to a project process manager. The Go code and its history live on the
 <code>legacy/go</code> branch and the <code>v1.*</code> tags.</div>

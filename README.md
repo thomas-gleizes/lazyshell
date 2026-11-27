@@ -4,6 +4,8 @@
 named sessions, described in a `lazyshell.yml` file, and lets you watch them in a two-pane TUI:
 the session list on the left, the live output of the selected one on the right.
 
+![Demo: lazyshell starts the sessions in dependency order, a failed task blocks the one that depends on it, a group is restarted, and sessions keep running after the TUI is closed.](docs/assets/hero.gif)
+
 A background daemon owns the sessions. Closing the TUI does not stop them: reopen it later, or
 drive them from scripts and AI agents with plain CLI subcommands.
 
@@ -143,6 +145,14 @@ An unknown key or value is an error, so typos are not silently ignored.
 
 Press `?` in the TUI for the same list.
 
+Search the output, go fullscreen, show the key reference:
+
+![Demo: searching the output for ERROR, jumping between matches, switching to fullscreen and opening the key reference.](docs/assets/logs.gif)
+
+Inspect the environment and resource usage of a session, switch between projects:
+
+![Demo: browsing the Env and Usage tabs of a session, then switching to another project and back.](docs/assets/panels.gif)
+
 | Key | Action |
 |---|---|
 | `j` / `k`, `↑` / `↓` | Next / previous session |
@@ -150,7 +160,7 @@ Press `?` in the TUI for the same list.
 | `S` / `X` / `R` | Start / stop / restart the whole group |
 | `PgUp` / `PgDn`, mouse wheel | Scroll the output |
 | `g` / `G` | Top of history / back to live |
-| `Tab`, click | Switch between the Output and Env tabs |
+| `Tab`, click | Switch between the Output, Env and Usage tabs |
 | `w` | Soft-wrap on/off |
 | `←` / `→` | Scroll horizontally (wrap off) |
 | `f` | Fullscreen output (`Esc` to leave) |

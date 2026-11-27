@@ -1,0 +1,42 @@
+# Fictional project used to record the GIFs of the README and the docs (see demo/record.sh).
+shell: /bin/sh
+env_file: .env.demo
+sessions:
+  - name: install
+    group: setup
+    type: task
+    command: sh scripts/install.sh
+  - name: db
+    group: backend
+    command: sh scripts/db.sh
+    ready:
+      command: sleep 3
+  - name: api
+    group: backend
+    command: python3 -u scripts/api.py
+    depends_on: [install, db]
+    autostart: true
+    env:
+      PORT: "4000"
+      LOG_LEVEL: debug
+  - name: worker
+    group: backend
+    command: sh scripts/worker.sh
+    depends_on: [db]
+    autostart: true
+  - name: web
+    group: frontend
+    command: sh scripts/web.sh
+    depends_on: [api]
+    autostart: true
+    env:
+      PORT: "5173"
+  - name: tests
+    group: checks
+    type: task
+    command: sh scripts/tests.sh
+  - name: e2e
+    group: checks
+    type: task
+    command: echo "running end-to-end suite"
+    depends_on: [tests]

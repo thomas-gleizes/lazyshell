@@ -1,0 +1,11 @@
+# Second fictional project, so the projects panel has something to switch to.
+shell: /bin/sh
+sessions:
+  - name: hugo
+    group: site
+    command: sh scripts/hugo.sh
+    autostart: true
+  - name: tailwind
+    group: site
+    command: sh scripts/tailwind.sh
+    autostart: true

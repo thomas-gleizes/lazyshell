@@ -21,7 +21,19 @@
 <main>
 <h1>TUI</h1>
 <p>The left pane lists the sessions (and a projects panel to switch between daemons); the right pane shows
-the output of the selected session, with an <em>Output</em> and an <em>Env</em> tab. Press <code>?</code> for the same list as below.</p>
+the output of the selected session, with an <em>Output</em>, an <em>Env</em> and a <em>Usage</em> tab. Press <code>?</code> for the same list as below.</p>
+<p><img src="assets/hero.gif" width="1200" height="680" loading="lazy"
+alt="Demo: lazyshell starts the sessions in dependency order, a failed task blocks the one that depends on it, a group is restarted, and sessions keep running after the TUI is closed."></p>
+<h2>Reading the output</h2>
+<p>Search with <code>/</code>, walk through the matches with <code>n</code> / <code>N</code>, go fullscreen with <code>f</code>.</p>
+<p><img src="assets/logs.gif" width="1200" height="680" loading="lazy"
+alt="Demo: searching the output for ERROR, jumping between matches, switching to fullscreen and opening the key reference."></p>
+<h2>Tabs and projects</h2>
+<p><code>Tab</code> shows the environment and the resource usage of a session. <code>1</code> moves to the projects panel,
+<code>Enter</code> switches to the highlighted project.</p>
+<p><img src="assets/panels.gif" width="1200" height="680" loading="lazy"
+alt="Demo: browsing the Env and Usage tabs of a session, then switching to another project and back."></p>
+<h2>Keys</h2>
 <table>
 <tr><th>Key</th><th>Action</th></tr>
 <tr><td><code>j</code> / <code>k</code>, <code>↑</code> / <code>↓</code></td><td>Next / previous session</td></tr>
@@ -29,7 +41,7 @@ the output of the selected session, with an <em>Output</em> and an <em>Env</em> 
 <tr><td><code>S</code> / <code>X</code> / <code>R</code></td><td>Start / stop / restart the whole group</td></tr>
 <tr><td><code>PgUp</code> / <code>PgDn</code>, mouse wheel</td><td>Scroll the output</td></tr>
 <tr><td><code>g</code> / <code>G</code></td><td>Top of history / back to live</td></tr>
-<tr><td><code>Tab</code>, click</td><td>Switch between the Output and Env tabs</td></tr>
+<tr><td><code>Tab</code>, click</td><td>Switch between the Output, Env and Usage tabs</td></tr>
 <tr><td><code>w</code></td><td>Soft-wrap on/off</td></tr>
 <tr><td><code>←</code> / <code>→</code></td><td>Scroll horizontally (wrap off)</td></tr>
 <tr><td><code>f</code></td><td>Fullscreen output (<code>Esc</code> to leave)</td></tr>
